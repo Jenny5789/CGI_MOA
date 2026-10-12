@@ -281,7 +281,7 @@ body { display: flex; flex-direction: column; overflow: hidden; }
   flex-wrap: wrap;
   justify-content: center;
   gap: 10px 22px;
-  margin: 34px 0 0;
+  margin: 0 0 34px;  /* 단계 목록은 위, 시작하기 버튼은 아래 */
   padding: 0;
   list-style: none;
   font-size: 16px;
@@ -756,3 +756,75 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 @media (max-width: 1100px) {
   .sg-toggle, .sg-rail-label { display: none !important; }
 }
+
+/* ---------- 팝업: 3, 4단계 다듬기 (브러시, 지우개) / 합성 설정 ---------- */
+.sg-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(244, 243, 239, 0.82);
+  backdrop-filter: blur(3px);
+  animation: sg-fade .25s ease;
+}
+.sg-modal-box {
+  display: flex;
+  flex-direction: column;
+  background: var(--white);
+  border: 1px solid var(--border);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.14);
+  padding: 22px 26px 24px;
+}
+.sg-modal-wide { width: min(1040px, 94vw); height: min(820px, 90vh); }
+.sg-modal-narrow { width: min(560px, 94vw); }
+.sg-modal-head { flex: none; display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.sg-modal-head h3 { margin: 0; font-size: 24px; font-weight: 800; }
+.sg-modal-close {
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: none;
+  font-size: 26px;
+  line-height: 1;
+  color: var(--muted);
+}
+.sg-modal-close:hover { color: var(--ink); }
+.sg-modal-box .sg-canvas-box { flex: 1; min-height: 0; }
+.sg-modal-box .sg-canvas { cursor: none; }
+
+/* 브러시 크기를 보여 주는 동그라미 */
+.sg-brush-ring {
+  position: absolute;
+  pointer-events: none;
+  border: 1.5px solid rgba(22, 23, 27, 0.85);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* 합성 설정 체크 칸 */
+.sg-check {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 16px 4px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+.sg-check:last-of-type { border-bottom: none; }
+.sg-check input { width: 20px; height: 20px; margin: 3px 0 0; accent-color: #16171b; flex: none; }
+.sg-check b { display: block; font-size: 17px; }
+.sg-check b small { margin-left: 6px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.sg-check span span { display: block; margin-top: 4px; font-size: 14.5px; line-height: 1.6; color: #4a4c52; }
+
+/* 안내 문단: 마지막 줄에 한 단어만 넘어가지 않게 줄바꿈 위치를 고르게 맞춘다 */
+.sg-zone-help p,
+.sg-help p,
+.sg-hero-desc,
+.sg-check span span { text-wrap: pretty; }
+
+/* 사용 방법 안내도 1, 2단계 안내처럼 가운데 정렬 */
+.sg-help { text-align: center; }
