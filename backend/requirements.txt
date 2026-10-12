@@ -1,8 +1,0 @@
-fastapi
-uvicorn[standard]
-python-multipart
-sqlalchemy
-pymysql
-opencv-python
-numpy
-python-dotenv
