@@ -1,6 +1,6 @@
 /* 로그인 상태와 로그인 팝업.
    지금은 시연용으로 아이디 test / 비밀번호 test 로만 로그인되고, 로그인 상태는 이 브라우저에만 저장한다.
-   서버 연동 때 login() 안을 백엔드 /auth/login 호출로 바꾼다. */
+   서버 연동 때 login() 안을 서버 로그인 요청으로 바꾼다. */
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import useToast from '../components/useToast.js';

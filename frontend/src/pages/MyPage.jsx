@@ -4,7 +4,7 @@ import usePageStyle from '../components/usePageStyle.js';
 import useToast from '../components/useToast.js';
 import TopNav from '../components/TopNav.jsx';
 
-// 사진첩 예시 데이터 (화면 확인용). 서버 연동 때 백엔드 /history 결과로 바꾼다.
+// 사진첩 예시 데이터 (화면 확인용). 서버 연동 때 서버에 저장된 결과 목록으로 바꾼다.
 // 합성할 때마다 '최근 작업'에 자동으로 쌓이고(saved: false), 마음에 들면 저장해서 '전체'로 옮긴다.
 const SAMPLE_ITEMS = [
   { id: 1, img: 'SpringWarm_Female', d: '2026.10.09 11:20', saved: false, fav: false },

@@ -22,7 +22,7 @@ const SAMPLES = {
   2: ['/assets/samples/sample-object-person.jpg', '/assets/gallery/girl_Santorini.jpg', '/assets/gallery/Paris_Female.jpg'],
 };
 
-// 내 작업 기록 예시 (서버 연동 때 백엔드 /history 결과로 바꾼다)
+// 내 작업 기록 예시 (서버 연동 때 서버에 저장된 결과 목록으로 바꾼다)
 const SAMPLE_HISTORY = [
   { src: '/assets/gallery/MtFuji_Female.jpg', d: '2026.10.08 20:45' },
   { src: '/assets/gallery/NewYork_Male.jpg', d: '2026.10.07 15:12' },
