@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<title>MOA — 합성하기</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
+<link rel="stylesheet" href="topnav.css">
+<link rel="stylesheet" href="studio-guide.css">
+<link rel="stylesheet" href="auth-modal.css">
+</head>
+<body>
+
+  <header class="topnav">
+    <div class="topnav-row1">
+      <div class="topnav-left">
+        <a class="brand" href="index-light.html">
+          <span class="brand-name">MOA</span>
+        </a>
+        <nav class="nav">
+          <a class="nav-item" href="index-light.html">홈</a>
+          <a class="nav-item active" href="studio2.html">합성하기</a>
+          <a class="nav-item" href="mypage.html">마이페이지</a>
+        </nav>
+      </div>
+      <div class="topnav-auth">
+        <a class="auth-btn" href="#" data-auth="signup">회원가입</a>
+        <a class="auth-btn auth-btn-primary" href="#" data-auth="login">로그인</a>
+      </div>
+    </div>
+  </header>
+
+  <div class="sg-shell" id="sg-shell" data-state="intro">
+
+    <!-- 왼쪽: 고른 결과가 작아져서 쌓이는 곳 -->
+    <aside class="sg-left">
+      <div class="sg-side-head">
+        <h2 class="sg-side-title">진행 상황</h2>
+        <button type="button" class="sg-toggle" data-toggle="left" data-label="진행 상황" aria-expanded="true" aria-label="진행 상황 접기" title="진행 상황 접기"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <span class="sg-rail-label">진행 상황</span>
+      </div>
+
+      <button type="button" class="sg-slot" data-slot="1">
+        <span class="sg-slot-body">
+          <span class="sg-slot-name">객체 이미지</span>
+          <span class="sg-slot-thumb" id="slot-1"><em>선택 전</em></span>
+        </span>
+      </button>
+
+      <button type="button" class="sg-slot" data-slot="2">
+        <span class="sg-slot-body">
+          <span class="sg-slot-name">배경 이미지</span>
+          <span class="sg-slot-thumb" id="slot-2"><em>선택 전</em></span>
+        </span>
+      </button>
+
+      <button type="button" class="sg-slot" data-slot="3">
+        <span class="sg-slot-body">
+          <span class="sg-slot-name">추출된 객체</span>
+          <span class="sg-slot-thumb sg-checker" id="slot-3"><em>추출 전</em></span>
+        </span>
+      </button>
+    </aside>
+
+    <!-- 가운데: 단계별 안내 -->
+    <main class="sg-main">
+      <div class="sg-bar" id="sg-bar">
+        <button type="button" class="sg-nav-btn" id="btn-prev">← 이전</button>
+        <ol class="sg-stepper" id="sg-stepper">
+          <li data-step="1"><span>1</span>객체 이미지</li>
+          <li data-step="2"><span>2</span>배경 이미지</li>
+          <li data-step="3"><span>3</span>객체 추출</li>
+          <li data-step="4"><span>4</span>합성 영역</li>
+        </ol>
+        <button type="button" class="sg-nav-btn" id="btn-next">다음 →</button>
+      </div>
+
+      <div class="sg-stage">
+
+        <!-- 시작 -->
+        <section class="sg-view" data-view="intro">
+          <p class="sg-eyebrow">MOA</p>
+          <h1 class="sg-hero-title">내 사진에<br>마음에 드는 상의를 입혀보세요</h1>
+          <p class="sg-hero-desc">사진 두 장과 몇 번의 클릭으로 상의를 합성합니다.<br>단계별 안내에 따라 진행하세요.</p>
+          <button type="button" class="sg-big-btn" id="btn-start">합성하기</button>
+          <ul class="sg-intro-steps">
+            <li><b>1</b> 상의 사진 선택</li>
+            <li><b>2</b> 인물 사진 선택</li>
+            <li><b>3</b> 상의 추출</li>
+            <li><b>4</b> 합성 영역 지정</li>
+          </ul>
+        </section>
+
+        <!-- 1단계 -->
+        <section class="sg-view" data-view="1" hidden>
+          <div class="sg-head">
+            <h2 class="sg-title">1단계 · 객체 이미지 선택</h2>
+            <div class="sg-head-tools">
+              <span class="sg-sample-label">예시</span>
+              <div class="sg-samples" id="samples-1"></div>
+              <label class="sg-upload-btn">
+                <input type="file" accept="image/*" hidden data-upload="1">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M4 20h16"/></svg>
+                업로드
+              </label>
+            </div>
+          </div>
+          <div class="sg-zone" id="zone-1" data-zone="1">
+            <div class="sg-zone-empty">
+              <b>사진을 끌어다 놓으세요</b>
+              <span>또는 우측 상단의 업로드 버튼으로 선택하세요</span>
+              <div class="sg-zone-help">
+                <strong>객체 이미지란?</strong>
+                <p>입혀볼 <em>상의</em>가 담긴 사진입니다. 상의가 또렷하게 보이는 사진일수록 결과가 자연스럽습니다. 이 사진에서 상의만 추출하여 다음 단계에서 사용합니다.</p>
+              </div>
+            </div>
+            <div class="sg-zone-stage" id="pv-1"></div>
+            <button type="button" class="sg-confirm sg-zone-confirm" id="confirm-1" hidden>이 사진으로 선택</button>
+          </div>
+        </section>
+
+        <!-- 2단계 -->
+        <section class="sg-view" data-view="2" hidden>
+          <div class="sg-head">
+            <h2 class="sg-title">2단계 · 배경 이미지 선택</h2>
+            <div class="sg-head-tools">
+              <span class="sg-sample-label">예시</span>
+              <div class="sg-samples" id="samples-2"></div>
+              <label class="sg-upload-btn">
+                <input type="file" accept="image/*" hidden data-upload="2">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M4 20h16"/></svg>
+                업로드
+              </label>
+            </div>
+          </div>
+          <div class="sg-zone" id="zone-2" data-zone="2">
+            <div class="sg-zone-empty">
+              <b>사진을 끌어다 놓으세요</b>
+              <span>또는 우측 상단의 업로드 버튼으로 선택하세요</span>
+              <div class="sg-zone-help">
+                <strong>배경 이미지란?</strong>
+                <p>상의를 <em>입어볼 인물</em>이 나온 사진입니다. 상반신이 잘 보이는 사진을 선택하세요. 상의만 바뀌고 나머지는 그대로 유지됩니다.</p>
+              </div>
+            </div>
+            <div class="sg-zone-stage" id="pv-2"></div>
+            <button type="button" class="sg-confirm sg-zone-confirm" id="confirm-2" hidden>이 사진으로 선택</button>
+          </div>
+        </section>
+
+        <!-- 3단계 -->
+        <section class="sg-view" data-view="3" hidden>
+          <h2 class="sg-title">3단계 · 객체 추출 (점 찍기)</h2>
+          <div class="sg-help">
+            <b>사용 방법</b>
+            <p>AI(SAM)가 상의 영역을 찾을 수 있도록 <em>상의 위를 클릭하여 점을 찍으세요.</em> 왼쪽 클릭은 &ldquo;포함&rdquo;, 오른쪽 클릭은 &ldquo;제외&rdquo;입니다. 점을 다시 클릭하면 삭제됩니다.</p>
+          </div>
+          <div class="sg-canvas-box">
+            <canvas id="c3" class="sg-canvas"></canvas>
+            <p class="sg-canvas-empty" id="c3-empty">1단계에서 객체 이미지를 먼저 선택하세요.</p>
+          </div>
+          <div class="sg-actions">
+            <span class="sg-chip" id="c3-count">찍은 점 0개</span>
+            <button type="button" class="sg-ghost" id="c3-undo" disabled>되돌리기</button>
+            <button type="button" class="sg-ghost" id="c3-reset">점 모두 지우기</button>
+            <button type="button" class="sg-confirm" id="confirm-3" disabled>확인</button>
+          </div>
+        </section>
+
+        <!-- 4단계 -->
+        <section class="sg-view" data-view="4" hidden>
+          <h2 class="sg-title">4단계 · 합성할 영역 지정</h2>
+          <div class="sg-help">
+            <b>사용 방법</b>
+            <p>상의가 합성될 영역을 지정합니다. <em>점</em>으로 몸통을 클릭하면 영역이 잡히고, <em>브러시</em>로 부족한 부분을 덧칠하거나 <em>지우개</em>로 삭제할 수 있습니다. 확인을 누르면 바로 합성이 시작됩니다.</p>
+          </div>
+          <div class="sg-tools" id="sg-tools">
+            <button type="button" class="sg-tool active" data-tool="point">점 찍기</button>
+            <button type="button" class="sg-tool" data-tool="brush">브러시</button>
+            <button type="button" class="sg-tool" data-tool="eraser">지우개</button>
+            <label class="sg-size">크기 <input type="range" id="brush-size" min="10" max="90" value="40"></label>
+          </div>
+          <div class="sg-canvas-box">
+            <canvas id="c4" class="sg-canvas"></canvas>
+            <p class="sg-canvas-empty" id="c4-empty">2단계에서 배경 이미지를 먼저 선택하세요.</p>
+          </div>
+          <div class="sg-actions">
+            <button type="button" class="sg-ghost" id="c4-undo" disabled>되돌리기</button>
+            <button type="button" class="sg-ghost" id="c4-reset">영역 모두 지우기</button>
+            <button type="button" class="sg-confirm" id="confirm-4" disabled>확인 · 합성 시작</button>
+          </div>
+        </section>
+
+        <!-- 결과 -->
+        <section class="sg-view" data-view="result" hidden>
+          <h2 class="sg-title" id="result-title">합성 결과</h2>
+          <div class="sg-canvas-box sg-result-box">
+            <canvas id="c-result" class="sg-canvas"></canvas>
+          </div>
+          <div class="sg-actions sg-actions-center">
+            <button type="button" class="sg-confirm" id="btn-save">저장하기</button>
+            <button type="button" class="sg-ghost" id="btn-redo">다시하기</button>
+          </div>
+        </section>
+
+      </div>
+    </main>
+
+    <!-- 오른쪽: 저장해 둔 결과 (DB에 저장되어 언제든 다시 보기) -->
+    <aside class="sg-right">
+      <div class="sg-side-head">
+        <h2 class="sg-side-title">내 작업 기록</h2>
+        <button type="button" class="sg-toggle" data-toggle="right" data-label="내 작업 기록" aria-expanded="true" aria-label="내 작업 기록 접기" title="내 작업 기록 접기"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <span class="sg-rail-label">내 작업 기록</span>
+      </div>
+      <div class="sg-history" id="sg-history"></div>
+    </aside>
+  </div>
+
+  <!-- 합성 중: 끝날 때까지 모든 클릭을 막는다 -->
+  <div class="sg-busy" id="sg-busy">
+    <div class="sg-busy-box">
+      <div class="sg-spinner"></div>
+      <p>합성중...</p>
+      <span>잠시만 기다려 주세요</span>
+    </div>
+  </div>
+
+  <div class="sg-toast" id="sg-toast"></div>
+
+  <script src="studio-guide.js"></script>
+  <script src="studio-panels.js"></script>
+  <script src="auth-modal.js"></script>
+</body>
+</html>

@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<title>MOA</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
+<link rel="stylesheet" href="topnav.css">
+<link rel="stylesheet" href="landing-light.css">
+<link rel="stylesheet" href="auth-modal.css">
+</head>
+<body>
+
+  <div class="ln-bg-blur">
+    <div class="ln-bg-blur-layer active" id="bg-blur-a"></div>
+    <div class="ln-bg-blur-layer" id="bg-blur-b"></div>
+  </div>
+
+  <header class="topnav">
+    <div class="topnav-row1">
+      <div class="topnav-left">
+        <a class="brand" href="index-light.html">
+          <span class="brand-name">MOA</span>
+          <!-- <span class="brand-full">Merge Object Atmosphere</span> -->
+        </a>
+        <nav class="nav">
+          <a class="nav-item active" href="index-light.html">홈</a>
+          <a class="nav-item" href="studio2.html">합성하기</a>
+          <a class="nav-item" href="mypage.html">마이페이지</a>
+        </nav>
+      </div>
+      <div class="topnav-auth">
+        <a class="auth-btn" href="#" data-auth="signup">회원가입</a>
+        <a class="auth-btn auth-btn-primary" href="#" data-auth="login">로그인</a>
+      </div>
+    </div>
+  </header>
+
+  <section class="ln-hero">
+    <div class="ln-hero-left">
+      <!-- <img class="ln-logo" src="assets/logo-moa.png" alt="MOA — Merge Objects & Atmosphere"> -->
+      <p class="ln-logo-text">Merge Object Atmosphere</p>
+      <h1>내가 원하는 것<br>그게 무엇이든<br>미리 만나보세요</h1>
+      <p class="ln-sub">사진 한 장으로,<br>더 가까워지는 새로운 가능성.</p>
+      <a class="ln-btn" href="studio2.html">지금, 합성해보기 →</a>
+    </div>
+
+    <div class="ln-hero-right">
+      <div class="ln-compose">
+        <div class="ln-card ln-card-object ln-polaroid">
+          <img id="hero-object-img" src="assets/gallery/top_orange_knit.jpg" alt="합성할 상의">
+          <span class="ln-card-label">객체 이미지</span>
+        </div>
+        <div class="ln-card ln-card-bg ln-polaroid">
+          <img id="hero-bg-img" src="assets/gallery/SummerCool_Female.jpg" alt="입어볼 인물">
+          <span class="ln-card-label">배경 이미지</span>
+        </div>
+        <div class="ln-card ln-card-result ln-polaroid ln-polaroid-plain">
+          <span class="ln-tag">Make It Real</span>
+          <img id="hero-result-img" src="assets/gallery/SpringWarm_Female.jpg" alt="합성 결과 예시">
+          <button class="ln-generate">✦ Generate</button>
+        </div>
+      </div>
+
+      <div class="ln-thumbs" id="hero-thumbs">
+        <div class="ln-thumb-polaroid active" data-object="assets/gallery/top_orange_knit.jpg" data-bg="assets/gallery/SummerCool_Female.jpg" data-src="assets/gallery/SpringWarm_Female.jpg"><img src="assets/gallery/SpringWarm_Female.jpg" alt=""></div>
+        <div class="ln-thumb-polaroid" data-object="assets/gallery/top_lavender_cardigan.jpg" data-bg="assets/gallery/SpringWarm_Female.jpg" data-src="assets/gallery/SummerCool_Female.jpg"><img src="assets/gallery/SummerCool_Female.jpg" alt=""></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 기능 소개 -->
+  <section class="ln-features" id="features">
+    <p class="ln-section-eyebrow">USE CASES</p>
+    <h2>MOA로 할 수 있는 것</h2>
+
+    <div class="ln-feature-grid">
+      <article class="ln-feature-card">
+        <div class="ln-feature-visual"><img src="assets/gallery/AutumnWarm_Male.jpg" alt=""></div>
+        <h3>상의 착용 합성</h3>
+        <p>직접 입어보지 않아도, 마음에 드는 상의를 내 사진 위에 합성해 착용한 모습을 미리 확인합니다.</p>
+      </article>
+
+      <article class="ln-feature-card">
+        <div class="ln-feature-visual"><img src="assets/gallery/SpringWarm_Female.jpg" alt=""></div>
+        <h3>색상 변경</h3>
+        <p>같은 상의를 다른 색으로 바꿔 보고, 나에게 가장 잘 어울리는 색을 골라봅니다.</p>
+      </article>
+
+      <article class="ln-feature-card">
+        <div class="ln-feature-visual"><img src="assets/samples/sample-object-person.jpg" alt=""></div>
+        <h3>코디 세트 미리보기</h3>
+        <p>하의는 고정해 두고 상의만 바꿔가며, 어울리는 한 세트를 사진으로 미리 보고 고를 수 있습니다.</p>
+      </article>
+
+      <article class="ln-feature-card">
+        <div class="ln-feature-visual"><img src="assets/gallery/SummerCool_Female.jpg" alt=""></div>
+        <h3>사진첩에 저장</h3>
+        <p>마음에 든 합성 결과를 사진첩에 모아두고, 언제든 다시 꺼내 비교해봅니다.</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- 사용 방법 -->
+  <section class="ln-how" id="how">
+    <p class="ln-section-eyebrow">HOW IT WORKS</p>
+    <h2>세 단계면 충분해요</h2>
+
+    <div class="ln-how-steps">
+      <div class="ln-how-step">
+        <span class="ln-how-no">01</span>
+        <h4>사진 업로드</h4>
+        <p>입어보고 싶은 상의 사진을 올려주세요.</p>
+      </div>
+      <div class="ln-how-step">
+        <span class="ln-how-no">02</span>
+        <h4>합성 대상 추출</h4>
+        <p>사진에서 상의만 자동으로 깔끔하게 분리합니다.</p>
+      </div>
+      <div class="ln-how-step">
+        <span class="ln-how-no">03</span>
+        <h4>합성 결과 확인 저장</h4>
+        <p>하의와 함께 코디한 결과를 바로 확인하고 사진첩에 저장하세요.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="ln-cta-band" id="cta">
+    <h2>지금, 사진 한 장으로<br>시작해보세요.</h2>
+    <a class="ln-btn" href="studio2.html">지금, 합성해보기 →</a>
+  </section>
+
+
+  <div class="toast" id="toast"></div>
+  <script src="landing-light.js"></script>
+  <script src="auth-modal.js"></script>
+</body>
+</html>

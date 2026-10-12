@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<title>MOA — 마이페이지</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
+<link rel="stylesheet" href="topnav.css">
+<link rel="stylesheet" href="app-shell.css">
+<link rel="stylesheet" href="auth-modal.css">
+</head>
+<body>
+
+  <header class="topnav">
+    <div class="topnav-row1">
+      <div class="topnav-left">
+        <a class="brand" href="index-light.html">
+          <span class="brand-name">MOA</span>
+        </a>
+        <nav class="nav">
+          <a class="nav-item" href="index-light.html">홈</a>
+          <a class="nav-item" href="studio2.html">합성하기</a>
+          <a class="nav-item active" href="mypage.html">마이페이지</a>
+        </nav>
+      </div>
+      <div class="topnav-auth">
+        <a class="auth-btn" href="#" data-auth="signup">회원가입</a>
+        <a class="auth-btn auth-btn-primary" href="#" data-auth="login">로그인</a>
+      </div>
+    </div>
+  </header>
+
+  <div class="as-shell">
+    <aside class="as-sidebar">
+      <div class="as-side-list">
+        <a class="as-side-item active" href="mypage.html">내 정보</a>
+        <a class="as-side-item" href="#album">사진첩</a>
+        <a class="as-side-item" href="#" data-toast="준비 중입니다">설정</a>
+        <a class="as-side-item" href="#" data-toast="준비 중입니다">고객센터</a>
+      </div>
+    </aside>
+
+    <div class="as-mypage-grid">
+      <main>
+    <!-- 사진첩 -->
+    <section class="as-panel as-album" id="album">
+      <div class="as-album-head">
+        <div>
+          <h3 id="view-title">사진첩</h3>
+          <p id="view-desc">합성한 이미지를 한눈에 확인할 수 있습니다.</p>
+        </div>
+        <div class="as-head-tools">
+          <label class="as-date" title="날짜를 선택하면 그날 만든 이미지만 보여줍니다">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="1"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/></svg>
+            <input type="date" id="date-filter" aria-label="날짜 선택">
+          </label>
+          <button type="button" class="as-date-clear" id="date-clear" hidden>전체 날짜</button>
+          <select class="as-select as-sort" id="sort-select" aria-label="정렬">
+            <option value="new">최신순</option>
+            <option value="old">오래된순</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="as-tabs" id="album-tabs">
+        <button type="button" class="as-tab active" data-view="all">전체 <span class="count" id="count-all">0</span></button>
+        <button type="button" class="as-tab" data-view="recent">최근 작업 <span class="count" id="count-recent">0</span></button>
+        <button type="button" class="as-tab" data-view="fav">좋아요 <span class="count" id="count-fav">0</span></button>
+      </div>
+
+      <div class="as-grid" id="gallery-grid"></div>
+      <p class="as-empty" id="gallery-empty" hidden>표시할 이미지가 없습니다.</p>
+    </section>
+      </main>
+
+      <aside class="as-mypage-side">
+        <div class="as-panel as-profile-card">
+          <div class="as-profile-avatar"><img src="assets/gallery/girl_sitting.jpg" alt=""></div>
+          <div class="as-profile-name">MOA User</div>
+          <div class="as-profile-email">moa.user@example.com</div>
+          <p class="as-profile-bio">일상의 모든 것을,<br>새로운 배경으로 만들어보세요.</p>
+        </div>
+
+        <div class="as-panel">
+          <h3 style="font-size:15px;margin-bottom:8px;">계정 설정</h3>
+          <ul class="as-settings-list">
+            <li data-toast="준비 중입니다">프로필 수정 <span>›</span></li>
+            <li data-toast="준비 중입니다">이메일 변경 <span>›</span></li>
+            <li data-toast="준비 중입니다">비밀번호 변경 <span>›</span></li>
+            <li data-toast="준비 중입니다">알림 설정 <span>›</span></li>
+          </ul>
+          <button class="as-logout-btn" data-toast="준비 중입니다">⎋ 로그아웃</button>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <script src="app-shell.js"></script>
+  <script src="auth-modal.js"></script>
+  <script>
+    // ----- 사진첩 -----
+    // 합성할 때마다 '최근 작업'에 자동으로 쌓이고(saved: false), 마음에 들면 저장해서 '전체'로 옮긴다.
+    // 아래 데이터는 화면 시안용 예시이다.
+    const items = [
+      { id: 1,  img: 'SpringWarm_Female',  d: '2026.10.09 11:20', saved: false, fav: false },
+      { id: 2,  img: 'SummerCool_Female',  d: '2026.10.09 11:02', saved: false, fav: false },
+      { id: 3,  img: 'AutumnWarm_Male',    d: '2026.10.08 20:45', saved: false, fav: false },
+      { id: 4,  img: 'MtFuji_Female',      d: '2026.10.08 18:30', saved: false, fav: false },
+      { id: 25, img: 'Paris_Female',       d: '2026.10.08 15:12', saved: false, fav: false },
+      { id: 26, img: 'girl_sitting',       d: '2026.10.07 22:40', saved: false, fav: false },
+      { id: 5,  img: 'girl_Santorini',     d: '2026.09.20 14:32', saved: true,  fav: true },
+      { id: 6,  img: 'NewYork_Male',       d: '2026.09.20 11:18', saved: true,  fav: false },
+      { id: 7,  img: 'Paris_Female',       d: '2026.09.19 21:03', saved: true,  fav: true },
+      { id: 8,  img: 'BaseballCap_Male',   d: '2026.09.18 16:27', saved: true,  fav: false },
+      { id: 9,  img: 'girl_sitting',       d: '2026.09.17 13:45', saved: true,  fav: true },
+      { id: 10, img: 'Watch_Female',       d: '2026.09.16 09:12', saved: true,  fav: false },
+      { id: 11, img: 'girl_bag',           d: '2026.09.15 18:20', saved: true,  fav: false },
+      { id: 12, img: 'Watch_Male',         d: '2026.09.14 20:11', saved: true,  fav: false },
+      { id: 13, img: 'RooftopParty_Female', d: '2026.09.13 19:40', saved: true,  fav: false },
+      { id: 14, img: 'man_watch',          d: '2026.09.12 15:05', saved: true,  fav: true },
+      { id: 15, img: 'girl_hat',           d: '2026.09.11 12:30', saved: true,  fav: false },
+      { id: 16, img: 'Yacht_Female',       d: '2026.09.10 17:55', saved: true,  fav: false },
+      { id: 17, img: 'man_car',            d: '2026.09.08 10:22', saved: true,  fav: false },
+      { id: 18, img: 'Handbag_Female',     d: '2026.09.07 21:48', saved: true,  fav: true },
+      { id: 19, img: 'Supercar_Male',      d: '2026.09.05 14:10', saved: true,  fav: false },
+      { id: 20, img: 'LuxuryCar_Female',   d: '2026.09.03 11:36', saved: true,  fav: false },
+      { id: 21, img: 'PrivateJet_Male',    d: '2026.09.01 16:02', saved: true,  fav: false },
+      { id: 22, img: 'SpringWarm_Female',  d: '2026.08.29 13:15', saved: true,  fav: false },
+      { id: 23, img: 'NewYork_Male',       d: '2026.08.27 19:50', saved: true,  fav: true },
+      { id: 24, img: 'SummerCool_Female',  d: '2026.08.25 10:08', saved: true,  fav: false },
+    ];
+
+    const views = {
+      all:    { desc: '상상을 현실로 만든 나만의 작품들을 한눈에 확인해보세요.', match: (it) => it.saved },
+      recent: { desc: '합성할 때마다 자동으로 쌓입니다. 마음에 드는 결과만 저장해보세요.', match: (it) => !it.saved },
+      fav:    { desc: '좋아요를 누른 이미지를 모아 볼 수 있습니다.', match: (it) => it.fav },
+    };
+
+    let currentView = 'all';
+    let currentDate = '';
+    let currentSort = 'new';
+
+    const grid = document.getElementById('gallery-grid');
+    const empty = document.getElementById('gallery-empty');
+    const albumToast = document.getElementById('toast');
+    let albumToastTimer = null;
+
+    function showToast(msg) {
+      albumToast.textContent = msg;
+      albumToast.classList.add('show');
+      clearTimeout(albumToastTimer);
+      albumToastTimer = setTimeout(() => albumToast.classList.remove('show'), 1800);
+    }
+
+    // "2026.09.20 14:32" -> 정렬용 숫자 문자열 / 날짜 부분
+    const key = (d) => d.replace(/[^0-9]/g, '');
+    const dayOf = (d) => d.slice(0, 10).replace(/\./g, '-');
+
+    function render() {
+      const v = views[currentView];
+      let list = items.filter(v.match);
+      if (currentDate) list = list.filter((it) => dayOf(it.d) === currentDate);
+      list.sort((a, b) => currentSort === 'new' ? key(b.d).localeCompare(key(a.d)) : key(a.d).localeCompare(key(b.d)));
+
+      grid.innerHTML = '';
+      list.forEach((it) => {
+        const card = document.createElement('div');
+        card.className = 'as-card';
+        const action = it.saved
+          ? '<span class="more">⋯</span>'
+          : '<button type="button" class="as-save-btn" data-save="' + it.id + '">저장</button>';
+        card.innerHTML =
+          '<div class="as-thumb">' +
+            '<img src="assets/gallery/' + it.img + '.jpg" alt="" style="width:100%;height:100%;object-fit:cover;">' +
+            '<button type="button" class="as-heart' + (it.fav ? ' liked' : '') + '" data-fav="' + it.id + '">' + (it.fav ? '♥' : '♡') + '</button>' +
+          '</div>' +
+          '<div class="as-card-foot"><span>' + it.d + '</span>' + action + '</div>';
+        grid.appendChild(card);
+      });
+      empty.hidden = list.length > 0;
+
+      document.getElementById('view-desc').textContent = v.desc;
+      document.getElementById('count-all').textContent = items.filter(views.all.match).length;
+      document.getElementById('count-recent').textContent = items.filter(views.recent.match).length;
+      document.getElementById('count-fav').textContent = items.filter(views.fav.match).length;
+      document.querySelectorAll('#album-tabs [data-view]').forEach((t) => {
+        t.classList.toggle('active', t.dataset.view === currentView);
+      });
+    }
+
+    document.querySelectorAll('#album-tabs [data-view]').forEach((t) => {
+      t.addEventListener('click', () => { currentView = t.dataset.view; render(); });
+    });
+
+    grid.addEventListener('click', (e) => {
+      const save = e.target.closest('[data-save]');
+      if (save) {
+        const it = items.find((x) => x.id === Number(save.dataset.save));
+        if (it) { it.saved = true; showToast('사진첩에 저장했습니다'); render(); }
+        return;
+      }
+      const heart = e.target.closest('[data-fav]');
+      if (heart) {
+        e.preventDefault();
+        const it = items.find((x) => x.id === Number(heart.dataset.fav));
+        if (it) { it.fav = !it.fav; render(); }
+      }
+    });
+
+    const dateInput = document.getElementById('date-filter');
+    const dateClear = document.getElementById('date-clear');
+    dateInput.addEventListener('change', () => {
+      currentDate = dateInput.value;
+      dateClear.hidden = !currentDate;
+      render();
+    });
+    dateClear.addEventListener('click', () => {
+      dateInput.value = '';
+      currentDate = '';
+      dateClear.hidden = true;
+      render();
+    });
+    document.getElementById('sort-select').addEventListener('change', (e) => {
+      currentSort = e.target.value;
+      render();
+    });
+
+    render();
+    document.querySelectorAll('[data-toast]').forEach((el) => {
+      el.addEventListener('click', (e) => {
+        if (el.tagName === 'A' || el.tagName === 'BUTTON') e.preventDefault();
+        const toastEl = document.getElementById('toast');
+        toastEl.textContent = el.dataset.toast;
+        toastEl.classList.add('show');
+        setTimeout(() => toastEl.classList.remove('show'), 1800);
+      });
+    });
+  </script>
+</body>
+</html>
