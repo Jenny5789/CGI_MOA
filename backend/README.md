@@ -10,7 +10,7 @@
 CGI_MOA/
   backend/               이 폴더
   frontend/
-  segment-anything/      https://github.com/facebookresearch/segment-anything
+  segment-anything/      https://github.com/facebookresearch/segment-anything  (아래 "SAM과 SAM2" 참고)
     checkpoints/sam_vit_h_4b8939.pth     (약 2.5GB, 위 저장소 안내의 vit_h 모델)
   AnyDoor/               https://github.com/ali-vilab/AnyDoor  (합성을 AnyDoor로 바꿀 때 필요)
     checkpoints/epoch=1-step=8687.ckpt   (16.8GB)
@@ -73,6 +73,13 @@ SAM과 AnyDoor는 서버가 켜질 때가 아니라 처음 쓸 때 GPU에 올라
 | /result/{번호} | GET | O | 합성 결과 사진 |
 | /history | GET | O | 내 작업 기록 |
 | /health | GET | X | 서버 상태 확인 |
+
+## SAM과 SAM2
+
+- 지금 코드의 상의 추출은 **SAM(1세대, vit_h)**이다(`pipeline.py`의 `_get_sam_predictor`, `extract_mask_candidates`). 이전 프로젝트에서 서지섭이 쓰던 것이다.
+- 팀은 SAM2를 쓸 예정이라 이 부분을 SAM2로 바꿔야 한다.
+- 주의: SAM2는 torch 2.5.1 이상이 필요한데(SAM2 공식 저장소 기준), 백엔드 본체는 AnyDoor 때문에 torch 2.0에 묶여 있어 같은 환경에 넣을 수 없다. PCTNet, BiRefNet처럼 별도 환경에서 따로 돌리고 표준입출력으로 주고받는 방식(`birefnet_client.py`, `birefnet_worker.py` 참고)으로 붙이면 된다. 서지섭 PC의 별도 환경 `venv_libcom`은 torch 2.6.0, torchvision 0.21.0이라 SAM2 조건을 만족한다.
+- SAM2로 바꾸기 전까지 추출을 쓰려면 위 폴더 배치대로 SAM 1세대를 받아 둔다.
 
 ## 알아 둘 것
 
