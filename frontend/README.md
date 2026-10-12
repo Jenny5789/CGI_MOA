@@ -47,4 +47,4 @@ npm run dev
 - 3단계 상의 추출: `Studio.jsx`의 `rebuildMask3`, `confirm3`. 찍은 점마다 동그라미로 잘라낼 뿐 SAM을 쓰지 않는다.
 - 4단계 합성: `Studio.jsx`의 `compose`, `confirm4`. 3.2초 기다린 뒤 잘라낸 상의를 칠한 영역에 붙인다. AI 합성이 아니다.
 - 사진첩(마이페이지): 요청 층(`src/api/results.js`)으로 옮겼다. 지금은 가짜 서버가 예시 이미지 26장으로 대답한다. 로그인하지 않으면 사진첩을 보여 주지 않는다.
-- 내 작업 기록(합성하기 화면 오른쪽): `Studio.jsx`의 `SAMPLE_HISTORY`. 예시 이미지를 고정으로 넣어 두었다. → `listResults({ saved: true })`로 바꾸면 된다.
+- 내 작업 기록(합성하기 화면 오른쪽): 요청 층(`listResults({ saved: true })`)으로 옮겼다. 결과 화면의 "저장하기"는 아직 이 칸에만 붙고 서버에는 저장하지 않는다.

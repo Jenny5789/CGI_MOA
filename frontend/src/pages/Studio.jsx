@@ -1,5 +1,6 @@
 /* 합성하기: 단계별 안내 화면
    1 상의 사진 고르기 -> 2 인물 사진 고르기 -> 3 점 찍어 상의 추출 -> 4 입힐 영역 칠하기 -> 합성 -> 결과, 저장
+   오른쪽 "내 작업 기록"은 서버의 저장된 결과 목록(명세 6-1)을 보여 준다.
    지금은 흉내만 내는 곳이 두 군데 있다(서버 연동 때 바꾼다).
    - 3단계 추출: 찍은 점마다 동그라미로 잘라낸다(rebuildMask). SAM을 쓰지 않는다.
    - 4단계 합성: 3.2초 기다린 뒤 잘라낸 상의를 칠한 영역에 붙인다(compose). AI 합성이 아니다. */
@@ -11,6 +12,8 @@ import TopNav from '../components/TopNav.jsx';
 import {
   boxFit, drawContain, drawCover, drawDot, fly, loadImage, makeWork, newCanvas, nowText, paintTint, pointer,
 } from '../studio/canvas.js';
+import { listResults } from '../api/results.js';
+import { formatKoreanDate } from '../utils/date.js';
 
 // 이 화면은 body 아래가 세로로 꽉 차는 구조라서 React가 끼워 넣은 #root 칸도 같은 모양으로 맞춘다
 const ROOT_CSS = '\n#root { height: 100%; display: flex; flex-direction: column; min-height: 0; }\n'
@@ -21,15 +24,6 @@ const SAMPLES = {
   1: ['/assets/gallery/AutumnWarm_Male.jpg', '/assets/gallery/SpringWarm_Female.jpg', '/assets/gallery/SummerCool_Female.jpg'],
   2: ['/assets/samples/sample-object-person.jpg', '/assets/gallery/girl_Santorini.jpg', '/assets/gallery/Paris_Female.jpg'],
 };
-
-// 내 작업 기록 예시 (서버 연동 때 서버에 저장된 결과 목록으로 바꾼다)
-const SAMPLE_HISTORY = [
-  { src: '/assets/gallery/MtFuji_Female.jpg', d: '2026.10.08 20:45' },
-  { src: '/assets/gallery/NewYork_Male.jpg', d: '2026.10.07 15:12' },
-  { src: '/assets/gallery/Paris_Female.jpg', d: '2026.10.06 09:30' },
-  { src: '/assets/gallery/girl_sitting.jpg', d: '2026.10.04 18:20' },
-  { src: '/assets/gallery/BaseballCap_Male.jpg', d: '2026.10.02 12:05' },
-];
 
 const STEPS = [
   { n: 1, label: '객체 이미지' },
@@ -102,7 +96,7 @@ export default function Studio() {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null); // { entry: { canvas } 또는 { src }, fromHistory }
   const [saved, setSaved] = useState(false);
-  const [history, setHistory] = useState(() => SAMPLE_HISTORY.map((h, i) => ({ id: 'sample-' + i, d: h.d, entry: { src: h.src }, isNew: false })));
+  const [history, setHistory] = useState([]); // 서버에서 받은 저장된 결과 + 이번에 저장한 결과(isNew)
   const [activeHist, setActiveHist] = useState(null);
   const [panels, setPanels] = useState(() => ({ left: readPanel('left'), right: readPanel('right') }));
 
@@ -489,6 +483,21 @@ export default function Studio() {
   };
 
   /* ---------- 결과, 저장, 작업 기록 ---------- */
+  // 화면에 들어오면 저장된 결과를 최신순으로 받아 온다. 받기 전에 이번에 저장한 결과(isNew)는 그대로 둔다
+  useEffect(() => {
+    let ignore = false;
+    listResults({ saved: true, sort: 'new' })
+      .then((res) => {
+        if (ignore) return;
+        const fromServer = res.items.map((r) => ({
+          id: r.result_id, d: formatKoreanDate(r.created_at), entry: { src: r.image_url, thumb: r.thumb_url }, isNew: false,
+        }));
+        setHistory((h) => [...h.filter((x) => x.isNew), ...fromServer]);
+      })
+      .catch((e) => { if (!ignore) showToast(e.message); });
+    return () => { ignore = true; };
+  }, [showToast]);
+
   const save = () => {
     if (!result || result.fromHistory || saved || !data.current.result) return;
     setSaved(true);
@@ -758,7 +767,7 @@ export default function Studio() {
                 <div className="sg-hist-thumb">
                   {item.entry.canvas
                     ? <DrawnCanvas width={400} height={300} source={item.entry.canvas} draw={drawHistThumb} />
-                    : <img src={item.entry.src} alt="" />}
+                    : <img src={item.entry.thumb || item.entry.src} alt="" />}
                   {item.isNew && <span className="sg-hist-new">NEW</span>}
                 </div>
               </button>

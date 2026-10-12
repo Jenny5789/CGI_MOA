@@ -6,6 +6,7 @@ import TopNav from '../components/TopNav.jsx';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { listResults, updateResult } from '../api/results.js';
 import { getMe } from '../api/me.js';
+import { formatKoreanDate } from '../utils/date.js';
 
 // 사진첩은 서버의 결과 목록(명세 6-1)을 보여 준다. 탭, 날짜, 정렬을 바꿀 때마다 서버에 다시 묻는다.
 // 합성할 때마다 '최근 작업'에 자동으로 쌓이고(saved: false), 마음에 들면 저장해서 '전체'로 옮긴다.
@@ -14,14 +15,6 @@ const VIEWS = {
   all: { label: '전체', desc: '상상을 현실로 만든 나만의 작품들을 한눈에 확인해보세요.', filters: { saved: true }, count: 'saved' },
   recent: { label: '최근 작업', desc: '합성할 때마다 자동으로 쌓입니다. 마음에 드는 결과만 저장해보세요. 저장하지 않은 결과는 3일 뒤 사라집니다.', filters: { saved: false }, count: 'recent' },
   fav: { label: '좋아요', desc: '좋아요를 누른 이미지를 모아 볼 수 있습니다.', filters: { favorite: true }, count: 'favorite' },
-};
-
-// "2026-09-20T14:32:00+09:00" -> 한국 시간 "2026.09.20 14:32"
-const fmtDate = (iso) => {
-  const p = Object.fromEntries(new Intl.DateTimeFormat('ko-KR', {
-    timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-  }).formatToParts(new Date(iso)).map((x) => [x.type, x.value]));
-  return `${p.year}.${p.month}.${p.day} ${p.hour}:${p.minute}`;
 };
 
 export default function MyPage() {
@@ -148,7 +141,7 @@ export default function MyPage() {
                       <button type="button" className={'as-heart' + (it.favorite ? ' liked' : '')} onClick={() => toggleFav(it.result_id)}>{it.favorite ? '♥' : '♡'}</button>
                     </div>
                     <div className="as-card-foot">
-                      <span>{fmtDate(it.created_at)}</span>
+                      <span>{formatKoreanDate(it.created_at)}</span>
                       {it.saved
                         ? <span className="more">⋯</span>
                         : <button type="button" className="as-save-btn" disabled={pending.has(it.result_id)} onClick={() => save(it.result_id)}>저장</button>}
