@@ -29,6 +29,8 @@ npm run dev
   - `client.js`: 모든 요청이 거치는 곳. 로그인 토큰을 붙이고, 로그인이 풀리면(401) 화면에 알린다.
   - `mock.js`: 가짜 서버. 서버가 생기기 전까지 대신 대답한다.
   - `auth.js`: 로그인, 로그아웃
+  - `results.js`: 결과 목록, 저장/좋아요 (사진첩)
+  - `me.js`: 내 정보 (마이페이지 프로필)
 - `src/studio/canvas.js`: 합성하기 화면의 그리기 도우미
 - `src/styles/`: 시안의 CSS를 그대로 가져옴. 페이지마다 그 페이지 CSS만 켜진다(`src/components/usePageStyle.js`). 세 페이지 CSS가 body와 공통 색상 값을 서로 다르게 정해서 한꺼번에 켜면 화면이 깨지기 때문이다.
 - `public/assets/`: 이미지. 갤러리 이미지는 모두 AI로 만든 예시 이미지다.
@@ -44,4 +46,5 @@ npm run dev
 - 로그인: 요청 층(`src/api/auth.js`)으로 옮겼다. 지금은 가짜 서버가 대답해서 아이디 test / 비밀번호 test로만 로그인된다.
 - 3단계 상의 추출: `Studio.jsx`의 `rebuildMask3`, `confirm3`. 찍은 점마다 동그라미로 잘라낼 뿐 SAM을 쓰지 않는다.
 - 4단계 합성: `Studio.jsx`의 `compose`, `confirm4`. 3.2초 기다린 뒤 잘라낸 상의를 칠한 영역에 붙인다. AI 합성이 아니다.
-- 내 작업 기록, 사진첩: `Studio.jsx`의 `SAMPLE_HISTORY`, `MyPage.jsx`의 `SAMPLE_ITEMS`. 예시 이미지를 고정으로 넣어 두었다.
+- 사진첩(마이페이지): 요청 층(`src/api/results.js`)으로 옮겼다. 지금은 가짜 서버가 예시 이미지 26장으로 대답한다. 로그인하지 않으면 사진첩을 보여 주지 않는다.
+- 내 작업 기록(합성하기 화면 오른쪽): `Studio.jsx`의 `SAMPLE_HISTORY`. 예시 이미지를 고정으로 넣어 두었다. → `listResults({ saved: true })`로 바꾸면 된다.
