@@ -1,0 +1,62 @@
+import { Link, NavLink } from 'react-router-dom';
+import { useAuth } from '../auth/AuthContext.jsx';
+
+// 합성하기 화면으로 가는 링크. 로그인하지 않았으면 이동을 막고 로그인 팝업을 띄운다.
+export function StudioLink({ className, children }) {
+  const { loggedIn, openLogin } = useAuth();
+  const onClick = (e) => {
+    if (loggedIn) return;
+    e.preventDefault();
+    openLogin('/studio');
+  };
+  return <Link className={className} to="/studio" onClick={onClick}>{children}</Link>;
+}
+
+const navClass = ({ isActive }) => 'nav-item' + (isActive ? ' active' : '');
+
+export default function TopNav() {
+  const { loggedIn, openLogin, logout, showToast } = useAuth();
+
+  return (
+    <header className="topnav">
+      <div className="topnav-row1">
+        <div className="topnav-left">
+          <Link className="brand" to="/">
+            <span className="brand-name">MOA</span>
+          </Link>
+          <nav className="nav">
+            <NavLink className={navClass} to="/" end>홈</NavLink>
+            <StudioLinkNav />
+            <NavLink className={navClass} to="/mypage">마이페이지</NavLink>
+          </nav>
+        </div>
+        <div className="topnav-auth">
+          {!loggedIn && (
+            <a className="auth-btn" href="#" onClick={(e) => { e.preventDefault(); showToast('회원가입은 준비 중입니다'); }}>회원가입</a>
+          )}
+          <a
+            className="auth-btn auth-btn-primary"
+            href="#"
+            onClick={(e) => { e.preventDefault(); if (loggedIn) logout(); else openLogin(); }}
+          >
+            {loggedIn ? '로그아웃' : '로그인'}
+          </a>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+// 메뉴의 '합성하기': 현재 화면이면 active 표시, 로그인 전이면 팝업
+function StudioLinkNav() {
+  const { loggedIn, openLogin } = useAuth();
+  return (
+    <NavLink
+      className={navClass}
+      to="/studio"
+      onClick={(e) => { if (!loggedIn) { e.preventDefault(); openLogin('/studio'); } }}
+    >
+      합성하기
+    </NavLink>
+  );
+}
