@@ -76,6 +76,25 @@ export function drawDot(ctx, x, y, color) {
   ctx.stroke();
 }
 
+// 마스크에서 칠해진 부분을 감싸는 사각형. 칠한 곳이 없으면 null
+export function maskBBox(mask) {
+  const { width: w, height: h } = mask;
+  const d = mask.getContext('2d').getImageData(0, 0, w, h).data;
+  let x1 = w; let y1 = h; let x2 = -1; let y2 = -1;
+  for (let y = 0; y < h; y += 1) {
+    for (let x = 0; x < w; x += 1) {
+      if (d[(y * w + x) * 4 + 3] > 0) {
+        if (x < x1) x1 = x;
+        if (x > x2) x2 = x;
+        if (y < y1) y1 = y;
+        if (y > y2) y2 = y;
+      }
+    }
+  }
+  if (x2 < 0) return null;
+  return { x: x1, y: y1, w: x2 - x1 + 1, h: y2 - y1 + 1 };
+}
+
 // 마우스 위치: 0~1 비율(x, y)과 캔버스 안 픽셀 위치(px, py)
 export function pointer(e, canvas) {
   const r = canvas.getBoundingClientRect();

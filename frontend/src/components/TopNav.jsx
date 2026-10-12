@@ -26,8 +26,8 @@ export default function TopNav() {
           </Link>
           <nav className="nav">
             <NavLink className={navClass} to="/" end>홈</NavLink>
-            <StudioLinkNav />
-            <NavLink className={navClass} to="/mypage">마이페이지</NavLink>
+            <GatedNavLink to="/studio">합성하기</GatedNavLink>
+            <GatedNavLink to="/mypage">마이페이지</GatedNavLink>
           </nav>
         </div>
         <div className="topnav-auth">
@@ -47,16 +47,16 @@ export default function TopNav() {
   );
 }
 
-// 메뉴의 '합성하기': 현재 화면이면 active 표시, 로그인 전이면 팝업
-function StudioLinkNav() {
+// 메뉴의 '합성하기', '마이페이지': 현재 화면이면 active 표시, 로그인 전이면 이동을 막고 로그인 팝업
+function GatedNavLink({ to, children }) {
   const { loggedIn, openLogin } = useAuth();
   return (
     <NavLink
       className={navClass}
-      to="/studio"
-      onClick={(e) => { if (!loggedIn) { e.preventDefault(); openLogin('/studio'); } }}
+      to={to}
+      onClick={(e) => { if (!loggedIn) { e.preventDefault(); openLogin(to); } }}
     >
-      합성하기
+      {children}
     </NavLink>
   );
 }

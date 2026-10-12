@@ -9,7 +9,11 @@ const KEY = 'moa_logged_in';
 const DEMO_ID = 'test';
 const DEMO_PW = 'test';
 const WELCOME = 'MOA에 오신 것을 환영합니다.';
-const NEED_LOGIN = '합성하려면 로그인이 필요합니다.';
+// 로그인해야 들어갈 수 있는 화면과, 막혔을 때 팝업에 보여 줄 문구
+export const GATED = {
+  '/studio': '합성하기는 로그인 후 이용할 수 있습니다.',
+  '/mypage': '마이페이지는 로그인 후 이용할 수 있습니다.',
+};
 
 const read = () => { try { return localStorage.getItem(KEY) === '1'; } catch { return false; } };
 const write = (on) => {
@@ -27,15 +31,15 @@ export function AuthProvider({ children }) {
   const location = useLocation();
 
   const openLogin = useCallback((next = null) => {
-    setModal({ open: true, sub: next ? NEED_LOGIN : WELCOME, next });
+    setModal({ open: true, sub: (next && GATED[next]) || WELCOME, next });
   }, []);
 
   const closeLogin = useCallback(() => setModal({ open: false, sub: WELCOME, next: null }), []);
 
-  // 합성하기 화면에서 튕겨 왔을 때 로그인 팝업을 바로 연다
+  // 로그인이 필요한 화면(합성하기, 마이페이지)에서 튕겨 왔을 때 로그인 팝업을 바로 연다
   useEffect(() => {
     if (location.state && location.state.needLogin && !loggedIn) {
-      openLogin('/studio');
+      openLogin(location.state.next || '/studio');
       navigate(location.pathname, { replace: true, state: null });
     }
   }, [location, loggedIn, openLogin, navigate]);
@@ -57,7 +61,7 @@ export function AuthProvider({ children }) {
   const logout = () => {
     write(false);
     setLoggedIn(false);
-    if (location.pathname === '/studio') navigate('/', { replace: true });
+    if (GATED[location.pathname]) navigate('/', { replace: true });
     showToast('로그아웃되었습니다');
   };
 

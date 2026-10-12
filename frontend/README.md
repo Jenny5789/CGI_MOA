@@ -32,6 +32,6 @@ npm run dev
 ## 아직 흉내만 내는 부분 (서버 연결 때 바꿀 곳)
 
 - 로그인: `AuthContext.jsx`의 `login()`. 지금은 아이디 test / 비밀번호 test로만 로그인되고 상태는 브라우저에만 저장된다.
-- 3단계 상의 추출: `Studio.jsx`의 `rebuildMask3`, `confirm3`. 찍은 점마다 동그라미로 잘라낼 뿐 SAM을 쓰지 않는다.
-- 4단계 합성: `Studio.jsx`의 `compose`, `confirm4`. 3.2초 기다린 뒤 잘라낸 상의를 칠한 영역에 붙인다. AI 합성이 아니다.
+- 3단계 상의 추출: `Studio.jsx`의 `rebuildMask3`(점마다 동그라미로 잘라냄, SAM을 쓰지 않음), `finish3`(다듬기 팝업을 마친 뒤 오려 내기).
+- 4단계 합성: `Studio.jsx`의 `compose`, `startCompose`(합성 설정 팝업의 "합성 시작"). 3.2초 기다린 뒤 잘라낸 상의를 칠한 영역에 붙인다. AI 합성이 아니다. 합성 설정의 체크 두 개(`opts.refine`, `opts.shape`)는 아직 결과에 쓰이지 않는다.
 - 내 작업 기록, 사진첩: `Studio.jsx`의 `SAMPLE_HISTORY`, `MyPage.jsx`의 `SAMPLE_ITEMS`. 예시 이미지를 고정으로 넣어 두었다.
