@@ -17,7 +17,7 @@ import {
 } from '../studio/canvas.js';
 import MaskEditor from '../studio/MaskEditor.jsx';
 import { listResults } from '../api/results.js';
-import { extractGarment, uploadImage } from '../api/studio.js';
+import { extractGarment, getJob, getResult, requestCompose, uploadImage } from '../api/studio.js';
 import { formatKoreanDate } from '../utils/date.js';
 
 // 이 화면은 body 아래가 세로로 꽉 차는 구조라서 React가 끼워 넣은 #root 칸도 같은 모양으로 맞춘다
@@ -97,6 +97,33 @@ const maskFromUrl = async (url, w, h) => {
   return c;
 };
 
+// 화면용 영역(칠한 곳만 불투명)을 서버에 보낼 흑백 PNG(칠한 곳 흰색, 나머지 검정)로 바꾼다 (명세 5-1 area_mask)
+const areaMaskBlob = (mask) => new Promise((resolve) => {
+  const { width: w, height: h } = mask;
+  const c = newCanvas(w, h);
+  const ctx = c.getContext('2d');
+  ctx.drawImage(mask, 0, 0);
+  const d = ctx.getImageData(0, 0, w, h);
+  for (let i = 0; i < d.data.length; i += 4) {
+    const v = d.data[i + 3] > 0 ? 255 : 0;
+    d.data[i] = v; d.data[i + 1] = v; d.data[i + 2] = v; d.data[i + 3] = 255;
+  }
+  ctx.putImageData(d, 0, 0);
+  c.toBlob(resolve, 'image/png');
+});
+
+// 합성 작업이 끝날 때까지 2초마다 진행을 확인한다 (명세 5-2). 끝나면 결과 번호를 돌려준다
+const JOB_POLL_MS = 2000;
+const waitForJob = async (jobId, onProgress) => {
+  for (;;) {
+    const job = await getJob(jobId);
+    onProgress(job);
+    if (job.status === 'done') return job.result_id;
+    if (job.status === 'failed') throw new Error((job.error && job.error.message) || '합성에 실패했습니다');
+    await new Promise((r) => setTimeout(r, JOB_POLL_MS));
+  }
+};
+
 export default function Studio() {
   usePageStyle(PAGE_CSS, 'MOA — 합성하기');
   const [toast, showToast] = useToast(2000);
@@ -116,6 +143,7 @@ export default function Studio() {
   const [settingsOpen, setSettingsOpen] = useState(false); // 합성 설정 팝업
   const [opts, setOpts] = useState({ refine: false, shape: false }); // Reference Mask Refine, Enable Shape Control
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState(null); // 합성 진행 상황 (서버 작업 정보: status, progress, queue_position)
   const [result, setResult] = useState(null); // { entry: { canvas } 또는 { src }, fromHistory }
   const [saved, setSaved] = useState(false);
   const [history, setHistory] = useState([]); // 서버에서 받은 저장된 결과 + 이번에 저장한 결과(isNew)
@@ -433,30 +461,6 @@ export default function Studio() {
     setSettingsOpen(true);
   };
 
-  /* ---------- 합성 (흉내: 서버 연동 때 AI 합성 요청으로 바꾼다) ---------- */
-  const compose = () => {
-    const s = s4.current;
-    const area = s.edited;
-    const out = newCanvas(s.w, s.h);
-    const ctx = out.getContext('2d');
-    ctx.drawImage(s.work, 0, 0);
-    const mb = maskBBox(area);
-    const cb = data.current.cutout.bbox;
-    const tmp = newCanvas(s.w, s.h);
-    const t = tmp.getContext('2d');
-    // 추출한 상의를 합성 영역에 가득 차도록 맞춰 붙인 뒤, 지정한 영역 모양으로 잘라낸다
-    const sc = Math.max(mb.w / cb.w, mb.h / cb.h);
-    const dw = cb.w * sc;
-    const dh = cb.h * sc;
-    t.drawImage(data.current.cutout.canvas, cb.x, cb.y, cb.w, cb.h, mb.x + (mb.w - dw) / 2, mb.y + (mb.h - dh) / 2, dw, dh);
-    t.globalCompositeOperation = 'destination-in';
-    t.drawImage(area, 0, 0);
-    ctx.globalAlpha = 0.96;
-    ctx.drawImage(tmp, 0, 0);
-    ctx.globalAlpha = 1;
-    return out;
-  };
-
   const showResult = async (entry, fromHistory) => {
     setResult({ entry, fromHistory });
     await go('result');
@@ -472,18 +476,32 @@ export default function Studio() {
     if (s.edited) setEditor({ kind: 'area', image: s.work, mask: s.edited });
   };
 
-  // 합성 설정 팝업의 "합성 시작". 고른 설정(opts)은 서버 연동 때 합성 요청에 함께 보낸다.
-  const startCompose = () => {
+  // 합성 설정 팝업의 "합성 시작": 서버에 합성을 요청하고(명세 5-1), 2초마다 진행을 확인한 뒤(5-2) 결과를 받는다(5-3).
+  // 고른 설정(opts)은 아직 서버가 쓰지 않아 보내지 않는다.
+  const startCompose = async () => {
     if (!s4.current.edited || !data.current.cutout) return;
+    const ext = data.current.extraction;
+    if (!ext) { showToast('3단계에서 상의를 다시 지정해 주세요'); return; }
     setSettingsOpen(false);
+    setProgress(null);
     setBusy(true);
-    setTimeout(async () => {
-      const out = compose();
+    try {
+      const { image_id: personId } = await data.current.bg.upload;
+      const area = await areaMaskBlob(s4.current.edited);
+      const job = await requestCompose(ext.extraction_id, personId, area);
+      const resultId = await waitForJob(job.job_id, setProgress);
+      const res = await getResult(resultId);
+      const img = await loadImage(res.image_url);
+      const out = newCanvas(img.naturalWidth, img.naturalHeight);
+      out.getContext('2d').drawImage(img, 0, 0);
       data.current.result = out;
       setSaved(false);
       await showResult({ canvas: out }, false);
+    } catch (e) {
+      showToast(`합성하지 못했습니다: ${e.message}`);
+    } finally {
       setBusy(false);
-    }, 3200);
+    }
   };
 
   /* ---------- 결과, 저장, 작업 기록 ---------- */
@@ -779,7 +797,11 @@ export default function Studio() {
         <div className="sg-busy-box">
           <div className="sg-spinner" />
           <p>합성 중입니다</p>
-          <span>완료될 때까지 잠시 기다려 주십시오</span>
+          <span>
+            완료될 때까지 잠시 기다려 주십시오
+            {progress && progress.status === 'queued' && progress.queue_position > 0 && ` (대기 ${progress.queue_position}번째)`}
+            {progress && progress.status === 'running' && progress.progress > 0 && ` (${Math.round(progress.progress * 100)}%)`}
+          </span>
         </div>
       </div>
 
