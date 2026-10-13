@@ -17,7 +17,7 @@ import {
 } from '../studio/canvas.js';
 import MaskEditor from '../studio/MaskEditor.jsx';
 import { listResults } from '../api/results.js';
-import { uploadImage } from '../api/studio.js';
+import { extractGarment, uploadImage } from '../api/studio.js';
 import { formatKoreanDate } from '../utils/date.js';
 
 // 이 화면은 body 아래가 세로로 꽉 차는 구조라서 React가 끼워 넣은 #root 칸도 같은 모양으로 맞춘다
@@ -80,6 +80,22 @@ const drawCutoutThumb = (ctx, { canvas, bbox }) => {
   drawContain(ctx, canvas, bbox.x, bbox.y, bbox.w, bbox.h, 480, 300);
 };
 const drawHistThumb = (ctx, canvas) => drawCover(ctx, canvas, 0, 0, canvas.width, canvas.height, 400, 300);
+
+// 서버가 준 흑백 윤곽 PNG(상의 흰색)를 화면용 윤곽(상의 부분만 불투명한 흰색, 나머지 투명)으로 바꾼다. 크기는 작업용 사본(w, h)에 맞춘다
+const maskFromUrl = async (url, w, h) => {
+  const img = await loadImage(url);
+  const c = newCanvas(w, h);
+  const ctx = c.getContext('2d');
+  ctx.drawImage(img, 0, 0, w, h);
+  const d = ctx.getImageData(0, 0, w, h);
+  for (let i = 0; i < d.data.length; i += 4) {
+    const on = d.data[i] > 127;
+    d.data[i] = 255; d.data[i + 1] = 255; d.data[i + 2] = 255;
+    d.data[i + 3] = on ? 255 : 0;
+  }
+  ctx.putImageData(d, 0, 0);
+  return c;
+};
 
 export default function Studio() {
   usePageStyle(PAGE_CSS, 'MOA — 합성하기');
@@ -279,13 +295,30 @@ export default function Studio() {
     render3();
   };
 
-  // 확인: 점으로 잡은 영역을 다듬기 팝업으로 연다. 점을 바꾸지 않았으면 지난번에 다듬은 영역에서 이어서 한다.
-  const confirm3 = () => {
+  // 확인: 찍은 점을 서버에 보내 SAM2로 상의를 찾고(명세 4-1), 그 결과로 다듬기 팝업을 연다.
+  // 점을 바꾸지 않았으면 서버에 다시 묻지 않고, 지난번에 다듬은 영역(없으면 지난 SAM2 결과)에서 이어서 한다.
+  const confirm3 = async () => {
     const s = s3.current;
-    if (!s.work || !s.pts.some((p) => !p.neg)) return;
+    if (!s.work || !s.pts.some((p) => !p.neg) || s.extracting) return;
     const key = JSON.stringify(s.pts);
-    const start = s.edited && s.editedKey === key ? s.edited : s.mask;
-    setEditor({ kind: 'extract', image: s.work, mask: start });
+    if (s.edited && s.editedKey === key) { setEditor({ kind: 'extract', image: s.work, mask: s.edited }); return; }
+    if (s.samMask && s.samKey === key) { setEditor({ kind: 'extract', image: s.work, mask: s.samMask }); return; }
+
+    s.extracting = true;
+    showToast('상의를 찾는 중입니다…');
+    try {
+      const { image_id: imageId } = await data.current.obj.upload;
+      const points = s.pts.map((p) => ({ x: p.x, y: p.y, label: p.neg ? 0 : 1 }));
+      const ext = await extractGarment(imageId, points);
+      const mask = await maskFromUrl(ext.mask_url, s.w, s.h);
+      Object.assign(s, { samMask: mask, samKey: key });
+      data.current.extraction = ext; // 4단계 합성에서 extraction_id를 쓴다
+      setEditor({ kind: 'extract', image: s.work, mask });
+    } catch (e) {
+      showToast(`상의를 찾지 못했습니다: ${e.message}`);
+    } finally {
+      s.extracting = false;
+    }
   };
 
   // 다듬기 완료: 다듬은 영역으로 상의를 오려 내고 4단계로 간다
