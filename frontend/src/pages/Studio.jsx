@@ -17,6 +17,7 @@ import {
 } from '../studio/canvas.js';
 import MaskEditor from '../studio/MaskEditor.jsx';
 import { listResults } from '../api/results.js';
+import { uploadImage } from '../api/studio.js';
 import { formatKoreanDate } from '../utils/date.js';
 
 // 이 화면은 body 아래가 세로로 꽉 차는 구조라서 React가 끼워 넣은 #root 칸도 같은 모양으로 맞춘다
@@ -164,7 +165,12 @@ export default function Studio() {
     const img = await loadImage(src);
     const key = n === 1 ? 'obj' : 'bg';
     const changed = !data.current[key] || data.current[key].src !== src;
-    data.current[key] = { img, src };
+    // 서버에 사진을 올려 둔다 (명세 3-1). 화면은 기다리지 않고 넘어가고, 추출·합성 때 이 결과(사진 번호)를 쓴다
+    const upload = changed || !data.current[key].upload
+      ? uploadImage(src, n === 1 ? 'garment' : 'person')
+      : data.current[key].upload;
+    upload.catch((e) => showToast(`사진을 서버에 올리지 못했습니다: ${e.message}`));
+    data.current[key] = { img, src, upload };
     if (changed) {
       if (n === 1) {
         data.current.cutout = null;
