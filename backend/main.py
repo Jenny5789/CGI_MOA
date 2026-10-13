@@ -3,9 +3,14 @@
 실행 (저장소 맨 위 폴더에서, CGI 환경):
     CGI\\Scripts\\python.exe -m uvicorn backend.main:app --port 8000
 
+켜지면 AnyDoor 합성 모델을 뒤에서 미리 불러오고 예열한다 (그동안도 서버는 응답, 들어온 합성은 예열 뒤 처리).
+합성을 안 쓰는 작업이라 예열을 끄려면: set MOA_WARMUP=0 후 실행.
+
 주소와 주고받는 값은 팀 API 명세(docs/api.md)를 따른다. 모든 주소는 /api로 시작한다.
 기능별로 routers/ 아래 파일을 하나씩 만들어 여기서 붙인다. 누가 어느 칸을 채우는지는 backend/README.md 참고.
 """
+import os
+
 from fastapi import FastAPI
 
 from backend.errors import register_error_handlers
@@ -26,6 +31,12 @@ app.include_router(images.router)    # 명세 3-1 사진 올리기
 app.include_router(files.router)     # 명세 7장 파일 보기
 app.include_router(extract.router)   # 명세 4-1 상의 추출
 app.include_router(compose.router)   # 명세 5-1~5-3 합성
+
+
+@app.on_event("startup")
+def _warmup_compose():
+    if os.environ.get("MOA_WARMUP", "1") != "0":
+        compose.start_warmup()
 
 
 def _openapi_with_spec_errors():

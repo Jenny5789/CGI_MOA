@@ -68,6 +68,24 @@ def _public(job):
     }
 
 
+# ---------- 서버 켤 때 예열 ----------
+
+def start_warmup():
+    """AnyDoor를 미리 불러오고 2스텝 합성을 한 번 돌린다 (뒤에서 진행, 서버는 바로 응답).
+    예열 중에 들어온 합성·추출은 GPU_LOCK에서 기다렸다가 예열이 끝나면 처리된다."""
+    def run():
+        from features.composition import warmup
+        print("[MOA] AnyDoor 예열 시작 (모델 불러오기 + 2스텝 합성, 1~2분)", flush=True)  # 서버 창에서 바로 보이게 print
+        try:
+            with GPU_LOCK:
+                warmup()
+            print("[MOA] AnyDoor 예열 끝: 합성 준비 완료", flush=True)
+        except Exception:  # 예열이 실패해도 서버는 계속 돈다 (첫 합성 때 다시 불러온다)
+            log.exception("AnyDoor 예열 실패")
+
+    threading.Thread(target=run, name="compose-warmup", daemon=True).start()
+
+
 # ---------- 합성 일꾼 ----------
 
 def _ensure_worker():
@@ -91,7 +109,7 @@ def _work_loop():
 
 
 def _run(job_id):
-    from features.composition import compose  # AnyDoor는 첫 합성 때 불러온다
+    from features.composition import compose  # AnyDoor는 서버 켤 때 예열에서 불러온다 (예열을 껐으면 첫 합성 때)
 
     with _lock:
         _waiting.remove(job_id)
