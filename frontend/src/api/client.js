@@ -1,10 +1,35 @@
 /* 서버 요청은 모두 여기를 거친다.
-   서버가 아직 없어서 기본은 가짜 서버(mock.js)가 대답한다. 실제 서버에 붙일 때는 .env에 VITE_USE_MOCK=false 를 넣는다.
-   주소와 데이터 모양은 팀 API 명세 초안(2026-10-12)을 따른다. 명세의 주소는 모두 /api로 시작하고, 여기 path에는 /api 뒤만 적는다. */
+   주소와 데이터 모양은 팀 API 명세 초안(2026-10-12)을 따른다. 명세의 주소는 모두 /api로 시작하고, 여기 path에는 /api 뒤만 적는다.
+
+   어느 서버에 보낼지 (.env.local의 VITE_API_MODE)
+   - mock  (기본): 모두 가짜 서버(mock.js)가 대답
+   - mixed       : 실제 서버(backend/)에 있는 기능만 실제 서버로, 나머지는 가짜 서버로
+                   실제 서버에 있는 것: 사진 올리기, 상의 추출, 합성 요청·진행 확인·결과 받기 (REAL_ROUTES)
+                   아직 없는 것(서버 담당 몫): 로그인, 내 정보, 사진첩 목록·저장/좋아요 → 가짜 서버
+   - real        : 모두 실제 서버로
+   예전 설정 VITE_USE_MOCK=false 는 real 과 같다. */
 import { mockRequest } from './mock.js';
 
-export const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
+const env = import.meta.env;
+export const API_MODE = env.VITE_API_MODE || (env.VITE_USE_MOCK === 'false' ? 'real' : 'mock');
+export const USE_MOCK = API_MODE === 'mock';
 const BASE = '/api'; // 개발 중에는 vite.config.js의 프록시가 실제 서버로 넘긴다
+
+// mixed 모드에서 실제 서버로 보낼 요청 ("방식 주소" 모양으로 검사)
+const REAL_ROUTES = [
+  /^POST \/images$/,
+  /^POST \/extract$/,
+  /^POST \/compose$/,
+  /^GET \/jobs\/[^/?]+$/,
+  /^GET \/results\/[^/?]+$/, // 결과 하나 받기(5-3). 목록(6-1)과 저장/좋아요(6-2)는 아직 가짜 서버
+];
+
+const goesToRealServer = (method, path) => {
+  if (API_MODE === 'real') return true;
+  if (API_MODE === 'mock') return false;
+  const key = `${method} ${path}`;
+  return REAL_ROUTES.some((re) => re.test(key));
+};
 
 const TOKEN_KEY = 'moa_token';
 export const UNAUTHORIZED_EVENT = 'moa:unauthorized';
@@ -23,19 +48,21 @@ export class ApiError extends Error {
   }
 }
 
+// body: JSON으로 보낼 값, 또는 사진 같은 파일을 보낼 때는 FormData
 // notifyExpired: 401일 때 화면에 로그인 만료를 알릴지. 로그아웃 요청처럼 알릴 필요가 없으면 false
 // token: 저장된 토큰 대신 쓸 토큰 (로그아웃처럼 토큰을 먼저 지운 뒤 보낼 때)
 export async function request(method, path, body, { notifyExpired = true, token = getToken() } = {}) {
   let res;
-  if (USE_MOCK) {
+  if (!goesToRealServer(method, path)) {
     res = await mockRequest(method, path, body, token);
   } else {
     const headers = {};
-    if (body !== undefined) headers['Content-Type'] = 'application/json';
+    const isForm = typeof FormData !== 'undefined' && body instanceof FormData;
+    if (body !== undefined && !isForm) headers['Content-Type'] = 'application/json'; // FormData는 브라우저가 알아서 정함
     if (token) headers.Authorization = `Bearer ${token}`;
     let r;
     try {
-      r = await fetch(BASE + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+      r = await fetch(BASE + path, { method, headers, body: body === undefined ? undefined : (isForm ? body : JSON.stringify(body)) });
     } catch {
       throw new ApiError(0, 'NETWORK_ERROR', '서버에 연결할 수 없습니다');
     }
