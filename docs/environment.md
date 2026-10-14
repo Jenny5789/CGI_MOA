@@ -42,16 +42,15 @@
 | | kornia | 0.8.2 |
 | 서버 | fastapi | 0.143.0 |
 | | uvicorn | 0.54.0 |
-| DB (MySQL) | PyMySQL / SQLAlchemy / cryptography | 1.2.3 / 2.0.54 / 50.0.2 |
+| DB (MySQL) | PyMySQL / SQLAlchemy / cryptography / python-dotenv | 1.2.3 / 2.0.54 / 50.0.2 / 1.2.4 |
 
 ## 제외한 패키지
 - gradio 3.39.0, gradio-client: AnyDoor Gradio 데모 전용
 - 제외 이유: gradio 3.39.0이 numpy<2 요구 → numpy 2.2.6과 충돌
 
-## 체크포인트 (git 제외)
-- `checkpoints/sam2/sam2.1_hiera_base_plus.pt`: compositing_lab에서 복사
-- `checkpoints/sam/sam_vit_b_01ec64.pth`: https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth
-- BiRefNet (`ZhengPeng7/BiRefNet`): 첫 실행 시 Hugging Face에서 자동 다운로드
+## 모델 파일 (저장소에 없음, AI 기능·서버 담당에게 받기)
+- SAM2: `checkpoints/sam2/sam2.1_hiera_base_plus.pt`
+- AnyDoor: [../features/composition/README.md](../features/composition/README.md)
 
 ## DB (MySQL)
-- MySQL 설치 확인, DB·계정 만들기, `backend/.env` 작성: [database.md](database.md)
+- [database.md](database.md)

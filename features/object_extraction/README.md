@@ -1,22 +1,22 @@
-# 객체 추출 (SAM2)
+# 상의 추출 (SAM2)
 
-## 호출 방법
+## 호출
 
 ```python
 from features.object_extraction import extract_object
 
 mask = extract_object(
     image_rgb,                      # np.uint8, RGB, (H, W, 3)
-    points=[(x1, y1), (x2, y2)],    # 객체 위 positive point (원본 픽셀 좌표)
-    neg_points=[(x3, y3)],          # 제외할 곳 (선택)
+    points=[(x1, y1), (x2, y2)],    # 포함 점 (원본 픽셀 좌표)
+    neg_points=[(x3, y3)],          # 제외 점 (선택)
     box=(x1, y1, x2, y2),           # 박스 (선택)
 )
-# mask: np.uint8, 0/1, (H, W) — 입력 이미지와 같은 크기
+# mask: np.uint8, 0/1, 입력과 같은 크기
 ```
 
-- `points`, `neg_points`, `box` 중 하나 이상 필요
-- 좌표는 화면 좌표가 아니라 **원본 이미지 픽셀 좌표**
-- 빈 마스크가 나오면 `RuntimeError`
+- `points`, `box` 중 하나 이상 필요
+- 좌표: 원본 이미지 픽셀 기준
+- 빈 마스크면 `RuntimeError`
 
 ## 설정
 
@@ -26,10 +26,8 @@ mask = extract_object(
 | `SAM2_CONFIG` | `configs/sam2.1/sam2.1_hiera_b+.yaml` |
 | `SAM2_DEVICE` | 자동 (cuda 우선) |
 
-체크포인트는 저장소에 올리지 않는다.
+- 체크포인트는 저장소에 없음 (AI 기능·서버 담당에게 받기)
 
-## 테스트 (UI 없이)
+## 시험
 
-```
-python scripts/test_object_extraction.py 이미지경로 --points "487,731;483,443" --out mask.png
-```
+- [../../scripts/README.md](../../scripts/README.md) `test_object_extraction.py`
