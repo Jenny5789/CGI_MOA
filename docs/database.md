@@ -10,7 +10,7 @@
 | 계정 | 쓰는 곳 | 비밀번호 보관 |
 |---|---|---|
 | MySQL `root` | 각자 DB를 만들고 관리할 때 (Workbench) | 본인만 |
-| MySQL `moa_app` | 서버 프로그램이 DB에 읽고 쓸 때 (사람이 직접 쓰지 않음) | 각자 `backend/.env` (팀원끼리 공유 안 함) |
+| MySQL `cgi_app` | 서버 프로그램이 DB에 읽고 쓸 때 (사람이 직접 쓰지 않음) | 각자 `backend/.env` (팀원끼리 공유 안 함) |
 | 앱 회원 (`test` 등) | 앱 화면 로그인 | DB의 `users` 표 (비밀번호는 암호화해 저장) |
 
 ## 1. MySQL 확인
@@ -22,13 +22,14 @@
 
 ## 2. DB와 서버 전용 계정 만들기 (Workbench, root로 접속)
 
-- `여기에_비밀번호`를 `moa_app`용으로 새로 정한 비밀번호로 바꿔 실행
+- `여기에_비밀번호`를 `cgi_app`용으로 새로 정한 비밀번호로 바꿔 실행
 - 이미 있으면 그대로 넘어감 (`IF NOT EXISTS`)
+- 이름: DB `cgi`(팀 이름), 서버 계정 `cgi_app`. 소문자로 통일 (Windows MySQL은 DB 이름을 소문자로 저장)
 
 ```sql
-CREATE DATABASE IF NOT EXISTS moa_project CHARACTER SET utf8mb4;
-CREATE USER IF NOT EXISTS 'moa_app'@'localhost' IDENTIFIED BY '여기에_비밀번호';
-GRANT ALL PRIVILEGES ON moa_project.* TO 'moa_app'@'localhost';
+CREATE DATABASE IF NOT EXISTS cgi CHARACTER SET utf8mb4;
+CREATE USER IF NOT EXISTS 'cgi_app'@'localhost' IDENTIFIED BY '여기에_비밀번호';
+GRANT ALL PRIVILEGES ON cgi.* TO 'cgi_app'@'localhost';
 ```
 
 ## 3. 접속 정보 파일 만들기
@@ -47,7 +48,7 @@ GRANT ALL PRIVILEGES ON moa_project.* TO 'moa_app'@'localhost';
 
 ## 5. 서버가 자동으로 하는 일 (로그인 기능 완성 후)
 
-- 서버를 켜면 `moa_project` 안에 표가 없을 때 자동 생성
+- 서버를 켜면 `cgi` 안에 표가 없을 때 자동 생성
 - 시험용 회원 `test` / `test1234` 자동 생성 (비밀번호 규칙: 8자 이상, 숫자 포함)
 
 | 표 | 내용 |
@@ -59,8 +60,8 @@ GRANT ALL PRIVILEGES ON moa_project.* TO 'moa_app'@'localhost';
 
 | 증상 | 원인·조치 |
 |---|---|
-| `Access denied for user 'moa_app'` | `.env` 비밀번호가 2번과 다름 → 비밀번호 확인 |
+| `Access denied for user 'cgi_app'` | `.env` 비밀번호가 2번과 다름 → 비밀번호 확인 |
 | `Can't connect to MySQL server` | MySQL이 꺼져 있음 → 서비스 `MySQL80` 시작 |
-| `Unknown database 'moa_project'` | 2번 미실행 → SQL 실행 |
+| `Unknown database 'cgi'` | 2번 미실행 → SQL 실행 |
 | `'cryptography' package is required` | 4번에서 `[rsa]` 빠짐 → `pip install cryptography` |
 | `DATABASE_URL이 없습니다` | 3번 미실행 → `backend/.env` 만들기 |
