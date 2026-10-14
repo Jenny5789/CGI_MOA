@@ -4,9 +4,12 @@
    -> 4 점 찍어 입힐 영역 지정 -> 확인 -> 다듬기 팝업(브러시, 지우개) -> 다음 -> 합성 설정 팝업(체크 두 개) -> 합성 시작
    -> 결과, 저장
    오른쪽 "내 작업 기록"은 서버의 저장된 결과 목록(명세 6-1)을 보여 준다.
-   지금은 흉내만 내는 곳이 두 군데 있다(서버 연동 때 바꾼다).
-   - 3단계 추출: 찍은 점마다 동그라미로 잘라낸다(rebuildMask). SAM을 쓰지 않는다.
-   - 4단계 합성: 3.2초 기다린 뒤 잘라낸 상의를 칠한 영역에 붙인다(compose). AI 합성이 아니다. */
+   서버 연결 (src/api/studio.js)
+   - 1·2단계: 고른 사진을 서버에 올린다(명세 3-1)
+   - 3단계: 점을 찍는 동안의 미리보기는 점마다 동그라미(rebuildMask3). "확인"을 누르면 서버 SAM2로 실제 윤곽을 받아 다듬기 팝업을 연다(4-1)
+   - 4단계: "합성 시작"에서 서버 AnyDoor 합성 요청 → 2초마다 진행 확인 → 결과(5-1~5-3)
+   - 결과 "저장": 서버에 저장 표시(6-2)
+   아직 서버에 안 가는 것: 다듬기 팝업에서 고친 상의 윤곽(서버는 SAM2 윤곽으로 합성), 합성 설정 체크 두 개(opts) */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import studioCss from '../styles/studio-guide.css?inline';
 import usePageStyle from '../components/usePageStyle.js';

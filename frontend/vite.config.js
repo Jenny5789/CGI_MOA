@@ -6,7 +6,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.')
   return {
     plugins: [react()],
-    // 화면이 /api/... 로 보내는 요청을 주소 그대로 실제 서버로 넘긴다 (VITE_USE_MOCK=false 일 때만 쓰임)
+    // 화면이 /api/... 로 보내는 요청을 주소 그대로 실제 서버로 넘긴다 (VITE_API_MODE가 mixed, real 일 때 쓰임)
     server: {
       proxy: {
         '/api': {
