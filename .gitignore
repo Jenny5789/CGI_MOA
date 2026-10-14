@@ -24,3 +24,9 @@ docs/images/
 
 # 서버가 저장하는 사진과 결과 (DB 대신 파일 저장)
 storage/
+
+# 서버 DB 접속 정보 (각자 비밀번호, 본보기는 backend/.env.example)
+backend/.env
+
+# 개인 작업 메모 (팀 공유 안 함)
+docs/작업메모.md
