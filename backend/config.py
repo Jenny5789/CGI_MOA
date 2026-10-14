@@ -17,3 +17,6 @@ FILE_DIRS = {"img": IMAGES_DIR, "ext": EXTRACTIONS_DIR, "res": RESULTS_DIR}
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 ALLOWED_FORMATS = {"JPEG": ".jpg", "PNG": ".png"}
 IMAGE_KINDS = {"garment", "person"}
+
+# 명세 5-3 (10/12 결정): 저장하지 않은 합성 결과를 남겨 두는 기간
+RESULT_KEEP_DAYS = 3

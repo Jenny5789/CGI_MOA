@@ -2,7 +2,7 @@
 
 - POST /api/compose        : 합성 요청. 작업 번호를 바로 돌려주고 합성은 뒤에서 진행 (명세 5-1)
 - GET  /api/jobs/{job_id}  : 진행 확인 (명세 5-2)
-- GET  /api/results/{id}   : 결과 받기 (명세 5-3)
+- 결과 받기(명세 5-3)는 routers/results.py로 옮김 (사진첩과 같은 "결과" 묶음)
 
 처리 방식
 - 합성 전담 일꾼(스레드) 하나가 들어온 순서대로 한 번에 한 장씩 처리
@@ -225,13 +225,3 @@ def get_job(job_id: str):
             job["status"] = "failed"
             job["error"] = {"code": "SERVER_RESTARTED", "message": "서버가 다시 시작되어 작업이 중단되었습니다. 다시 요청해 주세요."}
     return _public(job)
-
-
-@router.get("/api/results/{result_id}")
-def get_result(result_id: str):
-    path = RESULTS_DIR / f"{result_id}.json"
-    if not _ID.match(result_id) or not path.is_file():
-        raise ApiError(404, "RESULT_NOT_FOUND", "결과를 찾을 수 없습니다.")
-    record = json.loads(path.read_text(encoding="utf-8"))
-    keys = ("result_id", "image_url", "thumb_url", "created_at", "saved", "favorite", "garment_image_id", "person_image_id")
-    return {k: record[k] for k in keys}

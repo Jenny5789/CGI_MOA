@@ -16,7 +16,7 @@ import {
   boxFit, drawContain, drawCover, drawDot, fly, loadImage, makeWork, maskBBox, newCanvas, nowText, paintTint, pointer,
 } from '../studio/canvas.js';
 import MaskEditor from '../studio/MaskEditor.jsx';
-import { listResults } from '../api/results.js';
+import { listResults, updateResult } from '../api/results.js';
 import { extractGarment, getJob, getResult, requestCompose, uploadImage } from '../api/studio.js';
 import { formatKoreanDate } from '../utils/date.js';
 
@@ -490,6 +490,7 @@ export default function Studio() {
       const area = await areaMaskBlob(s4.current.edited);
       const job = await requestCompose(ext.extraction_id, personId, area);
       const resultId = await waitForJob(job.job_id, setProgress);
+      data.current.resultId = resultId; // "저장" 때 서버에 알릴 결과 번호
       const res = await getResult(resultId);
       const img = await loadImage(res.image_url);
       const out = newCanvas(img.naturalWidth, img.naturalHeight);
@@ -520,11 +521,20 @@ export default function Studio() {
     return () => { ignore = true; };
   }, [showToast]);
 
-  const save = () => {
+  // 저장: 서버에 "저장함"으로 알리고(명세 6-2) 내 작업 기록 맨 위에 붙인다. 서버 결과는 사진첩 "전체"로 옮겨진다
+  const save = async () => {
     if (!result || result.fromHistory || saved || !data.current.result) return;
     setSaved(true);
-    const id = 'new-' + Date.now();
-    setHistory((h) => [{ id, d: nowText(), entry: { canvas: data.current.result }, isNew: true }, ...h]);
+    const resultId = data.current.resultId;
+    try {
+      if (resultId) await updateResult(resultId, { saved: true });
+    } catch (e) {
+      setSaved(false);
+      showToast(`저장하지 못했습니다: ${e.message}`);
+      return;
+    }
+    const id = resultId || 'new-' + Date.now();
+    setHistory((h) => [{ id, d: nowText(), entry: { canvas: data.current.result }, isNew: true }, ...h.filter((x) => x.id !== id)]);
     showToast('작업 기록에 저장했습니다');
   };
 

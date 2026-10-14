@@ -14,7 +14,7 @@ import os
 from fastapi import FastAPI
 
 from backend.errors import register_error_handlers
-from backend.routers import compose, extract, files, images
+from backend.routers import compose, extract, files, images, results
 
 app = FastAPI(title="MOA API")
 register_error_handlers(app)  # 오류를 명세 형식 { error: { code, message } }으로
@@ -30,7 +30,8 @@ def health():
 app.include_router(images.router)    # 명세 3-1 사진 올리기
 app.include_router(files.router)     # 명세 7장 파일 보기
 app.include_router(extract.router)   # 명세 4-1 상의 추출
-app.include_router(compose.router)   # 명세 5-1~5-3 합성
+app.include_router(compose.router)   # 명세 5-1~5-2 합성 요청, 진행 확인
+app.include_router(results.router)   # 명세 5-3, 6-1~6-2 결과, 사진첩 (저장/좋아요)
 
 
 @app.on_event("startup")
