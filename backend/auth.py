@@ -2,7 +2,7 @@
 
 - 비밀번호: PBKDF2-SHA256 (파이썬 기본 hashlib, 추가 패키지 없음). 저장 형식 "pbkdf2_sha256$반복수$소금$해시"
 - 토큰: 무작위 글자. DB에는 토큰의 SHA-256 해시만 저장 (DB가 새어도 토큰으로 로그인 못 하게)
-- 토큰 유효 기간: TOKEN_DAYS (임시 7일)
+- 토큰 유효 기간: TOKEN_DAYS (1일, 10/15 결정). 로그인한 때부터 셈, 쓰는 중에도 연장 안 됨
 - 로그인 필요한 주소: 함수 인자에 user: User = Depends(current_user)
 """
 import hashlib
@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from backend.db import AuthSession, User, get_db, utcnow
 from backend.errors import ApiError
 
-TOKEN_DAYS = 7
+TOKEN_DAYS = 1
 _ITERATIONS = 600_000
 _PASSWORD_RULE = re.compile(r"^(?=.*\d).{8,}$")  # 명세 2-2: 8자 이상, 숫자 포함
 
