@@ -2,7 +2,7 @@
 
 - 서버·화면 없이 AI 기능만 확인하는 스크립트
 - 실행 위치: 저장소 맨 위 폴더
-- 실행 환경: SAM2가 설치된 `CGI` 가상환경 (설치 방법: [../docs/environment_2026-10-11.md](../docs/environment_2026-10-11.md))
+- 실행 환경: SAM2가 설치된 `CGI` 가상환경 (설치 방법: [../docs/environment.md](../docs/environment.md))
 - SAM2 모델 파일 필요: `checkpoints/sam2/sam2.1_hiera_base_plus.pt` (저장소에 없음, 위치는 [../features/object_extraction/README.md](../features/object_extraction/README.md) 참고)
 
 | 스크립트 | 용도 |

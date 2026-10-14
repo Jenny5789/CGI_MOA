@@ -1,4 +1,8 @@
-# CGI 가상환경 설치 버전 (2026-10-11 기준)
+# CGI 가상환경 설치 버전
+
+- 처음 설치: 2026-10-11
+- 마지막 확인: 2026-10-14 (설치된 패키지가 [pip_freeze.txt](pip_freeze.txt)와 같음)
+- 바뀌면 이 파일과 `pip_freeze.txt`를 고치고, 아래 "추가 설치"에 날짜와 함께 적는다 (예전 내용은 git 기록에 남음)
 
 ## 기준
 - 팀 문서 "3. 실행 환경 및 Package 비교"의 "CGI 환경" 열
@@ -9,7 +13,7 @@
 ```
 torch 2.5.1+cu121 / cuda available True / numpy 2.2.6 / transformers 5.14.1
 ```
-전체 목록: [pip_freeze_2026-10-12_server.txt](pip_freeze_2026-10-12_server.txt) (아래 추가 설치까지 모두 반영된 최신 목록)
+전체 목록: [pip_freeze.txt](pip_freeze.txt) (아래 추가 설치까지 모두 반영된 최신 목록)
 
 ## 설치 순서
 ```
@@ -35,7 +39,7 @@ CGI\Scripts\python.exe -m pip install lvis==0.5.3 --no-deps
 CGI\Scripts\python.exe -m pip install fastapi "uvicorn[standard]" python-multipart
 ```
 - 새 패키지 13개만 추가되고 기존 패키지는 바뀌지 않음 (fastapi 0.143.0, uvicorn 0.54.0, pydantic 2.14.1, starlette 1.7.0 등)
-- 설치 후 목록: [pip_freeze_2026-10-12_server.txt](pip_freeze_2026-10-12_server.txt)
+- 설치 후 목록: [pip_freeze.txt](pip_freeze.txt)
 
 ## 주요 버전
 | 구분 | 패키지 | 버전 |

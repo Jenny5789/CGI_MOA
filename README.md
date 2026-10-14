@@ -11,7 +11,7 @@
 | `backend/` | 서버 (FastAPI). 사진 올리기, 상의 추출, 합성 | [backend/README.md](backend/README.md) |
 | `features/` | AI 기능. SAM2 상의 추출, AnyDoor 합성 | [features/object_extraction/README.md](features/object_extraction/README.md) |
 | `scripts/` | 서버·화면 없이 AI 기능만 확인하는 스크립트 | [scripts/README.md](scripts/README.md) |
-| `docs/` | 팀 API 명세, 환경 설치 방법 | [docs/api.md](docs/api.md), [docs/environment_2026-10-11.md](docs/environment_2026-10-11.md) |
+| `docs/` | 팀 API 명세, 환경 설치 방법 | [docs/api.md](docs/api.md), [docs/environment.md](docs/environment.md) |
 
 ## 현재 상태 (2026-10-12)
 
@@ -39,7 +39,7 @@
 - `cd frontend` → `npm install` → `npm run dev` → http://localhost:5173
 
 **서버**
-- `CGI` 가상환경 필요 (Python 3.10, torch 2.5.1, SAM2, AnyDoor 패키지): [docs/environment_2026-10-11.md](docs/environment_2026-10-11.md)
+- `CGI` 가상환경 필요 (Python 3.10, torch 2.5.1, SAM2, AnyDoor 패키지): [docs/environment.md](docs/environment.md)
 - 모델 파일(SAM2, AnyDoor)은 용량이 커서 저장소에 없음 → 추출·합성을 실행할 때 AI 기능 담당에게 받기
 - 실행 (저장소 맨 위 폴더): `CGI\Scripts\python.exe -m uvicorn backend.main:app --port 8000`
 - 확인: http://localhost:8000/docs
