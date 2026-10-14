@@ -9,6 +9,9 @@ const DELAY = 500;
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const ok = (data) => ({ status: 200, data });
 const fail = (status, code, message) => ({ status, data: { error: { code, message } } });
+// 로그인 유효 시간 (실제 서버 backend/auth.py TOKEN_HOURS와 같게). 가짜 서버는 만료를 실제로 확인하지는 않는다
+const TOKEN_MS = 3 * 60 * 60 * 1000;
+const expiresAt = () => new Date(Date.now() + TOKEN_MS).toISOString();
 
 // 사진첩 예시 (예전 MyPage.jsx의 SAMPLE_ITEMS를 명세 5-3 모양으로 옮김). 사진은 public/assets/gallery의 예시 이미지
 const SAMPLE_RESULTS = [
@@ -58,11 +61,12 @@ const listItem = (r) => ({
 const routes = {
   'POST /auth/login': (body) => {
     if (body && body.username === DEMO_ID && body.password === DEMO_PW) {
-      return ok({ token: DEMO_TOKEN, user: { id: 1, username: DEMO_ID, name: 'MOA User' } });
+      return ok({ token: DEMO_TOKEN, expires_at: expiresAt(), user: { id: 1, username: DEMO_ID, name: 'MOA User' } });
     }
     return fail(401, 'INVALID_CREDENTIALS', '아이디 또는 비밀번호가 올바르지 않습니다');
   },
   'POST /auth/logout': () => ok({}),
+  'POST /auth/extend': () => ok({ expires_at: expiresAt() }),
 
   'GET /me': () => ok({ id: 1, username: DEMO_ID, name: 'MOA User', email: 'moa.user@example.com', avatar_url: '/assets/gallery/girl_sitting.jpg' }),
 

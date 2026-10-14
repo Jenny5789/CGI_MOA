@@ -4,6 +4,8 @@
 - POST /api/auth/register  : 회원가입, 가입 후 바로 로그인 상태 (2-2)
 - GET  /api/me             : 내 정보 (2-3), 로그인 필요
 - POST /api/auth/logout    : 로그아웃, 이 토큰을 더는 받지 않음 (2-4), 로그인 필요
+- POST /api/auth/extend    : 로그인 시간 연장 (명세 외 추가 10/15, docs/login_extend.md), 로그인 필요
+- 로그인·회원가입·연장 응답의 expires_at: 이 시각이 지나면 토큰 만료 (한국 시간)
 - 회원·토큰은 MySQL(backend/db.py), 시험용 회원 test / test1234
 """
 from typing import Optional
@@ -13,8 +15,8 @@ from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from backend.auth import (bearer_token, current_user, find_user, hash_password, issue_token, password_ok,
-                          revoke_token, verify_password)
+from backend.auth import (bearer_token, current_user, expires_text, extend_token, find_user, hash_password,
+                          issue_token, password_ok, revoke_token, verify_password)
 from backend.db import User, get_db, utcnow
 from backend.errors import ApiError
 
@@ -36,8 +38,9 @@ class RegisterBody(BaseModel):
     email: Optional[str] = None
 
 
-def _user_brief(user: User):
-    return {"id": user.id, "username": user.username, "name": user.name}
+def _login_response(db: Session, user: User):
+    token, expires_at = issue_token(db, user)
+    return {"token": token, "expires_at": expires_text(expires_at), "user": {"id": user.id, "username": user.username, "name": user.name}}
 
 
 @router.post("/api/auth/login")
@@ -45,7 +48,7 @@ def login(body: LoginBody, db: Session = Depends(get_db)):
     user = find_user(db, body.username.strip())
     if not verify_password(body.password, user.password_hash if user else _DUMMY_HASH) or user is None:
         raise ApiError(401, "INVALID_CREDENTIALS", "아이디 또는 비밀번호가 올바르지 않습니다.")
-    return {"token": issue_token(db, user), "user": _user_brief(user)}
+    return _login_response(db, user)
 
 
 @router.post("/api/auth/register")
@@ -66,7 +69,7 @@ def register(body: RegisterBody, db: Session = Depends(get_db)):
     except IntegrityError:  # 같은 아이디가 동시에 가입된 경우
         db.rollback()
         raise ApiError(409, "DUPLICATE_USERNAME", "이미 사용 중인 아이디입니다.")
-    return {"token": issue_token(db, user), "user": _user_brief(user)}
+    return _login_response(db, user)
 
 
 @router.get("/api/me")
@@ -79,3 +82,9 @@ def me(user: User = Depends(current_user)):
 def logout(request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
     revoke_token(db, bearer_token(request))
     return {}
+
+
+@router.post("/api/auth/extend")
+def extend(request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    # 이미 만료된 토큰은 current_user에서 401 → 연장 불가, 다시 로그인
+    return {"expires_at": expires_text(extend_token(db, bearer_token(request)))}

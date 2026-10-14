@@ -17,7 +17,7 @@ const BASE = '/api'; // 개발 중에는 vite.config.js의 프록시가 실제 �
 
 // mixed 모드에서 실제 서버로 보낼 요청 ("방식 주소" 모양으로 검사)
 const REAL_ROUTES = [
-  /^POST \/auth\/(login|register|logout)$/, // 로그인, 회원가입, 로그아웃 (2-1, 2-2, 2-4)
+  /^POST \/auth\/(login|register|logout|extend)$/, // 로그인, 회원가입, 로그아웃, 시간 연장 (2-1, 2-2, 2-4, 추가)
   /^GET \/me$/,                               // 내 정보 (2-3)
   /^POST \/images$/,
   /^POST \/extract$/,
@@ -40,7 +40,10 @@ export const UNAUTHORIZED_EVENT = 'moa:unauthorized';
 
 export const getToken = () => { try { return localStorage.getItem(TOKEN_KEY); } catch { return null; } };
 export const setToken = (token) => {
-  try { if (token) localStorage.setItem(TOKEN_KEY, token); else localStorage.removeItem(TOKEN_KEY); } catch { /* 저장 불가 시 무시 */ }
+  try {
+    if (token) localStorage.setItem(TOKEN_KEY, token);
+    else { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem('moa_token_expires'); } // 만료 시각(api/auth.js)도 함께 지움
+  } catch { /* 저장 불가 시 무시 */ }
 };
 
 // 서버가 실패를 돌려줬을 때. 명세의 오류 형식 { error: { code, message } } 를 담는다. status 0은 서버에 아예 닿지 못한 경우
