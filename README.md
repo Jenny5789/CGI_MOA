@@ -11,17 +11,18 @@
 | `backend/` | 서버 (FastAPI). 사진 올리기, 상의 추출, 합성, 사진첩 | [backend/README.md](backend/README.md) |
 | `features/` | AI 기능. SAM2 상의 추출, AnyDoor 합성 | [features/object_extraction/README.md](features/object_extraction/README.md) |
 | `scripts/` | 서버·화면 없이 AI 기능만 확인하는 스크립트 | [scripts/README.md](scripts/README.md) |
-| `docs/` | 팀 API 명세, 환경 설치 방법 | [docs/api.md](docs/api.md), [docs/environment.md](docs/environment.md) |
+| `docs/` | 팀 API 명세, 환경 설치, DB 설정, 화면 담당 전달 사항 | [docs/api.md](docs/api.md), [docs/environment.md](docs/environment.md), [docs/database.md](docs/database.md), [docs/ui_handoff.md](docs/ui_handoff.md) |
 
-## 현재 상태 (2026-10-14)
+## 현재 상태 (2026-10-15)
 
 | 부분 | 상태 |
 |---|---|
 | 화면 | 시안 완성 |
 | 서버: 사진 올리기, 상의 추출(SAM2), 합성(AnyDoor) | 동작 확인 |
 | 서버: 사진첩 (결과 목록, 저장/좋아요, 저장 안 한 결과 3일 뒤 삭제) | 동작 확인 |
-| 화면 ↔ 서버 연결 | 사진 올리기, 추출, 합성, 사진첩 연결 완료 |
-| 로그인 | 아직 화면 안의 가짜 로그인 사용 (`test` / `test`) |
+| 서버: 로그인, 회원가입, 내 정보, 로그아웃 (MySQL), 로그인 시간 연장 | 동작 확인 |
+| 화면 ↔ 서버 연결 | 로그인, 사진 올리기, 추출, 합성, 사진첩 연결 완료 |
+| 화면에 붙일 것 | 로그인 연장 안내 창, 회원가입 버튼 등 → [docs/ui_handoff.md](docs/ui_handoff.md) |
 
 ## 담당
 
@@ -37,6 +38,7 @@
 **서버**
 - `CGI` 가상환경 필요 (Python 3.10, torch 2.5.1, SAM2, AnyDoor 패키지): [docs/environment.md](docs/environment.md)
 - 모델 파일(SAM2, AnyDoor)은 용량이 커서 저장소에 없음 → 추출·합성을 실행할 때 AI 기능·서버 담당에게 받기
+- MySQL 설정 (로그인용, 처음 한 번): [docs/database.md](docs/database.md). 없어도 서버는 켜지고 로그인만 안 됨
 - 실행 (저장소 맨 위 폴더): `CGI\Scripts\python.exe -m uvicorn backend.main:app --port 8000`
 - 확인: http://localhost:8000/api/health → `{"status":"ok"}`, 시험 화면 http://localhost:8000/docs
 - GPU 필요 (확인 환경: RTX 3080 10GB). 서버가 켜질 때 AnyDoor를 미리 불러와 예열(1~2분), 이후 합성 1장 약 1분
@@ -48,9 +50,9 @@
 ## 화면과 서버 함께 쓰기
 
 - `frontend/.env.example`을 `frontend/.env.local`로 복사하고 `VITE_API_MODE=mixed`로 변경
-  - `mixed`: 서버에 있는 기능(사진 올리기, 추출, 합성, 사진첩)은 실제 서버로, 로그인은 화면 안의 가짜 서버로
+  - `mixed`: 서버에 있는 기능(로그인, 사진 올리기, 추출, 합성, 사진첩)은 실제 서버로
   - `mock`(기본): 서버 없이 화면만 볼 때
-- 순서: 서버 실행 → 화면 실행(`npm run dev`) → http://localhost:5173 → 로그인 `test` / `test`
+- 순서: 서버 실행 → 화면 실행(`npm run dev`) → http://localhost:5173 → 로그인 `test` / `test1234` (가짜 서버 `mock`에서는 `test` / `test`)
 - 합성하기
   1. 상의 사진 → "이 사진 사용" (서버에 올라감)
   2. 인물 사진 → "이 사진 사용"
