@@ -3,7 +3,7 @@
 - 용도: 서버의 회원, 로그인 증표(토큰) 저장 (명세 2장 로그인·회원가입·내 정보)
 - 방식: 팀원마다 **자기 컴퓨터의 MySQL**에 같은 이름의 DB·계정을 만들어 각자 서버 실행
 - 접속 정보(비밀번호)는 각자 `backend/.env`에만 저장, GitHub에는 본보기 `backend/.env.example`만 올림
-- 상태: 로그인 기능 작업 중 (2026-10-14). 아래 1~4는 지금 해 두면 됨
+- 상태: 로그인 기능 완료 (2026-10-15). 아래 1~4를 해 두면 서버가 켜질 때 자동 연결
 
 ## 계정 구분
 
@@ -42,12 +42,14 @@ GRANT ALL PRIVILEGES ON cgi.* TO 'cgi_app'@'localhost';
 
 ## 4. 파이썬 패키지 (CGI 가상환경)
 
-- `pip install "pymysql[rsa]" sqlalchemy`
+- `pip install "pymysql[rsa]" sqlalchemy python-dotenv`
 - `[rsa]`: MySQL 8 기본 로그인 방식(caching_sha2_password)에 필요한 `cryptography`를 함께 설치
 - 확인 버전 (2026-10-14): PyMySQL 1.2.3, SQLAlchemy 2.0.54, cryptography 50.0.2
 
-## 5. 서버가 자동으로 하는 일 (로그인 기능 완성 후)
+## 5. 서버가 자동으로 하는 일
 
+- 서버 실행 로그에 `DB 연결 완료 (로그인 기능 사용 가능)`이 나오면 정상
+- 연결 실패 시에도 서버는 켜짐 (추출·합성은 그대로), 로그인 관련 주소만 503
 - 서버를 켜면 `cgi` 안에 표가 없을 때 자동 생성
 - 시험용 회원 `test` / `test1234` 자동 생성 (비밀번호 규칙: 8자 이상, 숫자 포함)
 

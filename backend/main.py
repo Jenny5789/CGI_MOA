@@ -13,8 +13,9 @@ import os
 
 from fastapi import FastAPI
 
+from backend.db import init_db
 from backend.errors import register_error_handlers
-from backend.routers import compose, extract, files, images, results
+from backend.routers import auth, compose, extract, files, images, results
 
 app = FastAPI(title="MOA API")
 register_error_handlers(app)  # 오류를 명세 형식 { error: { code, message } }으로
@@ -27,11 +28,17 @@ def health():
 
 
 # 기능별 주소
+app.include_router(auth.router)      # 명세 2-1~2-4 로그인, 회원가입, 내 정보, 로그아웃 (MySQL)
 app.include_router(images.router)    # 명세 3-1 사진 올리기
 app.include_router(files.router)     # 명세 7장 파일 보기
 app.include_router(extract.router)   # 명세 4-1 상의 추출
 app.include_router(compose.router)   # 명세 5-1~5-2 합성 요청, 진행 확인
 app.include_router(results.router)   # 명세 5-3, 6-1~6-2 결과, 사진첩 (저장/좋아요)
+
+
+@app.on_event("startup")
+def _connect_db():
+    init_db()  # backend/.env의 MySQL. 실패해도 서버는 켜지고 로그인 주소만 503
 
 
 @app.on_event("startup")

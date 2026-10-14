@@ -42,3 +42,4 @@ python-multipart==0.0.32
 # [rsa]: MySQL 8 기본 로그인 방식에 필요한 cryptography 포함
 pymysql[rsa]==1.2.3
 sqlalchemy==2.0.54
+python-dotenv==1.2.4

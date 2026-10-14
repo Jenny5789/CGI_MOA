@@ -29,12 +29,15 @@
 | `storage.py`, `gpu.py` | - | 저장 기록 찾기, GPU 한 번에 하나씩 사용 | 완료 |
 | `routers/compose.py` | 5-1~5-2 | 합성 요청, 진행 확인 | 완료 |
 | `routers/results.py` | 5-3, 6-1~6-2 | 결과 받기, 결과 목록, 저장/좋아요, 저장 안 한 결과 3일 삭제 | 완료 (10/14) |
-| `routers/auth.py`, `db.py` | 2-1~2-4 | 로그인, 회원가입, 내 정보, 로그아웃 (MySQL, [../docs/database.md](../docs/database.md)) | 작업 중 (10/14) |
+| `routers/auth.py`, `auth.py`, `db.py` | 2-1~2-4 | 로그인, 회원가입, 내 정보, 로그아웃 (MySQL, [../docs/database.md](../docs/database.md)) | 완료 (10/15) |
 
-## 임시 결정 사항 (로그인 완성 후 정리)
+## 임시 결정 사항
 
-- 로그인 확인 없이 동작 (명세상 "로그인 필요" 주소 포함)
-- DB 없이 파일로 저장 (`storage/images/` 올린 사진, `storage/extractions/` 추출 결과, `storage/jobs/` 합성 작업, `storage/results/` 합성 결과, 저장소 제외)
+- 로그인: 시험 회원 `test` / `test1234` (서버가 켜질 때 자동 생성). 토큰 유효 7일, DB에는 토큰 해시만 저장
+- `backend/.env`가 없거나 MySQL에 연결 못 해도 서버는 켜짐 → 로그인 관련 주소만 503 `DB_UNAVAILABLE`
+- 회원가입: 아이디 공백 없이 50자 이하, `name` 비우면 아이디로, `email` 선택. `/api/me`의 `avatar_url`은 `null` (프로필 사진 기능 없음)
+- 사진·추출·합성·결과 주소는 아직 로그인 확인 없음 (명세상 "로그인 필요") → 다음 단계에서 붙이고 결과를 사람별로 나눔
+- 사진·결과 기록은 DB 없이 파일로 저장 (`storage/images/` 올린 사진, `storage/extractions/` 추출 결과, `storage/jobs/` 합성 작업, `storage/results/` 합성 결과, 저장소 제외)
 - 합성 작업 상태는 서버 메모리에 보관 → 서버 재시작 시 진행 중이던 작업은 실패(`SERVER_RESTARTED`)로 표시
 - 파일 보기(`/api/files`) 보호 없음 → 누구나 열람 가능. 보호 방식은 명세 7장 미정
 
