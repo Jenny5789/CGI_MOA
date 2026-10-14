@@ -3,15 +3,45 @@
 - 상의 사진에서 옷을 골라 인물 사진에 입혀 주는 웹 서비스
 - 흐름: 상의 사진 고르기 → 인물 사진 고르기 → 점 찍어 상의 추출(SAM2) → 입힐 영역 지정 → 합성(AnyDoor) → 결과 저장
 
-## 폴더 구조
+## 폴더와 문서 안내
 
-| 폴더 | 내용 | 설명서 |
-|---|---|---|
-| `frontend/` | 웹 화면 (React) | [frontend/README.md](frontend/README.md) |
-| `backend/` | 서버 (FastAPI). 사진 올리기, 상의 추출, 합성, 사진첩 | [backend/README.md](backend/README.md) |
-| `features/` | AI 기능. SAM2 상의 추출, AnyDoor 합성 | [features/object_extraction/README.md](features/object_extraction/README.md) |
-| `scripts/` | 서버·화면 없이 AI 기능만 확인하는 스크립트 | [scripts/README.md](scripts/README.md) |
-| `docs/` | 팀 API 명세, 환경 설치, DB 설정, 화면 담당 전달 사항 | [docs/api.md](docs/api.md), [docs/environment.md](docs/environment.md), [docs/database.md](docs/database.md), [docs/ui_handoff.md](docs/ui_handoff.md) |
+```
+CGI_V2/
+├── README.md                          지금 이 문서. 소개, 현재 상태, 실행 방법
+│
+├── docs/                              팀 공용 문서
+│   ├── api.md                         팀 API 명세: 화면 ↔ 서버가 주고받는 값, 정한 것/정할 것
+│   ├── environment.md                 파이썬 가상환경(CGI) 설치 방법
+│   ├── pip_freeze.txt                 설치된 패키지 전체 목록 (environment.md 부록)
+│   ├── database.md                    MySQL 설정: DB·계정 만들기, .env, 문제 해결
+│   ├── login_extend.md                로그인 시간 연장 규칙 (만료 30분 전·10분 전 확인)
+│   └── ui_handoff.md                  화면 담당 전달 사항 (날짜별 할 일 체크리스트)
+│
+├── frontend/                          웹 화면 (React)
+│   ├── README.md                      화면 실행 방법
+│   └── .env.example                   화면이 쓸 서버 고르기 (mock / mixed / real)
+│
+├── backend/                           서버 (FastAPI): 로그인, 사진 올리기, 추출, 합성, 사진첩
+│   ├── README.md                      서버 파일별 역할·상태, 임시 결정, 명세 외 추가
+│   └── .env.example                   DB 접속 정보 본보기 (복사해서 .env로)
+│
+├── features/                          AI 기능
+│   ├── object_extraction/README.md    SAM2 상의 추출: 호출 방법, 모델 파일 위치
+│   └── composition/README.md          AnyDoor 합성: 호출 방법, 필요한 모델 파일, 속도
+│
+└── scripts/                           서버·화면 없이 AI 기능만 시험
+    └── README.md                      test_object_extraction.py, test_compose.py 사용법
+```
+
+**하려는 일별로 볼 문서**
+
+| 하려는 일 | 문서 (순서대로) |
+|---|---|
+| 처음 받아서 실행하기 | 이 문서 "실행" → [docs/environment.md](docs/environment.md) → [docs/database.md](docs/database.md) |
+| 화면 작업 (화면 담당) | [docs/ui_handoff.md](docs/ui_handoff.md) → [docs/api.md](docs/api.md) → [frontend/README.md](frontend/README.md) |
+| 서버 주소·주고받는 값 확인 | [docs/api.md](docs/api.md) → [backend/README.md](backend/README.md) "명세 외 추가" |
+| 로그인이 안 될 때 | [docs/database.md](docs/database.md) "문제 해결" |
+| AI 기능만 따로 시험 | [scripts/README.md](scripts/README.md) → [features/](features/) 아래 README |
 
 ## 현재 상태 (2026-10-15)
 
