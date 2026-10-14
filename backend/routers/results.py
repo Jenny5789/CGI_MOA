@@ -4,19 +4,21 @@
 - GET   /api/results/{id}       : 결과 하나 (명세 5-3)
 - PATCH /api/results/{id}       : 저장 / 좋아요 (명세 6-2)
 - 저장하지 않은 결과는 만든 지 3일 뒤 지운다 (명세 5-3, 10/12 결정). 목록을 볼 때 지난 것을 정리한다
-- 임시: 로그인 확인 없음 → 모든 결과가 한 사람 것처럼 보임. 결과는 storage/results에 파일(json)로 저장
+- 로그인 필요. 자기 결과만 보이고 바꿀 수 있음 (남의 결과는 404). 결과는 storage/results에 파일(json)로 저장
 """
 import json
 import threading
 from datetime import datetime, timedelta
 from typing import Literal, Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
+from backend.auth import current_user
 from backend.config import RESULT_KEEP_DAYS, RESULTS_DIR
+from backend.db import User
 from backend.errors import ApiError
-from backend.storage import _ID, KST
+from backend.storage import _ID, KST, is_owner
 
 router = APIRouter()
 _lock = threading.Lock()  # 저장/좋아요를 동시에 바꿀 때 파일이 엉키지 않게
@@ -31,11 +33,14 @@ def _path(result_id):
     return RESULTS_DIR / f"{result_id}.json"
 
 
-def _load(result_id):
+def _load(result_id, user):
     path = _path(result_id)
     if path is None or not path.is_file():
         raise ApiError(404, "RESULT_NOT_FOUND", "결과를 찾을 수 없습니다.")
-    return json.loads(path.read_text(encoding="utf-8"))
+    record = json.loads(path.read_text(encoding="utf-8"))
+    if not is_owner(record, user):  # 남의 결과도 없는 것처럼
+        raise ApiError(404, "RESULT_NOT_FOUND", "결과를 찾을 수 없습니다.")
+    return record
 
 
 def _all_records():
@@ -70,9 +75,11 @@ def list_results(
     favorite: Optional[bool] = None,
     date: Optional[str] = None,
     sort: Literal["new", "old"] = "new",
+    user: User = Depends(current_user),
 ):
     with _lock:
-        records = _remove_expired(_all_records())
+        records = _remove_expired(_all_records())  # 3일 지난 것은 모든 회원 것을 함께 정리
+    records = [r for r in records if is_owner(r, user)]
 
     if date is not None:
         try:
@@ -99,8 +106,8 @@ def list_results(
 
 
 @router.get("/api/results/{result_id}")
-def get_result(result_id: str):
-    record = _load(result_id)
+def get_result(result_id: str, user: User = Depends(current_user)):
+    record = _load(result_id, user)
     return {k: record[k] for k in DETAIL_KEYS}
 
 
@@ -110,11 +117,11 @@ class ResultPatch(BaseModel):
 
 
 @router.patch("/api/results/{result_id}")
-def update_result(result_id: str, change: ResultPatch):
+def update_result(result_id: str, change: ResultPatch, user: User = Depends(current_user)):
     if change.saved is None and change.favorite is None:
         raise ApiError(400, "INVALID_REQUEST", "saved 또는 favorite 중 하나를 보내 주세요.")
     with _lock:
-        record = _load(result_id)
+        record = _load(result_id, user)
         if change.saved is not None:
             record["saved"] = change.saved
         if change.favorite is not None:

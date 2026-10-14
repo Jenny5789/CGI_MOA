@@ -2,17 +2,20 @@
 
 - 받는 값: file (jpg/png, 10MB 이하), kind ("garment" 상의 사진 / "person" 인물 사진)
 - 돌려주는 값: { image_id, url, width, height }
-- 임시: 로그인 확인 없음, DB 없이 storage/images에 사진과 정보(json)를 파일로 저장
+- 로그인 필요. 올린 회원 번호(user_id)를 함께 기록 → 그 회원만 추출·합성에 쓸 수 있음
+- 사진과 정보(json)는 DB 없이 storage/images에 파일로 저장
 """
 import io
 import json
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, UploadFile
 from PIL import Image, ImageOps, UnidentifiedImageError
 
+from backend.auth import current_user
 from backend.config import ALLOWED_FORMATS, IMAGE_KINDS, IMAGES_DIR, MAX_UPLOAD_BYTES
+from backend.db import User
 from backend.errors import ApiError
 
 router = APIRouter()
@@ -20,7 +23,7 @@ KST = timezone(timedelta(hours=9))
 
 
 @router.post("/api/images")
-async def upload_image(file: UploadFile = File(...), kind: str = Form(...)):
+async def upload_image(file: UploadFile = File(...), kind: str = Form(...), user: User = Depends(current_user)):
     if kind not in IMAGE_KINDS:
         raise ApiError(400, "INVALID_KIND", "kind는 garment 또는 person이어야 합니다.")
 
@@ -53,6 +56,7 @@ async def upload_image(file: UploadFile = File(...), kind: str = Form(...)):
 
     info = {
         "image_id": image_id,
+        "user_id": user.id,
         "kind": kind,
         "width": img.width,
         "height": img.height,

@@ -8,7 +8,8 @@
 - 합성 전담 일꾼(스레드) 하나가 들어온 순서대로 한 번에 한 장씩 처리
 - GPU는 추출과 같은 GPU_LOCK으로 차례를 지킨다 (합성 중에 들어온 추출 요청은 합성이 끝날 때까지 기다림)
 - AnyDoor는 features/composition의 compose를 그대로 쓴다 (50스텝, float16 + save_memory)
-- 임시: 로그인 확인 없음, 작업·결과는 storage/jobs, storage/results에 파일로 저장
+- 로그인 필요. 자기 추출 결과·인물 사진으로만 합성, 자기 작업만 진행 확인. 작업·결과에 회원 번호(user_id) 기록
+- 작업·결과는 storage/jobs, storage/results에 파일로 저장
 """
 import io
 import json
@@ -19,13 +20,15 @@ import threading
 import uuid
 
 import numpy as np
-from fastapi import APIRouter, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, UploadFile
 from PIL import Image, UnidentifiedImageError
 
+from backend.auth import current_user
 from backend.config import EXTRACTIONS_DIR, IMAGES_DIR, JOBS_DIR, MAX_UPLOAD_BYTES, RESULTS_DIR
+from backend.db import User
 from backend.errors import ApiError
 from backend.gpu import GPU_LOCK
-from backend.storage import _ID, load_extraction_info, load_image_info, now_kst
+from backend.storage import _ID, is_owner, load_extraction_info, load_image_info, now_kst
 
 router = APIRouter()
 log = logging.getLogger("moa.compose")
@@ -141,6 +144,7 @@ def _run(job_id):
 
     record = {
         "result_id": result_id,
+        "user_id": job["user_id"],
         "image_url": f"/api/files/{result_id}.png",
         "thumb_url": f"/api/files/{result_id}_thumb.jpg",
         "created_at": now_kst(),
@@ -164,9 +168,10 @@ async def request_compose(
     extraction_id: str = Form(...),
     person_image_id: str = Form(...),
     area_mask: UploadFile = File(...),
+    user: User = Depends(current_user),
 ):
-    load_extraction_info(extraction_id)          # 없으면 404
-    person = load_image_info(person_image_id)    # 없으면 404
+    load_extraction_info(extraction_id, user)          # 없거나 남의 것이면 404
+    person = load_image_info(person_image_id, user)    # 없거나 남의 것이면 404
 
     data = await area_mask.read(MAX_UPLOAD_BYTES + 1)
     if len(data) > MAX_UPLOAD_BYTES:
@@ -190,6 +195,7 @@ async def request_compose(
 
     job = {
         "job_id": job_id,
+        "user_id": user.id,
         "status": "queued",
         "progress": 0.0,
         "result_id": None,
@@ -212,7 +218,7 @@ async def request_compose(
 
 
 @router.get("/api/jobs/{job_id}")
-def get_job(job_id: str):
+def get_job(job_id: str, user: User = Depends(current_user)):
     with _lock:
         job = dict(_jobs[job_id]) if job_id in _jobs else None
     if job is None:
@@ -224,4 +230,6 @@ def get_job(job_id: str):
         if job["status"] in ("queued", "running"):
             job["status"] = "failed"
             job["error"] = {"code": "SERVER_RESTARTED", "message": "서버가 다시 시작되어 작업이 중단되었습니다. 다시 요청해 주세요."}
+    if not is_owner(job, user):
+        raise ApiError(404, "JOB_NOT_FOUND", "작업을 찾을 수 없습니다.")
     return _public(job)
