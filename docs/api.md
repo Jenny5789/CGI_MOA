@@ -15,18 +15,18 @@
 { "error": { "code": "INVALID_IMAGE", "message": "이미지를 읽을 수 없습니다." } }
 ```
 
-| 번호 | 뜻 | 예 |
+| 상태 코드 | 의미 | `code` 예 |
 |---|---|---|
-| 400 | 보낸 값 잘못됨 | 사진 형식, 비밀번호 규칙, 필수 값 빠짐 |
-| 401 | 로그인 필요(토큰 없음·틀림·만료) 또는 로그인 실패 | `UNAUTHORIZED` → 로그인 창, `INVALID_CREDENTIALS` |
-| 404 | 없음 (남의 것도 404) | `RESULT_NOT_FOUND`, `IMAGE_NOT_FOUND` |
+| 400 | 보낸 값 잘못됨 | `INVALID_IMAGE`, `INVALID_PASSWORD`, `INVALID_REQUEST` |
+| 401 | 로그인 필요 (토큰 없음·틀림·만료) / 로그인 실패 | `UNAUTHORIZED` (화면은 로그인 창), `INVALID_CREDENTIALS` |
+| 404 | 없음 (남의 것 포함) | `RESULT_NOT_FOUND`, `IMAGE_NOT_FOUND` |
 | 409 | 이미 있음 | `DUPLICATE_USERNAME` |
 | 503 | 지금 쓸 수 없음 | `DB_UNAVAILABLE` |
-| 500 | 서버 내부 오류 | |
+| 500 | 서버 내부 오류 | - |
 
 ## 1. 화면과 API
 
-| 화면 | 하는 일 | API |
+| 화면 | 사용자 동작 | 명세 위치 |
 |---|---|---|
 | 로그인 팝업 | 아이디, 비밀번호 | 2-1 |
 | 회원가입 | (화면은 "준비 중") | 2-2 |
