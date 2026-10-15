@@ -28,8 +28,8 @@ Get-Service MySQL80
 
 ### 2-2. 데이터베이스·MySQL 계정 생성
 
-- MySQL Workbench에서 관리자 계정 `root`로 접속 (`root` 비밀번호: MySQL 설치 시 정한 것)
-- 아래 SQL 실행
+1. MySQL Workbench 실행 → MySQL Connections에서 `root` 연결 선택 → `root` 비밀번호 입력
+2. 쿼리 창에 아래 SQL 붙여 넣기 → `여기에_비밀번호`를 `cgi_app`에 쓸 새 비밀번호로 변경 (영문·숫자, `@ : / #` 사용 금지)
 
 ```sql
 CREATE DATABASE IF NOT EXISTS cgi CHARACTER SET utf8mb4;
@@ -37,7 +37,8 @@ CREATE USER IF NOT EXISTS 'cgi_app'@'localhost' IDENTIFIED BY '여기에_비밀�
 GRANT ALL PRIVILEGES ON cgi.* TO 'cgi_app'@'localhost';
 ```
 
-- `여기에_비밀번호`: `cgi_app`에 쓸 새 비밀번호 (영문·숫자, `@ : / #` 사용 금지)
+3. 쿼리 창 위 번개 아이콘(Execute) 클릭 → 아래 Output에 초록 체크 3개
+4. 왼쪽 SCHEMAS 새로고침 → `cgi` 표시 확인
 
 ### 2-3. 접속 설정 파일 생성
 
