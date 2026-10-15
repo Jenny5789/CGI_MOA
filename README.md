@@ -35,14 +35,6 @@ CGI_V2/
 | 로그인 안 됨 | [database.md](docs/database.md) "문제 해결" |
 | AI 기능만 시험 | [scripts/README.md](scripts/README.md) |
 
-## 현재 상태 (2026-10-15)
-
-| 부분 | 상태 |
-|---|---|
-| 서버: 로그인, 사진 올리기, 추출, 합성, 사진첩 | 동작 확인 |
-| 화면 ↔ 서버 연결 | 완료 |
-| 화면에 붙일 것 | [ui_handoff.md](docs/ui_handoff.md) |
-
 ## 담당
 
 | 부분 | 담당 |
