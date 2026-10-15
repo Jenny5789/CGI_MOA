@@ -12,8 +12,6 @@
 | 가상환경 | 저장소 최상위 디렉터리 `CGI` |
 | Node.js / npm | 24.19.0 / 11.17.0 |
 | MySQL | 8.0.46 Community Server |
-| Git | 2.55.0 |
-| AnyDoor 폴더 | `Desktop\AnyDoor` |
 
 - 같은 PC에 Python 3.12, 3.14도 설치되어 있어 가상환경 생성 시 `py -3.10`으로 버전 지정
 
@@ -41,6 +39,8 @@ CGI\Scripts\python.exe -m pip install torch==2.5.1 torchvision==0.20.1 --index-u
 ```bash
 CGI\Scripts\python.exe -m pip install "git+https://github.com/facebookresearch/sam2.git"
 ```
+
+- Git 필요 (GitHub에서 설치)
 
 4. 나머지 패키지 일괄 설치 (`requirements.txt`: AnyDoor, 백엔드, 데이터베이스용)
 
