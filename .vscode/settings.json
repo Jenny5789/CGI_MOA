@@ -1,0 +1,5 @@
+{
+  // 이 저장소의 Python은 가상환경 CGI 하나 (docs/environment.md 4. 가상환경 사용 규칙)
+  "python.defaultInterpreterPath": "${workspaceFolder}/CGI/Scripts/python.exe",
+  "python.terminal.activateEnvironment": true
+}
