@@ -45,7 +45,7 @@ GRANT ALL PRIVILEGES ON cgi.* TO 'cgi_app'@'localhost';
 - 시험 회원 `test` / `test1234` 자동 생성
 - 연결 실패해도 서버는 켜짐, 로그인 주소만 503
 
-## 문제 해결
+## 6. 오류별 조치
 
 | 증상 | 조치 |
 |---|---|

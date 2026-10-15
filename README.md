@@ -51,51 +51,47 @@ CGI_V2/
 
 ## 4. 문서 안내
 
-| 목적 | 참고 문서 (열람 순서) |
+| 목적 | 참고 문서 |
 |---|---|
-| 개발 환경 구축 및 최초 실행 | 6장 → [environment.md](docs/environment.md) → [database.md](docs/database.md) |
+| 개발 환경 구축 | [environment.md](docs/environment.md) → [database.md](docs/database.md) → 6. 실행 방법 |
 | 프론트엔드 개발 | [ui_handoff.md](docs/ui_handoff.md) → [api.md](docs/api.md) |
 | API 사양 확인 | [api.md](docs/api.md) → [backend/README.md](backend/README.md) |
-| 로그인 장애 조치 | [database.md](docs/database.md) "문제 해결" |
+| 로그인 오류 조치 | [database.md](docs/database.md) 6. 오류별 조치 |
 | AI 모듈 (SAM2, AnyDoor) 단위 테스트 | [scripts/README.md](scripts/README.md) |
 
-## 5. 역할 분담
+- `→`: 열람 순서
 
-| 영역 | 디렉터리 | 담당 |
+## 5. 팀원별 담당
+
+| 담당 | 담당 영역 | 디렉터리 |
 |---|---|---|
-| 프론트엔드 | `frontend/` | 화면 담당 |
-| 백엔드, AI 모듈 (SAM2, AnyDoor) | `backend/`, `features/` | AI 기능·서버 담당 |
+| 화면 담당 | 프론트엔드 | `frontend/` |
+| AI 기능·서버 담당 | 백엔드, AI 모듈 (SAM2, AnyDoor) | `backend/`, `features/` |
 
 ## 6. 실행 방법
 
 ### 6-1. 백엔드
 
-- 사전 요건
+- 준비 사항
   - Python 가상환경 `CGI`: [environment.md](docs/environment.md)
   - MySQL: [database.md](docs/database.md)
   - GPU, 모델 가중치 파일 (저장소 미포함, AI 기능·서버 담당에게 요청)
-- 실행 (저장소 최상위 디렉터리): `CGI\Scripts\python.exe -m uvicorn backend.main:app --port 8000`
-- 동작 확인
-  - http://localhost:8000/api/health → `{"status":"ok"}`
-  - http://localhost:8000/docs → API 테스트 페이지
-- 소요 시간: 기동 시 모델 로딩 1~2분, 합성 1건 약 1분
+- 실행 순서 (저장소 최상위 디렉터리)
+  - `CGI\Scripts\python.exe -m uvicorn backend.main:app --port 8000` (서버 실행, 모델 로딩 1~2분) → http://localhost:8000/api/health 접속 (`{"status":"ok"}` 확인)
+- API 테스트 페이지: http://localhost:8000/docs
+- 합성 소요 시간: 1건 약 1분
 
 ### 6-2. 프론트엔드
 
-- 사전 요건: Node.js
-
-| 순서 | 명령 | 내용 |
-|---|---|---|
-| 1 | `cd frontend` | 프론트엔드 디렉터리 이동 |
-| 2 | `npm install` | 의존 패키지 설치 (최초 1회) |
-| 3 | `npm run dev` | 개발 서버 실행 |
-| 4 | http://localhost:5173 | 브라우저 접속 |
+- 준비 사항: Node.js
+- 실행 순서
+  - `cd frontend` (디렉터리 이동) → `npm install` (의존 패키지 설치, 최초 1회) → `npm run dev` (개발 서버 실행) → http://localhost:5173 접속
 
 ### 6-3. 프론트엔드·백엔드 연동
 
 - 기본값: 모의(mock) 데이터로 동작
 - 연동 설정: `frontend/.env.example`을 `frontend/.env.local`로 복사 후 `VITE_API_MODE=mixed`
-- 실행 순서: 백엔드 → 프론트엔드 → 테스트 계정 `test` / `test1234` 로그인
+- 실행 순서: 6-1 백엔드 실행 → 6-2 프론트엔드 실행 → 테스트 계정 `test` / `test1234` 로그인
 
 ## 7. 저장소 제외 항목
 
