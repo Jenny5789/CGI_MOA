@@ -27,11 +27,11 @@ CGI_V2/
 └── scripts/README.md                AI 기능 단독 시험
 ```
 
-| 하려는 일 | 문서 |
+| 목적 | 참고 문서 (순서대로) |
 |---|---|
 | 처음 실행 | 아래 "실행" → [environment.md](docs/environment.md) → [database.md](docs/database.md) |
 | 화면 작업 | [ui_handoff.md](docs/ui_handoff.md) → [api.md](docs/api.md) |
-| 서버 주소 확인 | [api.md](docs/api.md), [backend/README.md](backend/README.md) |
+| 서버 주소 확인 | [api.md](docs/api.md) → [backend/README.md](backend/README.md) |
 | 로그인 안 됨 | [database.md](docs/database.md) "문제 해결" |
 | AI 기능만 시험 | [scripts/README.md](scripts/README.md) |
 
