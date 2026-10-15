@@ -42,13 +42,30 @@ GRANT ALL PRIVILEGES ON cgi.* TO 'cgi_app'@'localhost';
 
 ### 2-3. 접속 설정 파일 생성
 
-- PowerShell에서 저장소 최상위 디렉터리로 이동 후 실행
+1. PowerShell에서 저장소 폴더로 이동 (다른 위치에 받았으면 그 경로)
+
+```powershell
+cd $HOME\Desktop\CGI_V2
+```
+
+2. 예시 파일을 복사해 설정 파일 생성
 
 ```powershell
 Copy-Item backend\.env.example backend\.env
 ```
 
-- `backend\.env`의 `여기에_비밀번호`를 2-2에서 정한 비밀번호로 변경
+3. 메모장으로 열기
+
+```powershell
+notepad backend\.env
+```
+
+4. `여기에_비밀번호`를 2-2에서 정한 비밀번호로 바꾸고 저장
+
+```
+DATABASE_URL=mysql+pymysql://cgi_app:2-2에서_정한_비밀번호@localhost:3306/cgi
+```
+
 - `backend\.env`는 GitHub에 올리지 않음 (`.gitignore` 등록)
 
 ### 2-4. 연결 확인
