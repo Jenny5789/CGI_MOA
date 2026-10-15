@@ -8,10 +8,10 @@
 
 ## 2. MySQL 계정
 
-| 계정 | 용도 | 생성 시점 | 비밀번호 보관 |
+| 계정 | 용도 | 만드는 방법 | 비밀번호 보관 |
 |---|---|---|---|
-| `root` | DB·계정 생성 시 접속 (MySQL Workbench) | MySQL 설치 시 | 본인 |
-| `cgi_app` | 백엔드 서버의 DB 접속 | 3-2. DB·계정 생성 | `backend/.env` (공유 금지) |
+| `root` | DB·계정 생성 시 접속 (MySQL Workbench) | MySQL 설치 시 자동 생성 | 본인 |
+| `cgi_app` | 백엔드 서버의 DB 접속 | 3-2. DB·계정 생성의 SQL로 직접 생성 | `backend/.env` (공유 금지) |
 
 ## 3. 구축 순서
 
