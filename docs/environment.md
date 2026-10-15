@@ -24,9 +24,6 @@
 py -3.10 -m venv CGI
 ```
 
-- `py -3.10`: 설치된 여러 Python 중 3.10 지정
-- Python 3.10 미설치 시 python.org에서 3.10 설치 후 진행
-
 2. PyTorch 설치 (CUDA 12.1용)
 
 ```bash
