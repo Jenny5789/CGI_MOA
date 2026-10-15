@@ -70,6 +70,7 @@ CGI_MOA/
   1. `CGI\Scripts\python.exe -m uvicorn backend.main:app --port 8000`: 서버 실행 (모델 로딩 1~2분)
   2. http://localhost:8000/api/health 접속: `{"status":"ok"}`이면 정상
 - API 테스트 페이지: http://localhost:8000/docs
+  - 로그인이 필요한 API(자물쇠 표시): `POST /api/auth/login` 응답의 `token`을 Authorize 버튼에 입력 후 실행
 
 ### 5-2. 프론트엔드
 

@@ -13,6 +13,7 @@ import secrets
 from datetime import timedelta, timezone
 
 from fastapi import Depends, Request
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
@@ -86,9 +87,13 @@ def bearer_token(request: Request) -> str | None:
     return token.strip()
 
 
-def current_user(request: Request, db: Session = Depends(get_db)) -> User:
+# /docs에 Authorize 버튼과 자물쇠 표시를 띄우는 용도. 토큰이 없거나 형식이 틀려도 여기서 막지 않고(auto_error=False) 아래에서 명세 형식 401
+_bearer = HTTPBearer(auto_error=False, description="로그인 응답의 token 값 (Bearer는 빼고 입력)")
+
+
+def current_user(credentials: HTTPAuthorizationCredentials | None = Depends(_bearer), db: Session = Depends(get_db)) -> User:
     """로그인한 회원. 토큰이 없거나 틀리거나 만료되면 401"""
-    token = bearer_token(request)
+    token = credentials.credentials.strip() if credentials else None
     if token:
         row = db.get(AuthSession, _token_hash(token))
         if row is not None and row.expires_at > utcnow():
