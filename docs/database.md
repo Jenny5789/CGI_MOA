@@ -10,7 +10,6 @@
 |---|---|---|
 | 데이터베이스 | `cgi` | 회원 정보, 로그인 세션 저장 공간 |
 | MySQL 계정 | `cgi_app` | 백엔드 서버가 데이터베이스에 접속할 때 쓰는 계정 |
-| 접속 설정 파일 | `backend/.env` | `cgi_app` 비밀번호 저장, GitHub에 올리지 않음 |
 
 ## 2. 구축 순서
 
@@ -45,6 +44,7 @@ Copy-Item backend\.env.example backend\.env
 ```
 
 - `backend\.env`의 `여기에_비밀번호`를 2-2에서 정한 비밀번호로 변경
+- `backend\.env`는 GitHub에 올리지 않음 (`.gitignore` 등록)
 
 ### 2-4. 연결 확인
 
