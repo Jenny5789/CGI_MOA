@@ -22,3 +22,13 @@
 | `routers/files.py` | 이미지 파일 조회 | [7. 이미지 파일 조회 API](../docs/api.md#7-이미지-파일-조회-api) |
 | `storage.py` | 저장 기록 읽기, 소유자 확인 | - |
 | `gpu.py` | GPU 작업 순서 제어 | - |
+
+## 3. 환경 변수
+
+| 이름 | 용도 | 기본값 | 설정 위치 |
+|---|---|---|---|
+| `DATABASE_URL` | MySQL 접속 정보 | 없음 (필수) | `backend/.env` ([database.md 2-3. 접속 설정 파일 생성](../docs/database.md#2-3-접속-설정-파일-생성)) |
+| `ANYDOOR_DIR` | AnyDoor 폴더 위치 | `Desktop\AnyDoor` | 실행 전 PowerShell `$env:ANYDOOR_DIR="경로"` |
+| `MOA_WARMUP` | `0`이면 서버 시작 시 AnyDoor 모델 로딩(1~2분) 생략 | `1` (로딩함) | 실행 전 PowerShell `$env:MOA_WARMUP="0"` |
+
+- SAM2 관련 설정: [features/object_extraction/README.md](../features/object_extraction/README.md)
