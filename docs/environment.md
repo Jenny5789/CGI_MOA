@@ -58,7 +58,7 @@ CGI\Scripts\python.exe scripts\check_env.py
 - 점검 항목: Python·패키지 버전, GPU, AnyDoor 폴더, SAM2 모델 가중치 파일, `backend/.env`
 - 정상: 마지막 줄 `결과: 17/17 통과`
 - `[NG]` 항목은 해당 설치 순서를 다시 수행
-- `A matching Triton is not available` 경고는 무시 (Windows에서 xformers 정상 동작)
+- 실행 시 출력되는 `A matching Triton is not available` 경고는 무시
 
 ## 4. 주요 패키지 버전
 
