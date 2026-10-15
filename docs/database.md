@@ -6,13 +6,12 @@
 - 구성: 팀원마다 자기 PC의 MySQL에 같은 이름의 DB·계정 생성
 - 접속 비밀번호: 각자 `backend/.env`에만 저장 (GitHub에는 예시 파일 `backend/.env.example`만)
 
-## 2. 계정 구분
+## 2. MySQL 계정
 
-| 계정 | 용도 | 비밀번호 보관 |
-|---|---|---|
-| MySQL `root` | DB·계정 생성, 관리 (MySQL Workbench) | 본인 |
-| MySQL `cgi_app` | 백엔드 서버 접속 전용 | `backend/.env` (공유 금지) |
-| 서비스 회원 (`test` 등) | 웹 서비스 로그인 | DB `users` 표 (비밀번호 해시) |
+| 계정 | 용도 | 생성 시점 | 비밀번호 보관 |
+|---|---|---|---|
+| `root` | 2단계 DB·계정 생성 시 접속 (MySQL Workbench) | MySQL 설치 시 | 본인 |
+| `cgi_app` | 백엔드 서버의 DB 접속 | 3. 구축 순서 2단계 | `backend/.env` (공유 금지) |
 
 ## 3. 구축 순서
 
