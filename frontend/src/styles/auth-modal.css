@@ -135,6 +135,7 @@
 }
 
 .auth-submit:hover { opacity: .86; }
+.auth-submit:disabled { opacity: .6; cursor: default; }
 
 .auth-modal-foot {
   margin: 20px 0 0;

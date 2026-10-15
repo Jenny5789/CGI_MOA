@@ -1,0 +1,32 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+checkpoints/
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+CGI/
+
+# 시험 결과 폴더 (다시 만들 수 있음)
+_cmp.png
+girl_mask.png
+compare_out/
+compose_in/
+compose_seedcheck/
+compose_sweep/
+eval_out*/
+vae_test/
+
+# VITON-HD 사진으로 만든 비교 이미지: 연구용 라이선스라 팀 확인 전까지 저장소에 넣지 않음
+docs/images/
+
+# 서버가 저장하는 사진과 결과 (DB 대신 파일 저장)
+storage/
+
+# 서버 DB 접속 정보 (각자 비밀번호, 본보기는 backend/.env.example)
+backend/.env
+
+# 개인 작업 메모 (팀 공유 안 함)
+docs/작업메모.md

@@ -3,9 +3,13 @@
    -> 3 점 찍어 상의 추출 -> 확인 -> 다듬기 팝업(브러시, 지우개) -> 완료
    -> 4 점 찍어 입힐 영역 지정 -> 확인 -> 다듬기 팝업(브러시, 지우개) -> 다음 -> 합성 설정 팝업(체크 두 개) -> 합성 시작
    -> 결과, 저장
-   지금은 흉내만 내는 곳이 두 군데 있다(서버 연동 때 바꾼다).
-   - 3단계 추출: 찍은 점마다 동그라미로 잘라낸다(rebuildMask). SAM을 쓰지 않는다.
-   - 4단계 합성: 3.2초 기다린 뒤 잘라낸 상의를 칠한 영역에 붙인다(compose). AI 합성이 아니다. */
+   오른쪽 "내 작업 기록"은 서버의 저장된 결과 목록(명세 6-1)을 보여 준다.
+   서버 연결 (src/api/studio.js)
+   - 1·2단계: 고른 사진을 서버에 올린다(명세 3-1)
+   - 3단계: 점을 찍는 동안의 미리보기는 점마다 동그라미(rebuildMask3). "확인"을 누르면 서버 SAM2로 실제 윤곽을 받아 다듬기 팝업을 연다(4-1)
+   - 4단계: "합성 시작"에서 서버 AnyDoor 합성 요청 → 2초마다 진행 확인 → 결과(5-1~5-3)
+   - 결과 "저장": 서버에 저장 표시(6-2)
+   아직 서버에 안 가는 것: 다듬기 팝업에서 고친 상의 윤곽(서버는 SAM2 윤곽으로 합성), 합성 설정 체크 두 개(opts) */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import studioCss from '../styles/studio-guide.css?inline';
 import usePageStyle from '../components/usePageStyle.js';
@@ -15,6 +19,9 @@ import {
   boxFit, drawContain, drawCover, drawDot, fly, loadImage, makeWork, maskBBox, newCanvas, nowText, paintTint, pointer,
 } from '../studio/canvas.js';
 import MaskEditor from '../studio/MaskEditor.jsx';
+import { listResults, updateResult } from '../api/results.js';
+import { extractGarment, getJob, getResult, requestCompose, uploadImage } from '../api/studio.js';
+import { formatKoreanDate } from '../utils/date.js';
 
 // 이 화면은 body 아래가 세로로 꽉 차는 구조라서 React가 끼워 넣은 #root 칸도 같은 모양으로 맞춘다
 const ROOT_CSS = '\n#root { height: 100%; display: flex; flex-direction: column; min-height: 0; }\n'
@@ -25,15 +32,6 @@ const SAMPLES = {
   1: ['/assets/gallery/AutumnWarm_Male.jpg', '/assets/gallery/SpringWarm_Female.jpg', '/assets/gallery/SummerCool_Female.jpg'],
   2: ['/assets/samples/sample-object-person.jpg', '/assets/gallery/girl_Santorini.jpg', '/assets/gallery/Paris_Female.jpg'],
 };
-
-// 내 작업 기록 예시 (서버 연동 때 서버에 저장된 결과 목록으로 바꾼다)
-const SAMPLE_HISTORY = [
-  { src: '/assets/gallery/MtFuji_Female.jpg', d: '2026.10.08 20:45' },
-  { src: '/assets/gallery/NewYork_Male.jpg', d: '2026.10.07 15:12' },
-  { src: '/assets/gallery/Paris_Female.jpg', d: '2026.10.06 09:30' },
-  { src: '/assets/gallery/girl_sitting.jpg', d: '2026.10.04 18:20' },
-  { src: '/assets/gallery/BaseballCap_Male.jpg', d: '2026.10.02 12:05' },
-];
 
 const STEPS = [
   { n: 1, label: '상의 사진' },
@@ -86,6 +84,49 @@ const drawCutoutThumb = (ctx, { canvas, bbox }) => {
 };
 const drawHistThumb = (ctx, canvas) => drawCover(ctx, canvas, 0, 0, canvas.width, canvas.height, 400, 300);
 
+// 서버가 준 흑백 윤곽 PNG(상의 흰색)를 화면용 윤곽(상의 부분만 불투명한 흰색, 나머지 투명)으로 바꾼다. 크기는 작업용 사본(w, h)에 맞춘다
+const maskFromUrl = async (url, w, h) => {
+  const img = await loadImage(url);
+  const c = newCanvas(w, h);
+  const ctx = c.getContext('2d');
+  ctx.drawImage(img, 0, 0, w, h);
+  const d = ctx.getImageData(0, 0, w, h);
+  for (let i = 0; i < d.data.length; i += 4) {
+    const on = d.data[i] > 127;
+    d.data[i] = 255; d.data[i + 1] = 255; d.data[i + 2] = 255;
+    d.data[i + 3] = on ? 255 : 0;
+  }
+  ctx.putImageData(d, 0, 0);
+  return c;
+};
+
+// 화면용 영역(칠한 곳만 불투명)을 서버에 보낼 흑백 PNG(칠한 곳 흰색, 나머지 검정)로 바꾼다 (명세 5-1 area_mask)
+const areaMaskBlob = (mask) => new Promise((resolve) => {
+  const { width: w, height: h } = mask;
+  const c = newCanvas(w, h);
+  const ctx = c.getContext('2d');
+  ctx.drawImage(mask, 0, 0);
+  const d = ctx.getImageData(0, 0, w, h);
+  for (let i = 0; i < d.data.length; i += 4) {
+    const v = d.data[i + 3] > 0 ? 255 : 0;
+    d.data[i] = v; d.data[i + 1] = v; d.data[i + 2] = v; d.data[i + 3] = 255;
+  }
+  ctx.putImageData(d, 0, 0);
+  c.toBlob(resolve, 'image/png');
+});
+
+// 합성 작업이 끝날 때까지 2초마다 진행을 확인한다 (명세 5-2). 끝나면 결과 번호를 돌려준다
+const JOB_POLL_MS = 2000;
+const waitForJob = async (jobId, onProgress) => {
+  for (;;) {
+    const job = await getJob(jobId);
+    onProgress(job);
+    if (job.status === 'done') return job.result_id;
+    if (job.status === 'failed') throw new Error((job.error && job.error.message) || '합성에 실패했습니다');
+    await new Promise((r) => setTimeout(r, JOB_POLL_MS));
+  }
+};
+
 export default function Studio() {
   usePageStyle(PAGE_CSS, 'MOA — 합성하기');
   const [toast, showToast] = useToast(2000);
@@ -105,9 +146,10 @@ export default function Studio() {
   const [settingsOpen, setSettingsOpen] = useState(false); // 합성 설정 팝업
   const [opts, setOpts] = useState({ refine: false, shape: false }); // Reference Mask Refine, Enable Shape Control
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState(null); // 합성 진행 상황 (서버 작업 정보: status, progress, queue_position)
   const [result, setResult] = useState(null); // { entry: { canvas } 또는 { src }, fromHistory }
   const [saved, setSaved] = useState(false);
-  const [history, setHistory] = useState(() => SAMPLE_HISTORY.map((h, i) => ({ id: 'sample-' + i, d: h.d, entry: { src: h.src }, isNew: false })));
+  const [history, setHistory] = useState([]); // 서버에서 받은 저장된 결과 + 이번에 저장한 결과(isNew)
   const [activeHist, setActiveHist] = useState(null);
   const [panels, setPanels] = useState(() => ({ left: readPanel('left'), right: readPanel('right') }));
 
@@ -170,7 +212,12 @@ export default function Studio() {
     const img = await loadImage(src);
     const key = n === 1 ? 'obj' : 'bg';
     const changed = !data.current[key] || data.current[key].src !== src;
-    data.current[key] = { img, src };
+    // 서버에 사진을 올려 둔다 (명세 3-1). 화면은 기다리지 않고 넘어가고, 추출·합성 때 이 결과(사진 번호)를 쓴다
+    const upload = changed || !data.current[key].upload
+      ? uploadImage(src, n === 1 ? 'garment' : 'person')
+      : data.current[key].upload;
+    upload.catch((e) => showToast(`사진을 서버에 올리지 못했습니다: ${e.message}`));
+    data.current[key] = { img, src, upload };
     if (changed) {
       if (n === 1) {
         data.current.cutout = null;
@@ -279,13 +326,30 @@ export default function Studio() {
     render3();
   };
 
-  // 확인: 점으로 잡은 영역을 다듬기 팝업으로 연다. 점을 바꾸지 않았으면 지난번에 다듬은 영역에서 이어서 한다.
-  const confirm3 = () => {
+  // 확인: 찍은 점을 서버에 보내 SAM2로 상의를 찾고(명세 4-1), 그 결과로 다듬기 팝업을 연다.
+  // 점을 바꾸지 않았으면 서버에 다시 묻지 않고, 지난번에 다듬은 영역(없으면 지난 SAM2 결과)에서 이어서 한다.
+  const confirm3 = async () => {
     const s = s3.current;
-    if (!s.work || !s.pts.some((p) => !p.neg)) return;
+    if (!s.work || !s.pts.some((p) => !p.neg) || s.extracting) return;
     const key = JSON.stringify(s.pts);
-    const start = s.edited && s.editedKey === key ? s.edited : s.mask;
-    setEditor({ kind: 'extract', image: s.work, mask: start });
+    if (s.edited && s.editedKey === key) { setEditor({ kind: 'extract', image: s.work, mask: s.edited }); return; }
+    if (s.samMask && s.samKey === key) { setEditor({ kind: 'extract', image: s.work, mask: s.samMask }); return; }
+
+    s.extracting = true;
+    showToast('상의를 찾는 중입니다…');
+    try {
+      const { image_id: imageId } = await data.current.obj.upload;
+      const points = s.pts.map((p) => ({ x: p.x, y: p.y, label: p.neg ? 0 : 1 }));
+      const ext = await extractGarment(imageId, points);
+      const mask = await maskFromUrl(ext.mask_url, s.w, s.h);
+      Object.assign(s, { samMask: mask, samKey: key });
+      data.current.extraction = ext; // 4단계 합성에서 extraction_id를 쓴다
+      setEditor({ kind: 'extract', image: s.work, mask });
+    } catch (e) {
+      showToast(`상의를 찾지 못했습니다: ${e.message}`);
+    } finally {
+      s.extracting = false;
+    }
   };
 
   // 다듬기 완료: 다듬은 영역으로 상의를 오려 내고 4단계로 간다
@@ -400,30 +464,6 @@ export default function Studio() {
     setSettingsOpen(true);
   };
 
-  /* ---------- 합성 (흉내: 서버 연동 때 AI 합성 요청으로 바꾼다) ---------- */
-  const compose = () => {
-    const s = s4.current;
-    const area = s.edited;
-    const out = newCanvas(s.w, s.h);
-    const ctx = out.getContext('2d');
-    ctx.drawImage(s.work, 0, 0);
-    const mb = maskBBox(area);
-    const cb = data.current.cutout.bbox;
-    const tmp = newCanvas(s.w, s.h);
-    const t = tmp.getContext('2d');
-    // 추출한 상의를 합성 영역에 가득 차도록 맞춰 붙인 뒤, 지정한 영역 모양으로 잘라낸다
-    const sc = Math.max(mb.w / cb.w, mb.h / cb.h);
-    const dw = cb.w * sc;
-    const dh = cb.h * sc;
-    t.drawImage(data.current.cutout.canvas, cb.x, cb.y, cb.w, cb.h, mb.x + (mb.w - dw) / 2, mb.y + (mb.h - dh) / 2, dw, dh);
-    t.globalCompositeOperation = 'destination-in';
-    t.drawImage(area, 0, 0);
-    ctx.globalAlpha = 0.96;
-    ctx.drawImage(tmp, 0, 0);
-    ctx.globalAlpha = 1;
-    return out;
-  };
-
   const showResult = async (entry, fromHistory) => {
     setResult({ entry, fromHistory });
     await go('result');
@@ -439,26 +479,65 @@ export default function Studio() {
     if (s.edited) setEditor({ kind: 'area', image: s.work, mask: s.edited });
   };
 
-  // 합성 설정 팝업의 "합성 시작". 고른 설정(opts)은 서버 연동 때 합성 요청에 함께 보낸다.
-  const startCompose = () => {
+  // 합성 설정 팝업의 "합성 시작": 서버에 합성을 요청하고(명세 5-1), 2초마다 진행을 확인한 뒤(5-2) 결과를 받는다(5-3).
+  // 고른 설정(opts)은 아직 서버가 쓰지 않아 보내지 않는다.
+  const startCompose = async () => {
     if (!s4.current.edited || !data.current.cutout) return;
+    const ext = data.current.extraction;
+    if (!ext) { showToast('3단계에서 상의를 다시 지정해 주세요'); return; }
     setSettingsOpen(false);
+    setProgress(null);
     setBusy(true);
-    setTimeout(async () => {
-      const out = compose();
+    try {
+      const { image_id: personId } = await data.current.bg.upload;
+      const area = await areaMaskBlob(s4.current.edited);
+      const job = await requestCompose(ext.extraction_id, personId, area);
+      const resultId = await waitForJob(job.job_id, setProgress);
+      data.current.resultId = resultId; // "저장" 때 서버에 알릴 결과 번호
+      const res = await getResult(resultId);
+      const img = await loadImage(res.image_url);
+      const out = newCanvas(img.naturalWidth, img.naturalHeight);
+      out.getContext('2d').drawImage(img, 0, 0);
       data.current.result = out;
       setSaved(false);
       await showResult({ canvas: out }, false);
+    } catch (e) {
+      showToast(`합성하지 못했습니다: ${e.message}`);
+    } finally {
       setBusy(false);
-    }, 3200);
+    }
   };
 
   /* ---------- 결과, 저장, 작업 기록 ---------- */
-  const save = () => {
+  // 화면에 들어오면 저장된 결과를 최신순으로 받아 온다. 받기 전에 이번에 저장한 결과(isNew)는 그대로 둔다
+  useEffect(() => {
+    let ignore = false;
+    listResults({ saved: true, sort: 'new' })
+      .then((res) => {
+        if (ignore) return;
+        const fromServer = res.items.map((r) => ({
+          id: r.result_id, d: formatKoreanDate(r.created_at), entry: { src: r.image_url, thumb: r.thumb_url }, isNew: false,
+        }));
+        setHistory((h) => [...h.filter((x) => x.isNew), ...fromServer]);
+      })
+      .catch((e) => { if (!ignore) showToast(e.message); });
+    return () => { ignore = true; };
+  }, [showToast]);
+
+  // 저장: 서버에 "저장함"으로 알리고(명세 6-2) 내 작업 기록 맨 위에 붙인다. 서버 결과는 사진첩 "전체"로 옮겨진다
+  const save = async () => {
     if (!result || result.fromHistory || saved || !data.current.result) return;
     setSaved(true);
-    const id = 'new-' + Date.now();
-    setHistory((h) => [{ id, d: nowText(), entry: { canvas: data.current.result }, isNew: true }, ...h]);
+    const resultId = data.current.resultId;
+    try {
+      if (resultId) await updateResult(resultId, { saved: true });
+    } catch (e) {
+      setSaved(false);
+      showToast(`저장하지 못했습니다: ${e.message}`);
+      return;
+    }
+    const id = resultId || 'new-' + Date.now();
+    setHistory((h) => [{ id, d: nowText(), entry: { canvas: data.current.result }, isNew: true }, ...h.filter((x) => x.id !== id)]);
     showToast('작업 기록에 저장했습니다');
   };
 
@@ -717,7 +796,7 @@ export default function Studio() {
                 <div className="sg-hist-thumb">
                   {item.entry.canvas
                     ? <DrawnCanvas width={400} height={300} source={item.entry.canvas} draw={drawHistThumb} />
-                    : <img src={item.entry.src} alt="" />}
+                    : <img src={item.entry.thumb || item.entry.src} alt="" />}
                   {item.isNew && <span className="sg-hist-new">NEW</span>}
                 </div>
               </button>
@@ -731,7 +810,11 @@ export default function Studio() {
         <div className="sg-busy-box">
           <div className="sg-spinner" />
           <p>합성 중입니다</p>
-          <span>완료될 때까지 잠시 기다려 주십시오</span>
+          <span>
+            완료될 때까지 잠시 기다려 주십시오
+            {progress && progress.status === 'queued' && progress.queue_position > 0 && ` (대기 ${progress.queue_position}번째)`}
+            {progress && progress.status === 'running' && progress.progress > 0 && ` (${Math.round(progress.progress * 100)}%)`}
+          </span>
         </div>
       </div>
 

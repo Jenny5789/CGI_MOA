@@ -1,0 +1,135 @@
+"""AnyDoor 상의 합성.
+
+입력: 옷 사진(RGB) + 옷 윤곽(0/1) + 인물 사진(RGB) + 입힐 영역(0/1)
+출력: 합성된 인물 사진 (RGB uint8, 인물 사진과 같은 크기)
+
+- AnyDoor 폴더(기본 Desktop\\AnyDoor)의 run_inference.py는 고치지 않는다.
+  scripts/anydoor_compose_test.py와 같은 방식으로 모델 로딩과 inference_single_image 부분만 읽어서 쓴다.
+- 설정: 50스텝, float16 + save_memory (2026-10-11 확인: 화질 차이 없음)
+- 모델 파일(16.8GB)은 본체 RAM에서 열고 모델 가중치(약 9.2GB)만 GPU로 옮긴다 (load_on_cpu).
+  원래 코드는 파일 전체를 GPU에서 열어 10GB를 넘기고, 모자란 만큼 본체 메모리를 빌려 써서 느려졌다.
+  (2026-10-13 측정: 같은 사진·seed로 1장 115초 → 60초, 결과 그림은 완전히 같음)
+- 모델은 처음 호출할 때 한 번만 불러오고 이후 재사용한다 (체크포인트 16.8GB라 시간이 걸림).
+- warmup(): 짧은 합성을 한 번 미리 돌려 GPU 첫 실행 준비를 끝내 둔다 (서버 켤 때 사용).
+"""
+import os
+import sys
+from pathlib import Path
+
+import numpy as np
+
+ANYDOOR_DIR = Path(os.environ.get("ANYDOOR_DIR", Path.home() / "Desktop" / "AnyDoor"))
+DDIM_STEPS = 50  # 기본 스텝 수. compose(steps=...)로 바꿀 수 있다
+
+
+class AnyDoorComposer:
+    def __init__(self, anydoor_dir=ANYDOOR_DIR, save_memory=True, fp16=True, load_on_cpu=True):
+        self.anydoor_dir = Path(anydoor_dir).resolve()
+        self.save_memory = save_memory
+        self.fp16 = fp16
+        self.load_on_cpu = load_on_cpu
+        self._ns = None
+        self._progress = None  # 합성 중에만 설정되는 진행률 알림 함수
+
+    def _load(self):
+        if self._ns is not None:
+            return self._ns
+
+        src = (self.anydoor_dir / "run_inference.py").read_text(encoding="utf-8")
+        src = src.split("if __name__ == '__main__':")[0]
+        if self.save_memory:
+            # AnyDoor 원래 옵션: 안 쓰는 부품을 CPU로 옮기고(low_vram_shift) attention을 나눠 계산
+            src = src.replace("save_memory = False", "save_memory = True", 1)
+        if self.load_on_cpu:
+            # 모델 파일을 본체 RAM에서 열고, 다음 줄 model.cuda()가 합성에 쓰는 가중치만 GPU로 옮긴다
+            if "location='cuda'" not in src:
+                raise RuntimeError("run_inference.py에서 location='cuda'를 찾지 못했습니다. AnyDoor 코드가 바뀌었는지 확인하세요.")
+            src = src.replace("location='cuda'", "location='cpu'", 1)
+        # 스텝 수: run_inference.py 안의 고정값 50을 호출마다 바꿀 수 있는 값으로 (AnyDoor 파일은 그대로)
+        if "ddim_steps = 50" not in src:
+            raise RuntimeError("run_inference.py에서 ddim_steps = 50을 찾지 못했습니다. AnyDoor 코드가 바뀌었는지 확인하세요.")
+        src = src.replace("ddim_steps = 50", "ddim_steps = _MOA_DDIM_STEPS", 1)
+
+        # run_inference.py가 ./configs/... 같은 상대 경로를 쓰므로 불러오는 동안만 AnyDoor 폴더로 이동
+        if str(self.anydoor_dir) not in sys.path:
+            sys.path.insert(0, str(self.anydoor_dir))
+        prev_cwd = os.getcwd()
+        os.chdir(self.anydoor_dir)
+        try:
+            ns = {"__name__": "anydoor_inference"}
+            exec(compile(src, str(self.anydoor_dir / "run_inference.py"), "exec"), ns)
+        finally:
+            os.chdir(prev_cwd)
+
+        if self.fp16:
+            # autocast에서는 복원 이미지가 float16으로 나오는데 AnyDoor의 crop_back(cv2.resize)이 처리하지 못한다.
+            # AnyDoor 코드는 그대로 두고 복원 결과만 float32로 바꾼다 (scripts/anydoor_compose_test.py와 같음)
+            model = ns["model"]
+            decode = model.decode_first_stage
+            model.decode_first_stage = lambda *a, **k: decode(*a, **k).float()
+
+        # 진행률: DDIM 샘플러가 스텝마다 부르는 callback을 끼워 넣는다 (AnyDoor 코드 수정 없음)
+        sampler = ns["ddim_sampler"]
+        sample = sampler.sample
+
+        def sample_with_progress(*args, **kwargs):
+            if self._progress is not None:
+                kwargs["callback"] = lambda i: self._progress((i + 1) / ns["_MOA_DDIM_STEPS"])
+            return sample(*args, **kwargs)
+
+        sampler.sample = sample_with_progress
+        self._ns = ns
+        return ns
+
+    def compose(self, ref_rgb, ref_mask, tar_rgb, tar_mask, seed=None, on_progress=None, steps=DDIM_STEPS):
+        """합성 결과(RGB uint8)를 돌려준다.
+
+        ref_rgb, tar_rgb : np.uint8 (H, W, 3) RGB
+        ref_mask, tar_mask: np.uint8 (H, W) 0/1. AnyDoor는 tar_mask를 감싸는 사각형만 쓴다
+        seed       : 같은 seed면 같은 결과 (None이면 무작위)
+        on_progress: 0~1 진행률을 받는 함수 (스텝마다 호출)
+        steps      : DDIM 스텝 수 (기본 50). 줄이면 빨라지지만 품질이 바뀔 수 있다
+        """
+        import torch
+
+        ns = self._load()
+        ns["_MOA_DDIM_STEPS"] = int(steps)
+        if seed is not None:
+            ns["seed_everything"](int(seed))
+        self._progress = on_progress
+        try:
+            with torch.autocast("cuda", dtype=torch.float16, enabled=self.fp16):
+                gen = ns["inference_single_image"](ref_rgb, ref_mask, tar_rgb.copy(), tar_mask)
+        finally:
+            self._progress = None
+        return np.clip(gen, 0, 255).astype(np.uint8)
+
+    def warmup(self, steps=2):
+        """모델을 불러오고 짧은 합성을 한 번 돌린다. 결과는 버린다.
+        GPU는 계산을 처음 할 때 계산 방식 고르기·메모리 잡기 준비를 한다(float16은 따로 필요).
+        미리 해 두면 첫 사용자도 처음부터 빠른 속도로 받는다."""
+        size = 256
+        img = np.random.default_rng(0).integers(0, 256, (size, size, 3), dtype=np.uint8)
+        mask = np.zeros((size, size), np.uint8)
+        mask[64:192, 64:192] = 1
+        self.compose(img, mask, img, mask, steps=steps)
+
+
+_default = None
+
+
+def _get_default():
+    global _default
+    if _default is None:
+        _default = AnyDoorComposer()
+    return _default
+
+
+def compose(ref_rgb, ref_mask, tar_rgb, tar_mask, seed=None, on_progress=None, steps=DDIM_STEPS):
+    """모듈 단위 진입점. 기본 composer를 한 번만 만들어 재사용한다."""
+    return _get_default().compose(ref_rgb, ref_mask, tar_rgb, tar_mask, seed=seed, on_progress=on_progress, steps=steps)
+
+
+def warmup(steps=2):
+    """모듈 단위 예열. 기본 composer의 모델을 불러오고 짧은 합성을 한 번 돌린다."""
+    _get_default().warmup(steps=steps)

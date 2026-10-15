@@ -1,53 +1,129 @@
-# CGI 가상환경 설치 버전
+# 개발 환경 구축
 
-## 기준
-- 가상환경: 프로젝트 폴더 안에 `CGI`로 생성
-- Python 3.10.0 / CUDA 12.1 / GPU RTX 3080 10GB
-- 전체 패키지 목록: [pip_freeze.txt](pip_freeze.txt)
+## 1. 기준 환경 (개발 PC 확인값, 2026-10-15)
 
-## 설치 확인
-- torch 2.5.1+cu121 / cuda available True / numpy 2.2.6 / transformers 5.14.1
+| 항목 | 값 |
+|---|---|
+| 운영체제 | Windows 11 Pro for Workstations (10.0.26200) |
+| CPU / 메모리 | Intel Xeon W-2223 3.60GHz / 32GB |
+| GPU | NVIDIA GeForce RTX 3080 10GB, 드라이버 595.95 |
+| CUDA | 12.1 (PyTorch에 포함, 별도 설치 불필요) |
+| Python | 3.10.0 (python.org 설치판, `py` 런처 사용) |
+| 가상환경 | 저장소 최상위 디렉터리 `CGI` |
+| Node.js / npm | 24.19.0 / 11.17.0 |
+| MySQL | 8.0.46 Community Server |
 
-## 설치 순서
-1. 기본 설치
-   ```
-   python -m venv CGI
-   CGI\Scripts\python.exe -m pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu121
-   CGI\Scripts\python.exe -m pip install "git+https://github.com/facebookresearch/sam2.git"
-   CGI\Scripts\python.exe -m pip install -r requirements.txt
-   CGI\Scripts\python.exe -m pip install xformers==0.0.28.post3 --index-url https://download.pytorch.org/whl/cu124 --no-deps
-   ```
-   - xformers: 합성 속도·메모리 개선, `--no-deps` 설치로 torch 2.5.1+cu121 유지
-2. 서버용 설치
-   ```
-   CGI\Scripts\python.exe -m pip install fastapi "uvicorn[standard]" python-multipart
-   ```
-   - 기존 패키지(torch, numpy 등) 버전 변경 없음
 
-## 주요 버전
-| 구분 | 패키지 | 버전 |
+## 2. 설치 순서
+
+- 실행 위치: 저장소 최상위 디렉터리
+
+1. Python 3.10으로 가상환경 `CGI` 생성
+
+```bash
+py -3.10 -m venv CGI
+```
+
+2. PyTorch 설치 (CUDA 12.1용)
+
+```bash
+CGI\Scripts\python.exe -m pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu121
+```
+
+3. SAM2 설치 (상의 영역 추출 모델 코드, 가중치 파일은 6단계)
+
+```bash
+CGI\Scripts\python.exe -m pip install "git+https://github.com/facebookresearch/sam2.git"
+```
+
+- Git 필요 (GitHub에서 설치)
+
+4. 나머지 패키지 일괄 설치 (`requirements.txt`: AnyDoor, 백엔드, 데이터베이스용)
+
+```bash
+CGI\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+5. xformers 설치 (합성 속도·GPU 메모리 개선)
+
+```bash
+CGI\Scripts\python.exe -m pip install xformers==0.0.28.post3 --index-url https://download.pytorch.org/whl/cu124 --no-deps
+```
+
+- `--no-deps`: 2단계에서 설치한 PyTorch 버전을 바꾸지 않음
+
+6. AI 모델 파일 배치 (대용량이라 GitHub에 없음, AI 기능·서버 담당에게 요청)
+
+| 파일 | 종류 | 용도 | 위치 |
+|---|---|---|---|
+| `sam2.1_hiera_base_plus.pt` | SAM2 가중치 | 상의 영역 추출 | 저장소 `checkpoints/sam2/` |
+| AnyDoor 공식 저장소 폴더 | AnyDoor 실행 코드 | 이미지 합성 (합성 모듈이 불러와 실행) | `Desktop\AnyDoor` (다른 위치는 환경 변수 `ANYDOOR_DIR`) |
+| `epoch=1-step=8687.ckpt` (약 16.8GB) | AnyDoor 가중치 | 이미지 합성 | AnyDoor 폴더, `configs/inference.yaml`에 경로 지정 |
+| `dinov2_vitg14_pretrain.pth` (약 4.5GB) | DINOv2 가중치 | AnyDoor 내부 이미지 특징 추출 | AnyDoor 폴더, `configs/anydoor.yaml`에 경로 지정 |
+
+7. MySQL 설정: [database.md](database.md)
+
+## 3. 설치 확인
+
+```bash
+CGI\Scripts\python.exe scripts\check_env.py
+```
+
+- 점검 항목: 가상환경, Python·패키지 버전, GPU, AnyDoor 폴더, SAM2 모델 가중치 파일, `backend/.env`
+- 정상: 마지막 줄 `결과: 18/18 통과`
+- `[NG]` 항목은 해당 설치 순서를 다시 수행
+- 실행 시 출력되는 `A matching Triton is not available` 경고는 무시
+
+## 4. 가상환경 사용 규칙
+
+- Python 실행은 가상환경 `CGI`만 사용 (아나콘다 등 다른 환경 사용 안 함)
+- 활성화 없이 `python`만 입력하면 PC에 설치된 다른 Python이 실행됨 → 패키지 없음 오류
+
+### 4-1. 실행 방법
+
+| 방법 | 명령 |
+|---|---|
+| 가상환경 경로로 직접 실행 (활성화 불필요) | `CGI\Scripts\python.exe ...` |
+| 활성화 후 실행 (명령 프롬프트) | `CGI\Scripts\activate` 실행 후 `python ...` |
+| 활성화 후 실행 (PowerShell) | `CGI\Scripts\Activate.ps1` 실행 후 `python ...` |
+
+- 활성화되면 명령 줄 앞에 `(CGI)` 표시
+
+### 4-2. 현재 환경 확인
+
+| 확인 위치 | 명령·화면 | 정상 |
+|---|---|---|
+| 터미널 | `python -c "import sys; print(sys.executable)"` | 끝이 `CGI\Scripts\python.exe` |
+| 점검 스크립트 | `python scripts\check_env.py` | 첫 줄 `[OK] 가상환경 CGI` |
+| VS Code | 오른쪽 아래 상태 표시줄의 Python 표시 | `CGI` 포함 |
+
+### 4-3. VS Code 설정
+
+- 저장소 최상위 디렉터리를 VS Code로 열면 `.vscode/settings.json`이 적용됨: 기본 인터프리터 `CGI`, 새 터미널에서 `CGI` 자동 활성화
+- 다른 환경이 선택된 경우: `Ctrl+Shift+P` → `Python: Select Interpreter` → `.\CGI\Scripts\python.exe` 선택
+
+### 4-4. 패키지 추가·변경
+
+- 설치: `CGI\Scripts\python.exe -m pip install 패키지==버전`
+- 설치 후 `requirements.txt`, "5. 주요 패키지 버전" 표, `scripts\check_env.py` 기준 버전에 반영
+
+## 5. 주요 패키지 버전
+
+| 용도 | 패키지 | 버전 |
 |---|---|---|
 | 공통 | torch / torchvision | 2.5.1+cu121 / 0.20.1+cu121 |
-| 합성 (AnyDoor) | numpy | 2.2.6 |
+| 상의 영역 추출 (SAM2) | sam2 | 1.0 (GitHub 최신) |
+| 이미지 합성 (AnyDoor) | numpy | 2.2.6 |
 | | transformers | 5.14.1 |
 | | pytorch-lightning | 1.9.5 |
-| | timm | 1.0.28 |
-| | open_clip_torch | 3.3.0 |
-| | opencv-python (contrib, headless 포함) | 5.0.0.93 |
-| | albumentations | 1.3.0 |
-| | Pillow | 12.3.0 |
 | | xformers | 0.0.28.post3 |
-| 추출 (SAM2) | sam2 | SAM-2 1.0 @ 2b90b9f |
-| | segment-anything | 1.0 |
-| | kornia | 0.8.2 |
-| 서버 | fastapi | 0.143.0 |
-| | uvicorn | 0.54.0 |
+| 백엔드 | fastapi / uvicorn | 0.143.0 / 0.54.0 |
+| 데이터베이스 | SQLAlchemy / PyMySQL / python-dotenv | 2.0.54 / 1.2.3 / 1.2.4 |
 
-## 제외한 패키지
-- gradio 3.39.0, gradio-client: AnyDoor Gradio 데모 전용
-- 제외 이유: gradio 3.39.0이 numpy<2 요구 → numpy 2.2.6과 충돌
+- 전체 목록: [pip_freeze.txt](pip_freeze.txt)
 
-## 체크포인트 (git 제외)
-- `checkpoints/sam2/sam2.1_hiera_base_plus.pt`: compositing_lab에서 복사
-- `checkpoints/sam/sam_vit_b_01ec64.pth`: https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth
-- BiRefNet (`ZhengPeng7/BiRefNet`): 첫 실행 시 Hugging Face에서 자동 다운로드
+## 6. 설치하지 않는 패키지
+
+| 패키지 | 사유 |
+|---|---|
+| gradio 3.39.0, gradio-client | AnyDoor 데모 화면 전용, numpy 2 미지원 (numpy 2.2.6과 충돌) |

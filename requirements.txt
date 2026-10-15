@@ -32,3 +32,14 @@ Pillow==12.3.0
 # sam2는 GitHub에서 별도 설치: pip install "git+https://github.com/facebookresearch/sam2.git"
 segment-anything
 kornia
+
+# --- 서버 (FastAPI) ---
+fastapi==0.143.0
+uvicorn[standard]==0.54.0
+python-multipart==0.0.32
+
+# --- DB (MySQL, docs/database.md) ---
+# [rsa]: MySQL 8 기본 로그인 방식에 필요한 cryptography 포함
+pymysql[rsa]==1.2.3
+sqlalchemy==2.0.54
+python-dotenv==1.2.4

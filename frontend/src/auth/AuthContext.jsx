@@ -1,30 +1,25 @@
 /* 로그인 상태와 로그인 팝업.
-   지금은 시연용으로 아이디 test / 비밀번호 test 로만 로그인되고, 로그인 상태는 이 브라우저에만 저장한다.
-   서버 연동 때 login() 안을 서버 로그인 요청으로 바꾼다. */
+   로그인 요청은 src/api/auth.js가 보낸다. 서버가 없는 지금은 가짜 서버가 아이디 test / 비밀번호 test 로만 로그인시킨다.
+   로그인하면 받은 토큰을 이 브라우저에 저장하고, 토큰이 있으면 로그인된 상태로 본다. */
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import useToast from '../components/useToast.js';
+import * as authApi from '../api/auth.js';
+import { getToken, UNAUTHORIZED_EVENT } from '../api/client.js';
 
-const KEY = 'moa_logged_in';
-const DEMO_ID = 'test';
-const DEMO_PW = 'test';
 const WELCOME = 'MOA에 오신 것을 환영합니다.';
+const EXPIRED = '로그인이 만료되었습니다. 다시 로그인해 주세요.';
 // 로그인해야 들어갈 수 있는 화면과, 막혔을 때 팝업에 보여 줄 문구
 export const GATED = {
   '/studio': '합성하기는 로그인 후 이용할 수 있습니다.',
   '/mypage': '마이페이지는 로그인 후 이용할 수 있습니다.',
 };
 
-const read = () => { try { return localStorage.getItem(KEY) === '1'; } catch { return false; } };
-const write = (on) => {
-  try { if (on) localStorage.setItem(KEY, '1'); else localStorage.removeItem(KEY); } catch { /* 저장 불가 시 무시 */ }
-};
-
 const AuthContext = createContext(null);
 export const useAuth = () => useContext(AuthContext);
 
 export function AuthProvider({ children }) {
-  const [loggedIn, setLoggedIn] = useState(read);
+  const [loggedIn, setLoggedIn] = useState(() => !!getToken());
   const [modal, setModal] = useState({ open: false, sub: WELCOME, next: null });
   const [toast, showToast] = useToast(2000);
   const navigate = useNavigate();
@@ -44,22 +39,33 @@ export function AuthProvider({ children }) {
     }
   }, [location, loggedIn, openLogin, navigate]);
 
-  const login = (id, pw) => {
-    if (id === DEMO_ID && pw === DEMO_PW) {
-      write(true);
-      setLoggedIn(true);
-      const next = modal.next;
-      closeLogin();
-      if (next) navigate(next);
-      else showToast('로그인되었습니다');
-      return true;
+  // 다른 요청을 하다가 로그인이 풀린 것을 알게 되면(client.js) 로그아웃 상태로 바꾸고 로그인 팝업을 연다
+  useEffect(() => {
+    const onExpired = () => {
+      setLoggedIn(false);
+      setModal({ open: true, sub: EXPIRED, next: location.pathname });
+    };
+    window.addEventListener(UNAUTHORIZED_EVENT, onExpired);
+    return () => window.removeEventListener(UNAUTHORIZED_EVENT, onExpired);
+  }, [location.pathname]);
+
+  const login = async (username, pw) => {
+    const next = modal.next;
+    try {
+      await authApi.login(username, pw);
+    } catch (e) {
+      showToast(e.message);
+      return false;
     }
-    showToast('아이디 또는 비밀번호가 올바르지 않습니다');
-    return false;
+    setLoggedIn(true);
+    closeLogin();
+    if (next) navigate(next);
+    else showToast('로그인되었습니다');
+    return true;
   };
 
   const logout = () => {
-    write(false);
+    authApi.logout();
     setLoggedIn(false);
     if (GATED[location.pathname]) navigate('/', { replace: true });
     showToast('로그아웃되었습니다');
@@ -79,6 +85,7 @@ export function AuthProvider({ children }) {
 function LoginModal({ modal, onClose, onSubmit, onSignup }) {
   const [id, setId] = useState('');
   const [pw, setPw] = useState('');
+  const [busy, setBusy] = useState(false);
   const firstInput = useRef(null);
 
   useEffect(() => {
@@ -89,9 +96,13 @@ function LoginModal({ modal, onClose, onSubmit, onSignup }) {
     return () => { clearTimeout(t); document.removeEventListener('keydown', onKey); };
   }, [modal.open, onClose]);
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault();
-    if (onSubmit(id.trim(), pw)) setPw('');
+    if (busy) return;
+    setBusy(true);
+    const ok = await onSubmit(id.trim(), pw);
+    setBusy(false);
+    if (ok) setPw('');
   };
 
   return (
@@ -103,7 +114,7 @@ function LoginModal({ modal, onClose, onSubmit, onSignup }) {
         <form onSubmit={submit} noValidate>
           <label className="auth-field"><span>아이디</span><input ref={firstInput} type="text" placeholder="아이디를 입력하세요" autoComplete="username" value={id} onChange={(e) => setId(e.target.value)} /></label>
           <label className="auth-field"><span>비밀번호</span><input type="password" placeholder="비밀번호를 입력하세요" autoComplete="current-password" value={pw} onChange={(e) => setPw(e.target.value)} /></label>
-          <button type="submit" className="auth-submit">로그인</button>
+          <button type="submit" className="auth-submit" disabled={busy}>{busy ? '로그인 중…' : '로그인'}</button>
         </form>
         <p className="auth-modal-foot">아직 계정이 없으신가요? <a onClick={onSignup}>회원가입</a></p>
       </div>
