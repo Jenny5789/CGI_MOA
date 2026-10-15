@@ -96,11 +96,11 @@ CGI\Scripts\python.exe -m uvicorn backend.main:app --port 8000
 
 ## 4. 오류별 조치
 
-- `DB에 연결하지 못했습니다:` 뒤에 나오는 메시지 기준
+- 기준: 백엔드 실행 로그 `DB에 연결하지 못했습니다:` 다음에 표시되는 메시지
 
 | 메시지 | 원인 | 조치 |
 |---|---|---|
-| `Access denied for user 'cgi_app'@'localhost' (using password: YES)` | `backend/.env` 비밀번호 불일치, 또는 `cgi_app` 계정 없음 | 2-3의 비밀번호 확인, 계정이 없으면 2-2 수행 |
-| `Access denied for user 'cgi_app'@'localhost' to database 'cgi'` | 데이터베이스 `cgi` 없음 또는 권한 없음 | 2-2. 데이터베이스·MySQL 계정 생성 수행 |
-| `Can't connect to MySQL server on 'localhost'` | MySQL 중지 | "서비스"에서 `MySQL80` 시작, 또는 관리자 권한 PowerShell에서 `Start-Service MySQL80` |
-| `'cryptography' package is required` | 패키지 누락 | `CGI\Scripts\python.exe -m pip install cryptography` |
+| `Access denied for user 'cgi_app'@'localhost' (using password: YES)` | `backend/.env` 비밀번호 불일치, 또는 `cgi_app` 계정 없음 | 비밀번호 재확인 (2-3. 접속 설정 파일 생성), 계정이 없으면 계정 생성 (2-2. 데이터베이스·MySQL 계정 생성) |
+| `Access denied for user 'cgi_app'@'localhost' to database 'cgi'` | 데이터베이스 `cgi` 없음 또는 권한 없음 | 데이터베이스·권한 생성 (2-2. 데이터베이스·MySQL 계정 생성) |
+| `Can't connect to MySQL server on 'localhost'` | MySQL 중지 | MySQL 시작 ("서비스" 화면에서 `MySQL80` 시작, 또는 관리자 권한 PowerShell에서 `Start-Service MySQL80`) |
+| `'cryptography' package is required` | 패키지 누락 | 패키지 설치 (`CGI\Scripts\python.exe -m pip install cryptography`) |
