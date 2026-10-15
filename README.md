@@ -14,7 +14,18 @@
 | 5 | 이미지 합성 | 추출 의류를 착용 영역에 합성 (AnyDoor) |
 | 6 | 결과 저장 | 합성 결과를 사진첩에 저장 |
 
-## 2. 디렉터리 구성
+## 2. 사용 기술
+
+| 구분 | 기술 | 용도 |
+|---|---|---|
+| AI 모델 | SAM2 (Meta, Segment Anything Model 2) | 상의 영역 추출: 사용자가 지정한 좌표로 의류 영역 분할 |
+| AI 모델 | AnyDoor (확산 모델 기반 이미지 합성) | 이미지 합성: 추출한 의류를 인물 이미지의 착용 영역에 합성 |
+| 프론트엔드 | React 19, Vite 6 | 웹 UI |
+| 백엔드 | Python 3.10, FastAPI | API 서버 |
+| 데이터베이스 | MySQL 8.0 | 회원 정보, 로그인 세션 |
+| 실행 환경 | PyTorch 2.5.1 (CUDA 12.1), NVIDIA GPU | AI 모델 추론 |
+
+## 3. 디렉터리 구성
 
 ```
 CGI_V2/
@@ -32,32 +43,32 @@ CGI_V2/
 ├── backend/                         백엔드 (FastAPI)
 │   ├── README.md                    백엔드 구성
 │   └── .env.example                 데이터베이스 접속 설정 예시
-├── features/                        AI 모듈
+├── features/                        AI 모듈 (SAM2, AnyDoor)
 │   ├── object_extraction/README.md  상의 영역 추출 모듈 (SAM2)
 │   └── composition/README.md        이미지 합성 모듈 (AnyDoor)
-└── scripts/README.md                AI 모듈 단위 테스트
+└── scripts/README.md                AI 모듈 단위 테스트 (SAM2, AnyDoor)
 ```
 
-## 3. 문서 안내
+## 4. 문서 안내
 
 | 목적 | 참고 문서 (열람 순서) |
 |---|---|
-| 개발 환경 구축 및 최초 실행 | 5장 → [environment.md](docs/environment.md) → [database.md](docs/database.md) |
+| 개발 환경 구축 및 최초 실행 | 6장 → [environment.md](docs/environment.md) → [database.md](docs/database.md) |
 | 프론트엔드 개발 | [ui_handoff.md](docs/ui_handoff.md) → [api.md](docs/api.md) |
 | API 사양 확인 | [api.md](docs/api.md) → [backend/README.md](backend/README.md) |
 | 로그인 장애 조치 | [database.md](docs/database.md) "문제 해결" |
-| AI 모듈 단위 테스트 | [scripts/README.md](scripts/README.md) |
+| AI 모듈 (SAM2, AnyDoor) 단위 테스트 | [scripts/README.md](scripts/README.md) |
 
-## 4. 역할 분담
+## 5. 역할 분담
 
 | 영역 | 디렉터리 | 담당 |
 |---|---|---|
 | 프론트엔드 | `frontend/` | 화면 담당 |
-| 백엔드, AI 모듈 | `backend/`, `features/` | AI 기능·서버 담당 |
+| 백엔드, AI 모듈 (SAM2, AnyDoor) | `backend/`, `features/` | AI 기능·서버 담당 |
 
-## 5. 실행 방법
+## 6. 실행 방법
 
-### 5-1. 백엔드
+### 6-1. 백엔드
 
 - 사전 요건
   - Python 가상환경 `CGI`: [environment.md](docs/environment.md)
@@ -69,7 +80,7 @@ CGI_V2/
   - http://localhost:8000/docs → API 테스트 페이지
 - 소요 시간: 기동 시 모델 로딩 1~2분, 합성 1건 약 1분
 
-### 5-2. 프론트엔드
+### 6-2. 프론트엔드
 
 - 사전 요건: Node.js
 
@@ -80,13 +91,13 @@ CGI_V2/
 | 3 | `npm run dev` | 개발 서버 실행 |
 | 4 | http://localhost:5173 | 브라우저 접속 |
 
-### 5-3. 프론트엔드·백엔드 연동
+### 6-3. 프론트엔드·백엔드 연동
 
 - 기본값: 모의(mock) 데이터로 동작
 - 연동 설정: `frontend/.env.example`을 `frontend/.env.local`로 복사 후 `VITE_API_MODE=mixed`
 - 실행 순서: 백엔드 → 프론트엔드 → 테스트 계정 `test` / `test1234` 로그인
 
-## 6. 저장소 제외 항목
+## 7. 저장소 제외 항목
 
 | 항목 | 내용 | 사유 |
 |---|---|---|
