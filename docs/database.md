@@ -21,7 +21,10 @@
 Get-Service MySQL80
 ```
 
-- `MySQL80`이 없으면 MySQL Installer로 MySQL Server 8.0, MySQL Workbench 설치
+- `MySQL80`이 없으면 MySQL 설치 후 다시 확인
+  1. https://dev.mysql.com/downloads/installer/ 에서 MySQL Installer (Windows용) 다운로드
+  2. 설치 항목 선택: MySQL Server 8.0, MySQL Workbench
+  3. 설치 중 관리자 계정 `root`의 비밀번호 설정 (2-2에서 사용)
 
 ### 2-2. 데이터베이스·MySQL 계정 생성
 
