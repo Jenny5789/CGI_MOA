@@ -21,7 +21,7 @@
 { "error": { "code": "INVALID_IMAGE", "message": "이미지를 읽을 수 없습니다." } }
 ```
 
-| 상태 코드 | 의미 | `code` 예 |
+| 상태 코드 | 의미 | 대표 오류 코드 (`code`) |
 |---|---|---|
 | 400 | 요청 값 오류 | `INVALID_IMAGE`, `INVALID_PASSWORD`, `INVALID_REQUEST` |
 | 401 | 인증 필요 (토큰 없음·불일치·만료), 로그인 실패 | `UNAUTHORIZED`, `INVALID_CREDENTIALS` |
