@@ -48,19 +48,19 @@ GRANT ALL PRIVILEGES ON cgi.* TO 'cgi_app'@'localhost';
 cd $HOME\Desktop\CGI_V2
 ```
 
-2. 예시 파일을 복사해 설정 파일 생성
+2. `backend\.env.example`을 복사해 `backend\.env` 생성
 
 ```powershell
 Copy-Item backend\.env.example backend\.env
 ```
 
-3. 메모장으로 열기
+3. `backend\.env`를 메모장으로 열기
 
 ```powershell
 notepad backend\.env
 ```
 
-4. `여기에_비밀번호`를 2-2에서 정한 비밀번호로 바꾸고 저장
+4. `여기에_비밀번호`를 2-2에서 정한 비밀번호로 변경 후 저장
 
 ```
 DATABASE_URL=mysql+pymysql://cgi_app:2-2에서_정한_비밀번호@localhost:3306/cgi
