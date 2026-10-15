@@ -20,6 +20,7 @@
 | `routers/compose.py` | 합성 요청, 진행 상태 조회 (AnyDoor) | [5. 이미지 합성 API](../docs/api.md#5-이미지-합성-api-anydoor) |
 | `routers/results.py` | 결과 조회, 목록, 저장·좋아요 | [6. 합성 결과 관리 API](../docs/api.md#6-합성-결과-관리-api-작업-기록-사진첩) |
 | `routers/files.py` | 이미지 파일 조회 | [7. 이미지 파일 조회 API](../docs/api.md#7-이미지-파일-조회-api) |
+| `file_keys.py` | 이미지 파일 주소 열쇠 발급·확인 (3시간 유효) | [7. 이미지 파일 조회 API](../docs/api.md#7-이미지-파일-조회-api) |
 | `storage.py` | 저장 기록 읽기, 소유자 확인 | - |
 | `gpu.py` | GPU 작업 순서 제어 | - |
 

@@ -5,6 +5,7 @@
 - PATCH /api/results/{id}       : 저장 / 좋아요 (명세 6-2)
 - 저장하지 않은 결과는 만든 지 3일 뒤 지운다 (명세 5-3, 10/12 결정). 목록을 볼 때 지난 것을 정리한다
 - 로그인 필요. 자기 결과만 보이고 바꿀 수 있음 (남의 결과는 404). 결과는 storage/results에 파일(json)로 저장
+- 사진 주소(image_url, thumb_url)는 응답할 때 열쇠를 붙여 줌 (명세 7장, backend/file_keys.py). json에는 열쇠 없는 주소 그대로
 """
 import json
 import threading
@@ -18,6 +19,7 @@ from backend.auth import current_user
 from backend.config import RESULT_KEEP_DAYS, RESULTS_DIR
 from backend.db import User
 from backend.errors import ApiError
+from backend.file_keys import signed_url
 from backend.storage import _ID, KST, is_owner
 
 router = APIRouter()
@@ -25,6 +27,14 @@ _lock = threading.Lock()  # 저장/좋아요를 동시에 바꿀 때 파일이 �
 
 DETAIL_KEYS = ("result_id", "image_url", "thumb_url", "created_at", "saved", "favorite", "garment_image_id", "person_image_id")
 LIST_KEYS = ("result_id", "thumb_url", "image_url", "created_at", "saved", "favorite")
+
+
+def _public(record, keys):
+    """응답할 칸만 골라, 사진 주소에 열쇠를 붙인다 (저장된 주소 /api/files/이름 → 이름만 꺼내 서명)"""
+    out = {k: record[k] for k in keys}
+    for k in ("image_url", "thumb_url"):
+        out[k] = signed_url(record[k].rsplit("/", 1)[-1])
+    return out
 
 
 def _path(result_id):
@@ -102,13 +112,13 @@ def list_results(
         items = [r for r in items if r["created_at"][:10] == date]
     items = sorted(items, key=lambda r: r["created_at"], reverse=(sort == "new"))
 
-    return {"items": [{k: r[k] for k in LIST_KEYS} for r in items], "counts": counts, "next_cursor": None}
+    return {"items": [_public(r, LIST_KEYS) for r in items], "counts": counts, "next_cursor": None}
 
 
 @router.get("/api/results/{result_id}")
 def get_result(result_id: str, user: User = Depends(current_user)):
     record = _load(result_id, user)
-    return {k: record[k] for k in DETAIL_KEYS}
+    return _public(record, DETAIL_KEYS)
 
 
 class ResultPatch(BaseModel):
@@ -127,4 +137,4 @@ def update_result(result_id: str, change: ResultPatch, user: User = Depends(curr
         if change.favorite is not None:
             record["favorite"] = change.favorite
         _path(result_id).write_text(json.dumps(record, ensure_ascii=False), encoding="utf-8")
-    return {k: record[k] for k in DETAIL_KEYS}
+    return _public(record, DETAIL_KEYS)

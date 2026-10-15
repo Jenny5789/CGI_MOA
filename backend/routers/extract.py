@@ -28,6 +28,7 @@ from backend.auth import current_user
 from backend.config import EXTRACTIONS_DIR, IMAGES_DIR
 from backend.db import User
 from backend.errors import ApiError
+from backend.file_keys import signed_url
 from backend.gpu import GPU_LOCK
 from backend.storage import load_image_info, now_kst
 from features.object_extraction import extract_object
@@ -122,7 +123,7 @@ def extract(req: ExtractRequest, user: User = Depends(current_user)):
 
     return {
         "extraction_id": extraction_id,
-        "mask_url": f"/api/files/{mask_name}",
-        "cutout_url": f"/api/files/{cutout_name}",
+        "mask_url": signed_url(mask_name),
+        "cutout_url": signed_url(cutout_name),
         "bbox": bbox,
     }
