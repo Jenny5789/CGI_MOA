@@ -69,12 +69,45 @@ CGI\Scripts\python.exe -m pip install xformers==0.0.28.post3 --index-url https:/
 CGI\Scripts\python.exe scripts\check_env.py
 ```
 
-- 점검 항목: Python·패키지 버전, GPU, AnyDoor 폴더, SAM2 모델 가중치 파일, `backend/.env`
-- 정상: 마지막 줄 `결과: 17/17 통과`
+- 점검 항목: 가상환경, Python·패키지 버전, GPU, AnyDoor 폴더, SAM2 모델 가중치 파일, `backend/.env`
+- 정상: 마지막 줄 `결과: 18/18 통과`
 - `[NG]` 항목은 해당 설치 순서를 다시 수행
 - 실행 시 출력되는 `A matching Triton is not available` 경고는 무시
 
-## 4. 주요 패키지 버전
+## 4. 가상환경 사용 규칙
+
+- Python 실행은 가상환경 `CGI`만 사용 (아나콘다 등 다른 환경 사용 안 함)
+- 활성화 없이 `python`만 입력하면 PC에 설치된 다른 Python이 실행됨 → 패키지 없음 오류
+
+### 4-1. 실행 방법
+
+| 방법 | 명령 |
+|---|---|
+| 가상환경 경로로 직접 실행 (활성화 불필요) | `CGI\Scripts\python.exe ...` |
+| 활성화 후 실행 (명령 프롬프트) | `CGI\Scripts\activate` 실행 후 `python ...` |
+| 활성화 후 실행 (PowerShell) | `CGI\Scripts\Activate.ps1` 실행 후 `python ...` |
+
+- 활성화되면 명령 줄 앞에 `(CGI)` 표시
+
+### 4-2. 현재 환경 확인
+
+| 확인 위치 | 명령·화면 | 정상 |
+|---|---|---|
+| 터미널 | `python -c "import sys; print(sys.executable)"` | 끝이 `CGI\Scripts\python.exe` |
+| 점검 스크립트 | `python scripts\check_env.py` | 첫 줄 `[OK] 가상환경 CGI` |
+| VS Code | 오른쪽 아래 상태 표시줄의 Python 표시 | `CGI` 포함 |
+
+### 4-3. VS Code 설정
+
+- 저장소 최상위 디렉터리를 VS Code로 열면 `.vscode/settings.json`이 적용됨: 기본 인터프리터 `CGI`, 새 터미널에서 `CGI` 자동 활성화
+- 다른 환경이 선택된 경우: `Ctrl+Shift+P` → `Python: Select Interpreter` → `.\CGI\Scripts\python.exe` 선택
+
+### 4-4. 패키지 추가·변경
+
+- 설치: `CGI\Scripts\python.exe -m pip install 패키지==버전`
+- 설치 후 `requirements.txt`, "5. 주요 패키지 버전" 표, `scripts\check_env.py` 기준 버전에 반영
+
+## 5. 주요 패키지 버전
 
 | 용도 | 패키지 | 버전 |
 |---|---|---|
@@ -89,7 +122,7 @@ CGI\Scripts\python.exe scripts\check_env.py
 
 - 전체 목록: [pip_freeze.txt](pip_freeze.txt)
 
-## 5. 설치하지 않는 패키지
+## 6. 설치하지 않는 패키지
 
 | 패키지 | 사유 |
 |---|---|

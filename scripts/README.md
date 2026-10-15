@@ -22,5 +22,5 @@
 ## check_env.py (개발 환경 점검)
 
 - `python scripts/check_env.py`
-- 점검: Python·패키지 버전, GPU, AnyDoor 폴더, SAM2 모델 가중치, `backend/.env`
+- 점검: 가상환경, Python·패키지 버전, GPU, AnyDoor 폴더, SAM2 모델 가중치, `backend/.env`
 - 기준·조치: [../docs/environment.md](../docs/environment.md) "3. 설치 확인"

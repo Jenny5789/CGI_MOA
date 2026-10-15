@@ -38,6 +38,7 @@ def check(name, ok, detail):
     print(f"[{'OK' if ok else 'NG'}] {name}: {detail}")
 
 
+check("가상환경 CGI", sys.prefix != sys.base_prefix and Path(sys.prefix).name == "CGI", sys.executable)
 check("Python", sys.version_info[:2] == (3, 10), sys.version.split()[0] + " (기준 3.10)")
 
 for pkg, want in EXPECTED.items():
