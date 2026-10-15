@@ -1,15 +1,21 @@
 # MOA API 명세
 
-- 기준: 화면(`frontend/`)이 서버에 보내고 받는 값
-- `(미정)`: 팀 결정 필요 / `(추가 제안)`: 명세 외 추가, 팀 합의 필요
+- 범위: 프론트엔드(`frontend/`)와 백엔드(`backend/`) 간 요청·응답 규격
+- 표기: `(미정)` 팀 결정 필요, `(추가 제안)` 기존 명세에 없는 항목으로 팀 합의 필요
 
-## 0. 공통
+## 0. 공통 규칙
 
-- 주소: 모두 `/api`로 시작
-- 방식: `GET` 가져오기 / `POST` 만들기 / `PATCH` 일부 고치기 / `DELETE` 지우기
-- 값: JSON. 사진은 파일 첨부(`multipart/form-data`)
-- 로그인 필요: 요청 머리에 `Authorization: Bearer <토큰>`
-- 오류: 상태 번호 + 아래 형식, 화면은 `message`를 그대로 표시
+### 0-1. 요청 형식
+
+- 경로: 모두 `/api`로 시작
+- 메서드: `GET` 조회, `POST` 생성, `PATCH` 일부 수정, `DELETE` 삭제
+- 본문: JSON (이미지 전송 시 `multipart/form-data`)
+- 인증: 로그인 시 발급받은 토큰을 요청 헤더에 `Authorization: Bearer <토큰>`으로 포함
+- 시각: 한국 시간(+09:00), 예 `2026-10-15T18:20:00+09:00`
+
+### 0-2. 오류 응답
+
+- 형식 (프론트엔드는 `message`를 사용자에게 그대로 표시)
 
 ```json
 { "error": { "code": "INVALID_IMAGE", "message": "이미지를 읽을 수 없습니다." } }
@@ -17,192 +23,219 @@
 
 | 상태 코드 | 의미 | `code` 예 |
 |---|---|---|
-| 400 | 보낸 값 잘못됨 | `INVALID_IMAGE`, `INVALID_PASSWORD`, `INVALID_REQUEST` |
-| 401 | 로그인 필요 (토큰 없음·틀림·만료) / 로그인 실패 | `UNAUTHORIZED` (화면은 로그인 창), `INVALID_CREDENTIALS` |
-| 404 | 없음 (남의 것 포함) | `RESULT_NOT_FOUND`, `IMAGE_NOT_FOUND` |
-| 409 | 이미 있음 | `DUPLICATE_USERNAME` |
-| 503 | 지금 쓸 수 없음 | `DB_UNAVAILABLE` |
+| 400 | 요청 값 오류 | `INVALID_IMAGE`, `INVALID_PASSWORD`, `INVALID_REQUEST` |
+| 401 | 인증 필요 (토큰 없음·불일치·만료), 로그인 실패 | `UNAUTHORIZED`, `INVALID_CREDENTIALS` |
+| 404 | 대상 없음 (다른 사용자의 데이터 포함) | `RESULT_NOT_FOUND`, `IMAGE_NOT_FOUND` |
+| 409 | 중복 | `DUPLICATE_USERNAME` |
+| 503 | 일시적 사용 불가 | `DB_UNAVAILABLE` |
 | 500 | 서버 내부 오류 | - |
 
-## 1. 화면과 API
+## 1. 화면별 API
 
 | 화면 | 사용자 동작 | 명세 위치 |
 |---|---|---|
-| 로그인 팝업 | 아이디, 비밀번호 | 2-1 |
-| 회원가입 | (화면은 "준비 중") | 2-2 |
-| 합성하기 1·2단계 | 상의·인물 사진 고르기 | 3-1 |
-| 합성하기 3단계 | 상의에 점 찍기 → 확인 | 4-1 |
-| 합성하기 4단계 | 입힐 영역 칠하기 → 합성 시작 | 5-1 |
-| 합성 중 | 기다리기 | 5-2 |
-| 결과 | 보기, 저장 | 5-3, 6-2 |
-| 내 작업 기록 | 저장한 결과 | 6-1 |
-| 마이페이지 사진첩 | 탭, 날짜, 정렬, 저장, 좋아요 | 6-1, 6-2 |
-| 마이페이지 프로필 | 이름, 이메일, 사진 | 2-3 |
+| 로그인 | 아이디·비밀번호 입력 | 2-1. 로그인 |
+| 회원가입 | 회원 정보 입력 | 2-2. 회원가입 |
+| 합성하기 1·2단계 | 상의·인물 이미지 선택 | 3-1. 이미지 업로드 |
+| 합성하기 3단계 | 상의 위 좌표 지정 후 확인 | 4-1. 상의 영역 추출 |
+| 합성하기 4단계 | 착용 영역 지정 후 합성 시작 | 5-1. 합성 요청 |
+| 합성 진행 | 대기 | 5-2. 진행 상태 조회 |
+| 합성 결과 | 결과 확인, 저장 | 5-3. 결과 조회, 6-2. 저장·좋아요 |
+| 내 작업 기록 | 저장한 결과 확인 | 6-1. 결과 목록 조회 |
+| 마이페이지 사진첩 | 분류(전체·최근 작업·좋아요), 날짜, 정렬, 저장, 좋아요 | 6-1. 결과 목록 조회, 6-2. 저장·좋아요 |
+| 마이페이지 프로필 | 이름, 이메일, 프로필 이미지 확인 | 2-3. 내 정보 조회 |
 
 ## 2. 계정
 
 ### 2-1. 로그인
-`POST /api/auth/login`
 
-- 보내는 값: `{ "username": "test", "password": "test1234" }`
-- 받는 값: `{ "token": "...", "expires_at": "2026-10-15T18:20:00+09:00", "user": { "id": 1, "username": "test", "name": "MOA User" } }`
-  - `expires_at`: 토큰 만료 시각 (추가 제안, 2-5)
-- 틀리면 401 `INVALID_CREDENTIALS` "아이디 또는 비밀번호가 올바르지 않습니다"
+- `POST /api/auth/login`, 인증 불필요
+- 요청: `{ "username": "test", "password": "test1234" }`
+- 응답: `{ "token": "...", "expires_at": "2026-10-15T18:20:00+09:00", "user": { "id": 1, "username": "test", "name": "MOA User" } }`
+  - `expires_at`: 토큰 만료 시각 (추가 제안, 2-5. 로그인 시간 연장)
+- 실패: 401 `INVALID_CREDENTIALS`
 
 ### 2-2. 회원가입
-`POST /api/auth/register`
 
-- 보내는 값: `{ "username", "password", "name", "email" }`
-- 받는 값: 2-1과 같음 (가입 후 바로 로그인)
-- 아이디 중복: 409 `DUPLICATE_USERNAME`
-- 비밀번호 규칙: 8자 이상, 숫자 포함. 어기면 400 `INVALID_PASSWORD` (화면도 보내기 전 같은 검사)
+- `POST /api/auth/register`, 인증 불필요
+- 요청: `{ "username", "password", "name", "email" }`
+- 응답: 2-1. 로그인과 동일 (가입 즉시 로그인 상태)
+- 비밀번호 규칙: 8자 이상, 숫자 포함 (프론트엔드도 전송 전 동일 검사)
+- 실패: 400 `INVALID_PASSWORD`(비밀번호 규칙 위반), 409 `DUPLICATE_USERNAME`(아이디 중복)
 
-### 2-3. 내 정보
-`GET /api/me`, 로그인 필요
+### 2-3. 내 정보 조회
 
-- 받는 값: `{ "id": 1, "username": "test", "name": "MOA User", "email": "moa.user@example.com", "avatar_url": "/api/files/..." }`
+- `GET /api/me`, 인증 필요
+- 응답: `{ "id": 1, "username": "test", "name": "MOA User", "email": "moa.user@example.com", "avatar_url": "/api/files/..." }`
 
 ### 2-4. 로그아웃
-`POST /api/auth/logout`, 로그인 필요
 
-- 보내는 값 없음, 받는 값 `{}`
-- 서버: 이 토큰 폐기
-- 화면: 응답을 기다리지 않고 로그아웃, 401이 와도 무시
+- `POST /api/auth/logout`, 인증 필요
+- 요청 본문 없음, 응답 `{}`
+- 백엔드: 해당 토큰 폐기
+- 프론트엔드: 응답을 기다리지 않고 로그아웃 처리 (401 응답도 무시)
 
 ### 2-5. 로그인 시간 연장 (추가 제안)
-`POST /api/auth/extend`, 로그인 필요
 
-- 보내는 값 없음, 받는 값 `{ "expires_at": "..." }`
-- 규칙: [login_extend.md](login_extend.md)
+- `POST /api/auth/extend`, 인증 필요
+- 요청 본문 없음, 응답 `{ "expires_at": "..." }`
+- 연장 규칙: [login_extend.md](login_extend.md)
 
-## 3. 사진
+## 3. 이미지
 
-### 3-1. 사진 올리기
-`POST /api/images`, 로그인 필요, 파일 첨부
+### 3-1. 이미지 업로드
 
-- 보내는 값: `file` (jpg, png), `kind`: `"garment"` 또는 `"person"`
-- 받는 값: `{ "image_id": "img_123", "url": "/api/files/img_123.jpg", "width": 768, "height": 1024 }`
-- 화면: 1·2단계에서 사진을 고를 때 올림 (예시 사진도)
-- 추출·합성은 `image_id`로 요청
-- 제한: 10MB 이하, jpg/png. 넘으면 400 `IMAGE_TOO_LARGE` / `INVALID_IMAGE`
-- 긴 변 길이 제한 (미정, 제안 4096)
+- `POST /api/images`, 인증 필요, `multipart/form-data`
+- 요청: `file`(jpg, png), `kind`(`"garment"` 상의 / `"person"` 인물)
+- 응답: `{ "image_id": "img_123", "url": "/api/files/img_123.jpg", "width": 768, "height": 1024 }`
+- 업로드 시점: 합성하기 1·2단계에서 이미지 선택 시 (예시 이미지 포함)
+- 이후 추출·합성 요청은 `image_id`로 이미지 지정
+- 제한: 10MB 이하, jpg·png (위반 시 400 `IMAGE_TOO_LARGE`, `INVALID_IMAGE`)
+- 긴 변 길이 제한 (미정, 제안 4096px)
 
-## 4. 상의 추출
+## 4. 상의 영역 추출 (SAM2)
 
-### 4-1. 상의 추출
-`POST /api/extract`, 로그인 필요
+### 4-1. 상의 영역 추출
 
-- 보내는 값
-  ```json
-  { "image_id": "img_123", "points": [ { "x": 0.52, "y": 0.41, "label": 1 }, { "x": 0.70, "y": 0.20, "label": 0 } ] }
-  ```
-  - `x`, `y`: 0~1 비율 (왼쪽 위 0,0)
-  - `label`: 1 포함(왼쪽 클릭), 0 제외(오른쪽 클릭)
-  - `box`: `{ "x1", "y1", "x2", "y2" }` 0~1 비율, 선택 (추가 제안). 점만 / 박스만 / 박스 + 점
-- 받는 값
-  ```json
-  { "extraction_id": "ext_456", "mask_url": "/api/files/ext_456_mask.png", "cutout_url": "/api/files/ext_456_cutout.png", "bbox": { "x": 120, "y": 200, "w": 400, "h": 520 } }
-  ```
-  - `mask_url`: 원본 크기 흑백 PNG (상의 255)
-  - `cutout_url`: 상의만 남긴 투명 배경 PNG
-  - `bbox`: 상의 사각형 (원본 픽셀)
-- 확인을 누를 때 한 번만 호출 (점 찍는 동안은 안 부름)
-- 화면: 결과를 보여 주고 "이대로 진행 / 점 다시 찍기"
-- 다시 찍고 확인하면 다시 호출 → 새 `extraction_id`. 마지막 것을 5-1에 사용
+- `POST /api/extract`, 인증 필요
+- 요청
 
-## 5. 합성
+```json
+{ "image_id": "img_123", "points": [ { "x": 0.52, "y": 0.41, "label": 1 }, { "x": 0.70, "y": 0.20, "label": 0 } ] }
+```
 
-- 방식: 요청 → 작업 번호 받기 → 2초마다 진행 확인 → 결과 받기
-- 설정: 50스텝, 1장 약 1분
+| 필드 | 내용 |
+|---|---|
+| `x`, `y` | 이미지 내 위치, 0~1 비율 (왼쪽 위 0,0) |
+| `label` | 1 포함 (왼쪽 클릭), 0 제외 (오른쪽 클릭) |
+| `box` | 상의를 감싸는 사각형 `{ "x1", "y1", "x2", "y2" }` 0~1 비율, 선택 (추가 제안) |
+
+- 응답
+
+```json
+{ "extraction_id": "ext_456", "mask_url": "/api/files/ext_456_mask.png", "cutout_url": "/api/files/ext_456_cutout.png", "bbox": { "x": 120, "y": 200, "w": 400, "h": 520 } }
+```
+
+| 필드 | 내용 |
+|---|---|
+| `mask_url` | 원본 크기 흑백 PNG (상의 영역 255) |
+| `cutout_url` | 상의 영역만 남긴 투명 배경 PNG |
+| `bbox` | 상의 영역 경계 사각형 (원본 픽셀 기준) |
+
+- 호출 시점: 좌표 지정 후 "확인" 시 1회 (좌표 지정 중에는 호출하지 않음)
+- 프론트엔드: 추출 결과 표시 후 "이대로 진행 / 점 다시 찍기" 선택
+- 재지정 시 재호출, 마지막 `extraction_id`를 5-1. 합성 요청에 사용
+
+## 5. 이미지 합성 (AnyDoor)
+
+- 처리 방식: 합성 요청 → 작업 번호 수신 → 2초 간격 진행 상태 조회 → 결과 조회
+- 설정: 50스텝, 1건 약 1분
 
 ### 5-1. 합성 요청
-`POST /api/compose`, 로그인 필요, 파일 첨부
 
-- 보내는 값
-  - `extraction_id`: 4-1 번호
-  - `person_image_id`: 3-1 인물 사진 번호
-  - `area_mask`: 입힐 영역 흑백 PNG (칠한 곳 255), 인물 사진과 같은 비율
-- 받는 값: `{ "job_id": "job_789", "status": "queued", "queue_position": 1 }`
-- 스텝·시드는 서버가 정함
+- `POST /api/compose`, 인증 필요, `multipart/form-data`
+- 요청
 
-### 5-2. 진행 확인
-`GET /api/jobs/{job_id}`, 로그인 필요
+| 필드 | 내용 |
+|---|---|
+| `extraction_id` | 4-1. 상의 영역 추출 결과 번호 |
+| `person_image_id` | 3-1. 이미지 업로드의 인물 이미지 번호 |
+| `area_mask` | 착용 영역 흑백 PNG (지정 영역 255), 인물 이미지와 같은 비율 |
 
-- 받는 값: `{ "job_id": "job_789", "status": "running", "progress": 0.34, "queue_position": 0, "result_id": null, "error": null }`
-- `status`: `queued` / `running` / `done` / `failed`
-- `progress`: 0~1
-- 화면: 2초마다 호출, `done`이면 5-3
-- 화면: 새로고침해도 이어서 확인하도록 `job_id`를 브라우저에 저장
+- 응답: `{ "job_id": "job_789", "status": "queued", "queue_position": 1 }`
+- 스텝 수·시드: 백엔드에서 결정
 
-### 5-3. 결과 받기
-`GET /api/results/{result_id}`, 로그인 필요
+### 5-2. 진행 상태 조회
 
-- 받는 값
-  ```json
-  { "result_id": "res_001", "image_url": "/api/files/res_001.png", "thumb_url": "/api/files/res_001_thumb.jpg", "created_at": "2026-10-12T20:45:00+09:00", "saved": false, "favorite": false, "garment_image_id": "img_123", "person_image_id": "img_124" }
-  ```
-- 합성 결과는 "최근 작업"(`saved: false`), "저장"하면 사진첩(`saved: true`)
-- 저장 안 한 결과는 3일 뒤 삭제
+- `GET /api/jobs/{job_id}`, 인증 필요
+- 응답: `{ "job_id": "job_789", "status": "running", "progress": 0.34, "queue_position": 0, "result_id": null, "error": null }`
 
-## 6. 작업 기록과 사진첩
+| 필드 | 내용 |
+|---|---|
+| `status` | `queued` 대기, `running` 합성 중, `done` 완료, `failed` 실패 |
+| `progress` | 진행률 0~1 |
+| `queue_position` | 대기 순번 (0: 대기 없음) |
 
-### 6-1. 결과 목록
-`GET /api/results`, 로그인 필요
+- 프론트엔드: 2초 간격 조회, `done`이면 5-3. 결과 조회
+- 프론트엔드: 새로고침 후에도 조회를 이어 가도록 `job_id`를 브라우저에 저장
 
+### 5-3. 결과 조회
+
+- `GET /api/results/{result_id}`, 인증 필요
+- 응답
+
+```json
+{ "result_id": "res_001", "image_url": "/api/files/res_001.png", "thumb_url": "/api/files/res_001_thumb.jpg", "created_at": "2026-10-12T20:45:00+09:00", "saved": false, "favorite": false, "garment_image_id": "img_123", "person_image_id": "img_124" }
+```
+
+- 합성 결과는 "최근 작업"(`saved: false`)으로 생성, 저장 시 사진첩(`saved: true`)으로 이동
+- 저장하지 않은 결과: 생성 3일 후 자동 삭제
+
+## 6. 작업 기록·사진첩
+
+### 6-1. 결과 목록 조회
+
+- `GET /api/results`, 인증 필요
 - 조건 (모두 선택)
-  - `saved=true|false`: "전체" / "최근 작업"
-  - `favorite=true`: "좋아요"
-  - `date=2026-10-12`: 그날 만든 것 (한국 시간)
-  - `sort=new|old`: 기본 `new`
-  - `limit`, `cursor`: 나눠 받기 (미정)
-- 받는 값
-  ```json
-  { "items": [ { "result_id": "res_001", "thumb_url": "...", "image_url": "...", "created_at": "...", "saved": true, "favorite": true } ], "counts": { "saved": 20, "recent": 6, "favorite": 6 }, "next_cursor": null }
-  ```
-  - `counts`: 탭 옆 숫자
+
+| 조건 | 내용 |
+|---|---|
+| `saved=true` / `false` | 사진첩 "전체" / "최근 작업" |
+| `favorite=true` | "좋아요" |
+| `date=2026-10-12` | 해당 날짜 생성분 (한국 시간 기준) |
+| `sort=new` / `old` | 최신순 (기본) / 오래된순 |
+| `limit`, `cursor` | 분할 조회 (미정) |
+
+- 응답
+
+```json
+{ "items": [ { "result_id": "res_001", "thumb_url": "...", "image_url": "...", "created_at": "...", "saved": true, "favorite": true } ], "counts": { "saved": 20, "recent": 6, "favorite": 6 }, "next_cursor": null }
+```
+
+- `counts`: 분류별 개수 (사진첩 탭 표시)
 - 내 작업 기록: `saved=true`, 최신순
 
-### 6-2. 저장 / 좋아요
-`PATCH /api/results/{result_id}`, 로그인 필요
+### 6-2. 저장·좋아요
 
-- 보내는 값: `{ "saved": true }` 또는 `{ "favorite": true }`
-- 받는 값: 5-3과 같음
+- `PATCH /api/results/{result_id}`, 인증 필요
+- 요청: `{ "saved": true }` 또는 `{ "favorite": true }`
+- 응답: 5-3. 결과 조회와 동일
 
-### 6-3. 결과 지우기 (미정)
-`DELETE /api/results/{result_id}`
+### 6-3. 결과 삭제 (미정)
 
-## 7. 파일
+- `DELETE /api/results/{result_id}`
 
-`GET /api/files/{파일 이름}`: 위 응답의 `url`
+## 7. 파일 조회
 
-- 본인 것만 보여야 함
-- 문제: `<img src>`는 `Authorization` 머리를 못 붙임
-- 확인 방식 (미정)
-  - (가) 일정 시간만 열리는 주소 `?key=...` (제안)
-  - (나) 쿠키 로그인
-  - (다) 화면이 토큰을 붙여 직접 받기 (사진 많으면 느림)
+- `GET /api/files/{파일 이름}`: 위 응답의 `url`, `image_url`, `mask_url` 등
+- 요구 사항: 본인 파일만 조회 가능
+- 제약: `<img src>` 요청에는 `Authorization` 헤더 포함 불가
+- 접근 제어 방식 (미정)
+  1. 일정 시간만 유효한 주소 `?key=...` 발급 (제안)
+  2. 쿠키 기반 로그인
+  3. 프론트엔드가 토큰을 포함해 직접 내려받기 (이미지가 많으면 느림)
 
 ## 8. 결정 사항
 
-### 확정
+### 8-1. 확정
 
 | 항목 | 내용 | 명세 위치 |
 |---|---|---|
-| 추출 호출 | 확인 때 한 번, "이대로 진행 / 점 다시 찍기" | 4-1 |
-| 합성 | 50스텝, 1분 안팎 | 5장 |
-| 진행 확인 | 2초마다, 진행률 제공 | 5-2 |
-| 저장 안 한 결과 | 3일 보관 | 5-3 |
-| 사진 | 10MB 이하, jpg/png | 3-1 |
-| 비밀번호 | 8자 이상, 숫자 포함 | 2-2 |
-| 로그아웃 | 서버에도 알림 | 2-4 |
-| 날짜 기준 | 한국 시간 | 6-1 |
-| 서버 주소 (개발) | `http://localhost:8000` | - |
-| 로그인 유효 | 3시간, 만료 30분·10분 전 연장 확인 | 2-5 |
+| 추출 호출 시점 | "확인" 시 1회, "이대로 진행 / 점 다시 찍기" | 4-1. 상의 영역 추출 |
+| 합성 설정 | 50스텝, 1건 1분 내외 | 5. 이미지 합성 |
+| 진행 상태 조회 | 2초 간격, 진행률 제공 | 5-2. 진행 상태 조회 |
+| 미저장 결과 보관 | 3일 | 5-3. 결과 조회 |
+| 이미지 제한 | 10MB 이하, jpg·png | 3-1. 이미지 업로드 |
+| 비밀번호 규칙 | 8자 이상, 숫자 포함 | 2-2. 회원가입 |
+| 로그아웃 | 백엔드에 통보 | 2-4. 로그아웃 |
+| 날짜 기준 | 한국 시간 | 6-1. 결과 목록 조회 |
+| 개발 서버 주소 | `http://localhost:8000` | - |
+| 로그인 유효 시간 | 3시간, 만료 30분·10분 전 연장 확인 | 2-5. 로그인 시간 연장 |
 
-### 미정
+### 8-2. 미정
 
-1. `/api/files` 본인 확인 방식 (7장)
-2. 사진 긴 변 길이 제한 (3-1)
-3. 결과 목록 나눠 받기 (6-1)
-4. 결과 지우기 (6-3)
-5. 추가 제안 채택 여부: 로그인 연장(2-5), 추출 `box`(4-1)
+1. 파일 접근 제어 방식 (7. 파일 조회)
+2. 이미지 긴 변 길이 제한 (3-1. 이미지 업로드)
+3. 결과 목록 분할 조회 (6-1. 결과 목록 조회)
+4. 결과 삭제 (6-3. 결과 삭제)
+5. 추가 제안 채택: 로그인 시간 연장 (2-5), 추출 `box` (4-1)
