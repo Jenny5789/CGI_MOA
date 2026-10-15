@@ -52,11 +52,56 @@ const SAMPLE_RESULTS = [
   person_image_id: null,
 }));
 
-const db = { results: SAMPLE_RESULTS };
+// images, extractions, jobs: 합성하기에서 올린 사진·추출·합성 작업. 사진은 브라우저 안 주소(blob:)로만 들고 있는다
+const db = { results: SAMPLE_RESULTS, images: {}, extractions: {}, jobs: {} };
 
 const listItem = (r) => ({
   result_id: r.result_id, thumb_url: r.thumb_url, image_url: r.image_url, created_at: r.created_at, saved: r.saved, favorite: r.favorite,
 });
+
+let seq = 0;
+const newId = (prefix) => `${prefix}_mock${String(++seq).padStart(8, '0')}`; // 명세처럼 접두어 + 12자리
+// 지금 한국 시간 글자 (예: 2026-10-16T14:05:00+09:00). 사진첩 예시의 created_at과 같은 모양
+const nowKst = () => `${new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 19)}+09:00`;
+const COMPOSE_MS = 6000; // 가짜 합성에 걸리는 시간. 화면은 2초마다 진행을 묻는다
+
+// 가짜 추출 윤곽: 포함 점(또는 box)을 감싸는 타원을 흰색으로 칠한 흑백 PNG. 긴 변 1024px 이하로 만든다 (화면이 사진 크기에 맞춰 늘림)
+async function fakeMask(image, points, box) {
+  let x1; let y1; let x2; let y2;
+  if (box) ({ x1, y1, x2, y2 } = box);
+  else {
+    const pos = points.filter((p) => p.label === 1);
+    x1 = Math.min(...pos.map((p) => p.x)); x2 = Math.max(...pos.map((p) => p.x));
+    y1 = Math.min(...pos.map((p) => p.y)); y2 = Math.max(...pos.map((p) => p.y));
+  }
+  const cx = (x1 + x2) / 2;
+  const cy = (y1 + y2) / 2;
+  const rx = Math.max((x2 - x1) / 2 + 0.1, 0.15);
+  const ry = Math.max((y2 - y1) / 2 + 0.1, 0.15);
+
+  const s = Math.min(1, 1024 / Math.max(image.width, image.height));
+  const c = document.createElement('canvas');
+  c.width = Math.round(image.width * s);
+  c.height = Math.round(image.height * s);
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, c.width, c.height);
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.ellipse(cx * c.width, cy * c.height, rx * c.width, ry * c.height, 0, 0, Math.PI * 2);
+  ctx.fill();
+  const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
+
+  const clamp = (v) => Math.min(Math.max(v, 0), 1);
+  const [bx1, by1, bx2, by2] = [clamp(cx - rx), clamp(cy - ry), clamp(cx + rx), clamp(cy + ry)];
+  return {
+    url: URL.createObjectURL(blob),
+    bbox: { // 원본 픽셀 기준 (명세 4-1)
+      x: Math.round(bx1 * image.width), y: Math.round(by1 * image.height),
+      w: Math.round((bx2 - bx1) * image.width), h: Math.round((by2 - by1) * image.height),
+    },
+  };
+}
 
 const routes = {
   'POST /auth/login': (body) => {
@@ -99,6 +144,62 @@ const routes = {
     if (body && typeof body.favorite === 'boolean') r.favorite = body.favorite;
     return ok(r);
   },
+
+  // 명세 3-1. body는 FormData (file, kind)
+  'POST /images': async (body) => {
+    const kind = body.get('kind');
+    if (kind !== 'garment' && kind !== 'person') return fail(400, 'INVALID_KIND', 'kind는 garment 또는 person이어야 합니다.');
+    const file = body.get('file');
+    let bmp;
+    try { bmp = await createImageBitmap(file); } catch { return fail(400, 'INVALID_IMAGE', '이미지를 읽을 수 없습니다.'); }
+    const image = { image_id: newId('img'), url: URL.createObjectURL(file), width: bmp.width, height: bmp.height };
+    bmp.close();
+    db.images[image.image_id] = image;
+    return ok(image);
+  },
+
+  // 명세 4-1. SAM2 대신 찍은 점을 감싸는 타원을 상의 영역으로 돌려준다. cutout_url은 화면이 쓰지 않아 원본 사진 주소를 넣는다
+  'POST /extract': async (body) => {
+    const points = body.points || [];
+    if (!body.box && !points.some((p) => p.label === 1)) {
+      return fail(400, 'NO_POSITIVE_POINT', '상의 위에 포함 점(왼쪽 클릭)을 찍거나 상의를 감싸는 박스를 그려 주세요.');
+    }
+    const image = db.images[body.image_id];
+    if (!image) return fail(404, 'IMAGE_NOT_FOUND', '사진을 찾을 수 없습니다. 다시 올려 주세요.');
+    const mask = await fakeMask(image, points, body.box);
+    const ext = { extraction_id: newId('ext'), mask_url: mask.url, cutout_url: image.url, bbox: mask.bbox };
+    db.extractions[ext.extraction_id] = { ...ext, image_id: image.image_id };
+    return ok(ext);
+  },
+
+  // 명세 5-1. body는 FormData (extraction_id, person_image_id, area_mask). 실제 합성은 하지 않는다
+  'POST /compose': (body) => {
+    const ext = db.extractions[body.get('extraction_id')];
+    if (!ext) return fail(404, 'EXTRACTION_NOT_FOUND', '추출 결과를 찾을 수 없습니다. 다시 추출해 주세요.');
+    const person = db.images[body.get('person_image_id')];
+    if (!person) return fail(404, 'IMAGE_NOT_FOUND', '사진을 찾을 수 없습니다. 다시 올려 주세요.');
+    const job = { job_id: newId('job'), start: Date.now(), garment_image_id: ext.image_id, person, result_id: null };
+    db.jobs[job.job_id] = job;
+    return ok({ job_id: job.job_id, status: 'queued', queue_position: 1 });
+  },
+
+  // 명세 5-2. 요청 뒤 지난 시간으로 진행률을 만든다. COMPOSE_MS가 지나면 인물 사진을 그대로 결과로 만들어 "최근 작업"(saved: false)에 넣는다
+  'GET /jobs/{id}': (body, params) => {
+    const job = db.jobs[params.id];
+    if (!job) return fail(404, 'JOB_NOT_FOUND', '작업을 찾을 수 없습니다.');
+    const progress = Math.min((Date.now() - job.start) / COMPOSE_MS, 1);
+    if (progress >= 1 && !job.result_id) {
+      const r = {
+        result_id: newId('res'), image_url: job.person.url, thumb_url: job.person.url, created_at: nowKst(), saved: false, favorite: false,
+        garment_image_id: job.garment_image_id, person_image_id: job.person.image_id,
+      };
+      db.results.unshift(r);
+      job.result_id = r.result_id;
+    }
+    return ok({
+      job_id: job.job_id, status: job.result_id ? 'done' : 'running', progress, queue_position: 0, result_id: job.result_id, error: null,
+    });
+  },
 };
 
 // 로그인 없이 쓸 수 있는 주소
@@ -131,6 +232,6 @@ export async function mockRequest(method, path, body, token) {
   if (!PUBLIC.has(key) && token !== DEMO_TOKEN) return fail(401, 'UNAUTHORIZED', '로그인이 필요합니다');
   if (!found) return fail(404, 'NOT_FOUND', `가짜 서버에 없는 주소입니다: ${key}`);
   // 실제 서버처럼 응답은 복사본을 준다 (화면이 받은 값을 고쳐도 가짜 서버 데이터는 그대로)
-  const res = found.handler(body, found.params, found.query);
+  const res = await found.handler(body, found.params, found.query); // 사진을 읽는 주소는 기다려야 해서 await
   return { status: res.status, data: JSON.parse(JSON.stringify(res.data)) };
 }
