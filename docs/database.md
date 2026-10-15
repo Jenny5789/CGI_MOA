@@ -45,7 +45,7 @@ GRANT ALL PRIVILEGES ON cgi.* TO 'cgi_app'@'localhost';
 1. PowerShell에서 저장소 폴더 `CGI_MOA`로 이동
 
 ```powershell
-cd $HOME\Desktop\CGI_V2
+cd $HOME\Desktop\CGI_MOA
 ```
 
 2. `backend\.env.example`을 복사해 `backend\.env` 생성
