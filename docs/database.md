@@ -10,7 +10,7 @@
 
 | 계정 | 용도 | 생성 시점 | 비밀번호 보관 |
 |---|---|---|---|
-| `root` | 2단계 DB·계정 생성 시 접속 (MySQL Workbench) | MySQL 설치 시 | 본인 |
+| `root` | 3. 구축 순서 2단계에서 DB·계정 생성 시 접속 (MySQL Workbench) | MySQL 설치 시 | 본인 |
 | `cgi_app` | 백엔드 서버의 DB 접속 | 3. 구축 순서 2단계 | `backend/.env` (공유 금지) |
 
 ## 3. 구축 순서
