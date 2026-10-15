@@ -1,13 +1,21 @@
 # 개발 환경 구축
 
-## 1. 기준 환경
+## 1. 기준 환경 (개발 PC 확인값, 2026-10-15)
 
-| 항목 | 기준 |
+| 항목 | 값 |
 |---|---|
-| 운영체제 | Windows 11 |
-| Python | 3.10 |
-| GPU | NVIDIA RTX 3080 10GB (CUDA 12.1) |
-| 가상환경 | 저장소 최상위 디렉터리의 `CGI` |
+| 운영체제 | Windows 11 Pro for Workstations (10.0.26200) |
+| CPU / 메모리 | Intel Xeon W-2223 3.60GHz / 32GB |
+| GPU | NVIDIA GeForce RTX 3080 10GB, 드라이버 595.95 |
+| CUDA | 12.1 (PyTorch에 포함, 별도 설치 불필요) |
+| Python | 3.10.0 (python.org 설치판, `py` 런처 사용) |
+| 가상환경 | 저장소 최상위 디렉터리 `CGI` |
+| Node.js / npm | 24.19.0 / 11.17.0 |
+| MySQL | 8.0.46 Community Server |
+| Git | 2.55.0 |
+| AnyDoor 폴더 | `Desktop\AnyDoor` |
+
+- 같은 PC에 Python 3.12, 3.14도 설치되어 있어 가상환경 생성 시 `py -3.10`으로 버전 지정
 
 ## 2. 설치 순서
 
@@ -19,7 +27,7 @@
 py -3.10 -m venv CGI
 ```
 
-- `py -3.10`: 여러 Python 중 3.10 지정 (`python`만 입력하면 다른 버전이 실행될 수 있음)
+- `py -3.10`: 설치된 여러 Python 중 3.10 지정
 - Python 3.10 미설치 시 python.org에서 3.10 설치 후 진행
 
 2. PyTorch 설치 (CUDA 12.1용)
