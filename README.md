@@ -35,8 +35,7 @@ CGI_MOA/
 │   ├── environment.md               개발 환경 구축
 │   ├── pip_freeze.txt               Python 패키지 목록
 │   ├── database.md                  데이터베이스(MySQL) 구축
-│   ├── login_extend.md              로그인 세션 연장 정책
-│   └── ui_handoff.md                프론트엔드 전달 사항
+│   └── login_extend.md              로그인 세션 연장 정책
 ├── frontend/                        프론트엔드 (React)
 │   ├── README.md                    프론트엔드 개요
 │   └── .env.example                 백엔드 연결 설정 예시
@@ -54,7 +53,7 @@ CGI_MOA/
 | 목적 | 참고 문서 |
 |---|---|
 | 개발 환경 구축 | [environment.md](docs/environment.md), [database.md](docs/database.md) |
-| 프론트엔드 개발 | [ui_handoff.md](docs/ui_handoff.md), [api.md](docs/api.md) |
+| 프론트엔드 개발 | [api.md](docs/api.md), [login_extend.md](docs/login_extend.md) |
 | API 사양 확인 | [api.md](docs/api.md), [backend/README.md](backend/README.md) |
 | 로그인 오류 조치 | [database.md](docs/database.md) 4. 오류별 조치 |
 | AI 모듈 (SAM2, AnyDoor) 단위 테스트 | [scripts/README.md](scripts/README.md) |
