@@ -36,7 +36,7 @@ py -3.10 -m venv CGI
 CGI\Scripts\python.exe -m pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu121
 ```
 
-3. SAM2 설치
+3. SAM2 설치 (상의 영역 추출 모델 코드, 가중치 파일은 6단계)
 
 ```bash
 CGI\Scripts\python.exe -m pip install "git+https://github.com/facebookresearch/sam2.git"
