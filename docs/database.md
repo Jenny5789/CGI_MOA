@@ -6,11 +6,11 @@
 - 구성: 팀원마다 자기 PC의 MySQL에 같은 이름으로 구축
 - 구축 결과
 
-| 항목 | 이름 |
-|---|---|
-| 데이터베이스 | `cgi` |
-| 백엔드 접속 계정 | `cgi_app` |
-| 접속 설정 파일 | `backend/.env` (비밀번호 포함, GitHub에 올리지 않음) |
+| 항목 | 이름 | 설명 |
+|---|---|---|
+| 데이터베이스 | `cgi` | 회원 정보, 로그인 세션 저장 공간 |
+| MySQL 계정 | `cgi_app` | 백엔드 서버가 데이터베이스에 접속할 때 쓰는 계정 (사람이 로그인하는 계정 아님) |
+| 접속 설정 파일 | `backend/.env` | `cgi_app` 비밀번호 저장, GitHub에 올리지 않음 |
 
 ## 2. 구축 순서
 
@@ -23,7 +23,7 @@ Get-Service MySQL80
 - `Status`가 `Running`이면 정상
 - 서비스가 없으면 MySQL Installer로 MySQL Server 8.0, MySQL Workbench 설치
 
-### 2-2. 데이터베이스·백엔드 접속 계정 생성
+### 2-2. 데이터베이스·MySQL 계정 생성
 
 - MySQL Workbench에서 관리자 계정 `root`로 접속 (`root` 비밀번호: MySQL 설치 시 정한 것)
 - 아래 SQL 실행
@@ -64,6 +64,6 @@ Copy-Item backend\.env.example backend\.env
 |---|---|---|
 | `Access denied for user 'cgi_app'` | `backend/.env` 비밀번호 불일치 | 2-3. 접속 설정 파일 생성의 비밀번호 확인 |
 | `Can't connect to MySQL server` | MySQL 중지 | `Start-Service MySQL80` (관리자 PowerShell) |
-| `Unknown database 'cgi'` | 데이터베이스 미생성 | 2-2. 데이터베이스·백엔드 접속 계정 생성 수행 |
+| `Unknown database 'cgi'` | 데이터베이스 미생성 | 2-2. 데이터베이스·MySQL 계정 생성 수행 |
 | `'cryptography' package is required` | 패키지 누락 | `CGI\Scripts\python.exe -m pip install cryptography` |
 | `DATABASE_URL이 없습니다` | `backend/.env` 없음 | 2-3. 접속 설정 파일 생성 수행 |
