@@ -46,10 +46,10 @@
 | 1·2단계: 상의·인물 이미지 선택 | [`POST /api/images`](#3-1-이미지-업로드) |
 | 3단계: 상의 위 좌표 지정 후 확인 | [`POST /api/extract`](#4-1-상의-영역-추출) |
 | 4단계: 착용 영역 지정 후 합성 시작 | [`POST /api/compose`](#5-1-합성-요청) |
-| 합성 진행 대기 | [`GET /api/jobs/{job_id}`](#5-2-진행-상태-조회) |
-| 합성 결과 확인 | [`GET /api/results/{result_id}`](#5-3-결과-조회) |
-| 합성 결과 저장 | [`PATCH /api/results/{result_id}`](#6-2-결과-저장-및-좋아요) |
-| 내 작업 기록 확인 | [`GET /api/results?saved=true`](#6-1-결과-목록-조회) |
+| 합성 중 화면: 진행 상태 확인 (2초 간격 자동) | [`GET /api/jobs/{job_id}`](#5-2-진행-상태-조회) |
+| 결과 화면: 합성 결과 확인 | [`GET /api/results/{result_id}`](#5-3-결과-조회) |
+| 결과 화면: 합성 결과 저장 | [`PATCH /api/results/{result_id}`](#6-2-결과-저장-및-좋아요) |
+| 오른쪽 패널: 내 작업 기록 확인 | [`GET /api/results?saved=true`](#6-1-결과-목록-조회) |
 
 ### 1-3. 마이페이지 (`/mypage`)
 
