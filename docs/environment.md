@@ -13,11 +13,14 @@
 
 - 실행 위치: 저장소 최상위 디렉터리
 
-1. 가상환경 생성
+1. Python 3.10으로 가상환경 `CGI` 생성
 
 ```bash
-python -m venv CGI
+py -3.10 -m venv CGI
 ```
+
+- `py -3.10`: 여러 Python 중 3.10 지정 (`python`만 입력하면 다른 버전이 실행될 수 있음)
+- Python 3.10 미설치 시 python.org에서 3.10 설치 후 진행
 
 2. PyTorch 설치 (CUDA 12.1용)
 
@@ -31,17 +34,19 @@ CGI\Scripts\python.exe -m pip install torch==2.5.1 torchvision==0.20.1 --index-u
 CGI\Scripts\python.exe -m pip install "git+https://github.com/facebookresearch/sam2.git"
 ```
 
-4. 나머지 패키지 설치 (AnyDoor, 백엔드, DB)
+4. 나머지 패키지 일괄 설치 (`requirements.txt`: AnyDoor, 백엔드, 데이터베이스용)
 
 ```bash
 CGI\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-5. xformers 설치 (합성 속도·메모리 개선, PyTorch 버전 유지를 위해 `--no-deps`)
+5. xformers 설치 (합성 속도·GPU 메모리 개선)
 
 ```bash
 CGI\Scripts\python.exe -m pip install xformers==0.0.28.post3 --index-url https://download.pytorch.org/whl/cu124 --no-deps
 ```
+
+- `--no-deps`: 2단계에서 설치한 PyTorch 버전을 바꾸지 않음
 
 6. AI 모델 파일 배치 (저장소 미포함, AI 기능·서버 담당에게 요청)
 
