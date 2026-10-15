@@ -1,39 +1,38 @@
-# MOA 서버 (FastAPI)
+# 백엔드 (FastAPI)
 
-- 명세: [../docs/api.md](../docs/api.md)
+## 1. 개요
 
-## 실행
+- 역할: 프론트엔드 요청 처리 (로그인, 이미지 업로드, 상의 영역 추출 SAM2, 이미지 합성 AnyDoor, 합성 결과 관리)
+- API 명세: [docs/api.md](../docs/api.md)
+- 실행 방법: [README.md 5-1. 백엔드](../README.md#5-1-백엔드)
 
-- 위치: 저장소 맨 위 폴더, `CGI` 가상환경
-- 명령: `CGI\Scripts\python.exe -m uvicorn backend.main:app --port 8000` (종료 Ctrl+C)
-- 확인: http://localhost:8000/api/health, 시험 화면 http://localhost:8000/docs
+## 2. 파일 구성
 
-## 파일
-
-| 파일 | 명세 | 내용 |
+| 파일 | 기능 | 관련 명세 |
 |---|---|---|
-| `main.py` | - | 서버 시작, 주소 연결, AnyDoor 예열 |
-| `config.py`, `errors.py` | 0장 | 저장 위치·제한 값, 오류 형식 |
-| `db.py`, `auth.py`, `routers/auth.py` | 2장 | 로그인, 회원가입, 내 정보, 로그아웃, 연장 (MySQL) |
-| `routers/images.py` | 3-1 | 사진 올리기 |
-| `routers/extract.py` | 4-1 | SAM2 상의 추출 |
-| `routers/compose.py` | 5-1~5-2 | 합성 요청, 진행 확인 |
-| `routers/results.py` | 5-3, 6장 | 결과, 사진첩, 저장/좋아요 |
-| `routers/files.py` | 7장 | 파일 보기 |
-| `storage.py`, `gpu.py` | - | 기록 읽기·주인 확인, GPU 순서 |
+| `main.py` | 서버 시작, API 등록, AnyDoor 예열 | - |
+| `config.py` | 저장 위치, 업로드 제한 값 | - |
+| `errors.py` | 오류 응답 형식 | [0. 공통 규칙](../docs/api.md#0-공통-규칙) |
+| `db.py` | MySQL 연결, 테이블·테스트 계정 생성 | - |
+| `auth.py`, `routers/auth.py` | 로그인, 회원가입, 내 정보, 로그아웃, 로그인 시간 연장 | [2. 계정 관리 API](../docs/api.md#2-계정-관리-api) |
+| `routers/images.py` | 이미지 업로드 | [3-1. 이미지 업로드](../docs/api.md#3-1-이미지-업로드) |
+| `routers/extract.py` | 상의 영역 추출 (SAM2) | [4-1. 상의 영역 추출](../docs/api.md#4-1-상의-영역-추출) |
+| `routers/compose.py` | 합성 요청, 진행 상태 조회 (AnyDoor) | [5. 이미지 합성 API](../docs/api.md#5-이미지-합성-api-anydoor) |
+| `routers/results.py` | 결과 조회, 목록, 저장·좋아요 | [6. 합성 결과 관리 API](../docs/api.md#6-합성-결과-관리-api-작업-기록-사진첩) |
+| `routers/files.py` | 이미지 파일 조회 | [7. 이미지 파일 조회 API](../docs/api.md#7-이미지-파일-조회-api) |
+| `storage.py` | 저장 기록 읽기, 소유자 확인 | - |
+| `gpu.py` | GPU 작업 순서 제어 | - |
 
-## 임시 결정
+## 3. 구현 방식
 
-- 시험 회원 `test` / `test1234` (서버 켤 때 자동 생성)
-- 토큰 유효 3시간 (로그인 시각부터), DB에는 토큰 해시만 저장
-- MySQL 연결 실패 시 로그인 주소만 503 `DB_UNAVAILABLE`
-- 회원가입: 아이디 공백 없이 50자 이하, `name` 비우면 아이디, `email` 선택 / `avatar_url`은 `null`
-- 모든 주소 로그인 필요 (`/api/files` 제외), 남의 기록은 404
-- 사진·결과 기록은 `storage/`에 파일로 저장 (DB 아님)
-- 합성 작업 상태는 메모리 보관 → 서버 재시작 시 진행 중 작업은 `SERVER_RESTARTED`
-- `/api/files` 보호 없음 → 방식은 명세 7장에서 결정
-
-## 명세 외 추가 (팀 합의 필요)
-
-- 로그인 시간 연장: 응답에 `expires_at`, `POST /api/auth/extend` → [../docs/login_extend.md](../docs/login_extend.md)
-- 상의 추출 `box`: `{ x1, y1, x2, y2 }` 0~1 비율, 점만 / 박스만 / 박스 + 점
+| 항목 | 방식 |
+|---|---|
+| 회원·로그인 세션 | MySQL `users`, `sessions` 테이블 ([database.md](../docs/database.md)), 토큰은 해시로만 저장 |
+| 이미지·추출·합성 결과 | `storage/` 폴더에 파일과 기록(JSON)으로 저장 (데이터베이스 미사용) |
+| 데이터 소유 | 기록마다 회원 번호 저장, 다른 회원의 기록 요청 시 404 |
+| GPU 사용 | 추출·합성을 한 번에 1건씩 처리 (합성 중 추출 요청은 대기) |
+| 합성 작업 상태 | 메모리에 보관, 서버 재시작 시 진행 중이던 작업은 실패(`SERVER_RESTARTED`) |
+| 미저장 결과 삭제 | 생성 3일 경과분을 결과 목록 조회 시 삭제 |
+| AnyDoor 예열 | 서버 시작 시 모델 로딩 1~2분, 환경 변수 `MOA_WARMUP=0`이면 생략 |
+| 데이터베이스 연결 실패 | 서버는 실행, 로그인이 필요한 모든 API는 503 `DB_UNAVAILABLE` |
+| 이미지 파일 조회 | 인증 없음 (접근 제어 방식 미정, [8. 미정 사항](../docs/api.md#8-미정-사항)) |
