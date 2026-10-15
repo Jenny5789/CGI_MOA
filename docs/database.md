@@ -1,26 +1,31 @@
-# DB 설정 (MySQL)
+# 데이터베이스(MySQL) 구축
 
-- 용도: 회원, 로그인 토큰 저장
-- 팀원마다 자기 컴퓨터 MySQL에 같은 이름의 DB·계정 생성
-- 비밀번호는 각자 `backend/.env`에만 (GitHub에는 `backend/.env.example`만)
+## 1. 개요
 
-## 계정
+- 용도: 회원 정보, 로그인 세션 저장
+- 구성: 팀원마다 자기 PC의 MySQL에 같은 이름의 DB·계정 생성
+- 접속 비밀번호: 각자 `backend/.env`에만 저장 (GitHub에는 예시 파일 `backend/.env.example`만)
+
+## 2. 계정 구분
 
 | 계정 | 용도 | 비밀번호 보관 |
 |---|---|---|
-| MySQL `root` | DB 관리 (Workbench) | 본인만 |
-| MySQL `cgi_app` | 서버 프로그램 전용 | `backend/.env` (공유 안 함) |
-| 앱 회원 `test` 등 | 앱 로그인 | `users` 표 (해시 저장) |
+| MySQL `root` | DB·계정 생성, 관리 (MySQL Workbench) | 본인 |
+| MySQL `cgi_app` | 백엔드 서버 접속 전용 | `backend/.env` (공유 금지) |
+| 서비스 회원 (`test` 등) | 웹 서비스 로그인 | DB `users` 표 (비밀번호 해시) |
 
-## 1. MySQL 확인
+## 3. 구축 순서
 
-- 설치: `C:\Program Files\MySQL\MySQL Server 8.0`
-- 실행: Windows "서비스" → `MySQL80` "실행 중"
-- 없으면 MySQL Installer로 Server 8.0 + Workbench 설치
+1. MySQL 실행 확인 (PowerShell)
 
-## 2. DB·계정 만들기 (Workbench, root 접속)
+```powershell
+Get-Service MySQL80
+```
 
-- `여기에_비밀번호`를 `cgi_app`용 새 비밀번호로 바꿔 실행 (영문·숫자, `@ : / #` 금지)
+- `Status`가 `Running`이면 정상
+- 서비스가 없으면 MySQL Installer로 MySQL Server 8.0, MySQL Workbench 설치
+
+2. DB·서버 전용 계정 생성 (MySQL Workbench에서 `root`로 접속 후 실행)
 
 ```sql
 CREATE DATABASE IF NOT EXISTS cgi CHARACTER SET utf8mb4;
@@ -28,29 +33,32 @@ CREATE USER IF NOT EXISTS 'cgi_app'@'localhost' IDENTIFIED BY '여기에_비밀�
 GRANT ALL PRIVILEGES ON cgi.* TO 'cgi_app'@'localhost';
 ```
 
-## 3. `backend/.env` 만들기
+- `여기에_비밀번호`: `cgi_app`용 새 비밀번호 (영문·숫자, `@ : / #` 사용 금지)
 
-- `backend/.env.example` 복사 → `backend/.env`
-- `여기에_비밀번호`만 2번 비밀번호로 변경
+3. 접속 설정 파일 생성 (저장소 최상위 디렉터리)
 
-## 4. 패키지 (CGI 가상환경)
+```powershell
+Copy-Item backend\.env.example backend\.env
+```
 
-- `pip install "pymysql[rsa]" sqlalchemy python-dotenv`
-- 확인 버전 (2026-10-14): PyMySQL 1.2.3, SQLAlchemy 2.0.54, cryptography 50.0.2
+- `backend\.env`의 `여기에_비밀번호`를 2단계 비밀번호로 변경
 
-## 5. 서버 실행 시 자동
+4. 연결 확인: 백엔드 실행 시 로그에 `DB 연결 완료 (로그인 기능 사용 가능)` 출력
 
-- 로그 `DB 연결 완료 (로그인 기능 사용 가능)` → 정상
-- 표 `users`, `sessions` 자동 생성
-- 시험 회원 `test` / `test1234` 자동 생성
-- 연결 실패해도 서버는 켜짐, 로그인 주소만 503
+## 4. 백엔드 실행 시 자동 처리
 
-## 6. 오류별 조치
-
-| 증상 | 조치 |
+| 항목 | 내용 |
 |---|---|
-| `Access denied for user 'cgi_app'` | `.env` 비밀번호 확인 |
-| `Can't connect to MySQL server` | 서비스 `MySQL80` 시작 |
-| `Unknown database 'cgi'` | 2번 SQL 실행 |
-| `'cryptography' package is required` | `pip install cryptography` |
-| `DATABASE_URL이 없습니다` | 3번 `backend/.env` 만들기 |
+| 표 생성 | `users` (회원), `sessions` (로그인 세션), 없을 때만 생성 |
+| 테스트 계정 | `test` / `test1234`, 없을 때만 생성 |
+| 연결 실패 시 | 백엔드는 실행됨, 로그인이 필요한 모든 API는 503 `DB_UNAVAILABLE` |
+
+## 5. 오류별 조치
+
+| 로그 메시지 | 원인 | 조치 |
+|---|---|---|
+| `Access denied for user 'cgi_app'` | `backend/.env` 비밀번호 불일치 | 3단계 비밀번호 확인 |
+| `Can't connect to MySQL server` | MySQL 중지 | `Start-Service MySQL80` (관리자 PowerShell) |
+| `Unknown database 'cgi'` | DB 미생성 | 2단계 SQL 실행 |
+| `'cryptography' package is required` | 패키지 누락 | `CGI\Scripts\python.exe -m pip install cryptography` |
+| `DATABASE_URL이 없습니다` | `backend/.env` 없음 | 3단계 수행 |

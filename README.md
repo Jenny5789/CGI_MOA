@@ -56,7 +56,7 @@ CGI_V2/
 | 개발 환경 구축 | [environment.md](docs/environment.md), [database.md](docs/database.md) |
 | 프론트엔드 개발 | [ui_handoff.md](docs/ui_handoff.md), [api.md](docs/api.md) |
 | API 사양 확인 | [api.md](docs/api.md), [backend/README.md](backend/README.md) |
-| 로그인 오류 조치 | [database.md](docs/database.md) 6. 오류별 조치 |
+| 로그인 오류 조치 | [database.md](docs/database.md) 5. 오류별 조치 |
 | AI 모듈 (SAM2, AnyDoor) 단위 테스트 | [scripts/README.md](scripts/README.md) |
 
 ## 5. 실행 방법
