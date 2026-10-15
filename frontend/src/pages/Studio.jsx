@@ -6,7 +6,7 @@
    오른쪽 "내 작업 기록"은 서버의 저장된 결과 목록(명세 6-1)을 보여 준다.
    서버 연결 (src/api/studio.js)
    - 1·2단계: 고른 사진을 서버에 올린다(명세 3-1)
-   - 3단계: 점을 찍는 동안의 미리보기는 점마다 동그라미(rebuildMask3). "확인"을 누르면 서버 SAM2로 실제 윤곽을 받아 다듬기 팝업을 연다(4-1)
+   - 3단계: 점만 찍어 둔다. "확인"을 누르면 서버 SAM2로 실제 윤곽을 받아 다듬기 팝업을 연다(4-1)
    - 4단계: "합성 시작"에서 서버 AnyDoor 합성 요청 → 2초마다 진행 확인 → 결과(5-1~5-3)
    - 결과 "저장": 서버에 저장 표시(6-2)
    아직 서버에 안 가는 것: 다듬기 팝업에서 고친 상의 윤곽(서버는 SAM2 윤곽으로 합성), 합성 설정 체크 두 개(opts) */
@@ -50,9 +50,6 @@ const PICK_TEXT = {
   1: { title: '1. 상의 사진 선택', helpTitle: '권장 사진', help: <>합성할 <em>상의</em>가 담긴 사진을 선택합니다.<br />상의가 또렷하게 보이는 사진일수록 결과가 자연스럽습니다.</> },
   2: { title: '2. 인물 사진 선택', helpTitle: '권장 사진', help: <>상의를 입힐 <em>인물</em>의 사진을 선택합니다.<br />상반신이 잘 보이는 사진을 권장합니다.</> },
 };
-
-const R_POS = 0.2; // 3단계 포함 점의 동그라미 반지름 (짧은 변 대비)
-const R_NEG = 0.1; // 3단계 제외 점
 
 // 버튼 상태가 그대로면 화면을 다시 그리지 않는다 (브러시로 칠하는 동안 매번 다시 그리는 것을 막음)
 const sameUi = (a, b) => Object.keys(b).every((k) => a[k] === b[k]);
@@ -155,7 +152,7 @@ export default function Studio() {
 
   /* ---------- 그리기용 데이터 (화면에 바로 보이지 않는 값은 ref에 둔다) ---------- */
   const data = useRef({ obj: null, bg: null, cutout: null, result: null });
-  const s3 = useRef({ src: null, w: 0, h: 0, work: null, mask: null, pts: [], hist: [], dw: 0, dh: 0 });
+  const s3 = useRef({ src: null, w: 0, h: 0, work: null, pts: [], hist: [], dw: 0, dh: 0 });
   const s4 = useRef({ src: null, w: 0, h: 0, work: null, mask: null, dots: [], bbox: null, touched: false, hist: [], dw: 0, dh: 0 });
   const stepRef = useRef(0);
   const navigating = useRef(false);
@@ -249,27 +246,11 @@ export default function Studio() {
   }, []);
 
   /* ---------- 3단계: 점 찍기로 객체 추출 ---------- */
-  const rebuildMask3 = () => {
-    const s = s3.current;
-    const ctx = s.mask.getContext('2d');
-    ctx.clearRect(0, 0, s.w, s.h);
-    const base = Math.min(s.w, s.h);
-    s.pts.forEach((p) => {
-      ctx.globalCompositeOperation = p.neg ? 'destination-out' : 'source-over';
-      ctx.fillStyle = '#fff';
-      ctx.beginPath();
-      ctx.arc(p.x * s.w, p.y * s.h, base * (p.neg ? R_NEG : R_POS), 0, Math.PI * 2);
-      ctx.fill();
-    });
-    ctx.globalCompositeOperation = 'source-over';
-  };
-
   const render3 = () => {
     const s = s3.current;
     const ctx = c3Ref.current.getContext('2d');
     ctx.clearRect(0, 0, s.dw, s.dh);
     ctx.drawImage(s.work, 0, 0, s.dw, s.dh);
-    paintTint(ctx, s.mask, s.dw, s.dh, 'rgba(125, 26, 36, 0.5)');
     s.pts.forEach((p) => drawDot(ctx, p.x * s.dw, p.y * s.dh, p.neg ? '#e11d48' : '#16171b'));
     const pos = s.pts.filter((p) => !p.neg).length;
     const next = { total: s.pts.length, neg: s.pts.length - pos, pos, canUndo: s.hist.length > 0 };
@@ -282,7 +263,7 @@ export default function Studio() {
     const s = s3.current;
     if (s.src !== obj.src) {
       const w = makeWork(obj.img);
-      Object.assign(s, { src: obj.src, work: w.work, w: w.w, h: w.h, mask: newCanvas(w.w, w.h), pts: [], hist: [], edited: null, editedKey: null });
+      Object.assign(s, { src: obj.src, work: w.work, w: w.w, h: w.h, pts: [], hist: [], edited: null, editedKey: null });
     }
     const d = boxFit(c3Ref.current, s.w, s.h);
     s.dw = d.w; s.dh = d.h;
@@ -305,7 +286,6 @@ export default function Studio() {
     pushHist3();
     if (hit >= 0) s.pts.splice(hit, 1);
     else s.pts.push({ x: p.x, y: p.y, neg: e.button === 2 });
-    rebuildMask3();
     render3();
   };
 
@@ -314,7 +294,6 @@ export default function Studio() {
     if (!s.work || !s.pts.length) return;
     pushHist3();
     s.pts = [];
-    rebuildMask3();
     render3();
   };
 
@@ -322,7 +301,6 @@ export default function Studio() {
     const s = s3.current;
     if (!s.work || !s.hist.length) return;
     s.pts = s.hist.pop();
-    rebuildMask3();
     render3();
   };
 
