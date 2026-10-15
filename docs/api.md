@@ -13,13 +13,19 @@
 - 본문: JSON (이미지 전송 시 `multipart/form-data`)
 - 인증: 로그인 시 발급받은 토큰을 요청 헤더에 `Authorization: Bearer <토큰>`으로 포함
 - 시각: 한국 시간(+09:00), 예 `2026-10-15T18:20:00+09:00`
+- 필드 표의 필수 칸: `O` 필수, `-` 선택, `조건` 표 아래 조건 참고
 
 ### 0-2. 오류 응답
 
 - 형식 (프론트엔드는 `message`를 사용자에게 그대로 표시)
 
 ```json
-{ "error": { "code": "INVALID_IMAGE", "message": "이미지를 읽을 수 없습니다." } }
+{
+  "error": {
+    "code": "INVALID_IMAGE",
+    "message": "이미지를 읽을 수 없습니다."
+  }
+}
 ```
 
 | 상태 코드 | 의미 |
@@ -85,19 +91,27 @@
 
 | 필드 | 형식 | 필수 | 설명 |
 |---|---|---|---|
-| `username` | 문자열 | 예 | 아이디 |
-| `password` | 문자열 | 예 | 비밀번호 |
+| `username` | `string` | O | 아이디 |
+| `password` | `string` | O | 비밀번호 |
 
 - 응답 (200)
 
 | 필드 | 형식 | 설명 |
 |---|---|---|
-| `token` | 문자열 | 인증 토큰 (이후 요청 헤더에 사용) |
-| `expires_at` | 시각 | 토큰 만료 시각 (추가 제안) |
-| `user` | 객체 | `id`(번호), `username`(아이디), `name`(이름) |
+| `token` | `string` | 인증 토큰 (이후 요청 헤더에 사용) |
+| `expires_at` | `string` (시각) | 토큰 만료 시각 (추가 제안) |
+| `user` | `object` | `id`(번호), `username`(아이디), `name`(이름) |
 
 ```json
-{ "token": "...", "expires_at": "2026-10-15T18:20:00+09:00", "user": { "id": 1, "username": "test", "name": "MOA User" } }
+{
+  "token": "...",
+  "expires_at": "2026-10-15T18:20:00+09:00",
+  "user": {
+    "id": 1,
+    "username": "test",
+    "name": "MOA User"
+  }
+}
 ```
 
 - 오류
@@ -116,10 +130,10 @@
 
 | 필드 | 형식 | 필수 | 설명 |
 |---|---|---|---|
-| `username` | 문자열 | 예 | 아이디 (공백 없이 50자 이하) |
-| `password` | 문자열 | 예 | 비밀번호 (8자 이상, 숫자 1개 이상 포함) |
-| `name` | 문자열 | 아니요 | 이름 (생략 시 아이디로 저장) |
-| `email` | 문자열 | 아니요 | 이메일 |
+| `username` | `string` | O | 아이디 (공백 없이 50자 이하) |
+| `password` | `string` | O | 비밀번호 (8자 이상, 숫자 1개 이상 포함) |
+| `name` | `string` | - | 이름 (생략 시 아이디로 저장) |
+| `email` | `string` | - | 이메일 |
 
 - 응답 (200): 2-1. 로그인과 동일
 - 오류
@@ -141,14 +155,20 @@
 
 | 필드 | 형식 | 설명 |
 |---|---|---|
-| `id` | 정수 | 회원 번호 |
-| `username` | 문자열 | 아이디 |
-| `name` | 문자열 | 이름 |
-| `email` | 문자열 또는 null | 이메일 |
-| `avatar_url` | 문자열 또는 null | 프로필 이미지 주소 (프로필 이미지 기능 도입 전까지 null) |
+| `id` | `integer` | 회원 번호 |
+| `username` | `string` | 아이디 |
+| `name` | `string` | 이름 |
+| `email` | `string` \| `null` | 이메일 |
+| `avatar_url` | `string` \| `null` | 프로필 이미지 주소 (현재 null) |
 
 ```json
-{ "id": 1, "username": "test", "name": "MOA User", "email": "moa.user@example.com", "avatar_url": null }
+{
+  "id": 1,
+  "username": "test",
+  "name": "MOA User",
+  "email": "moa.user@example.com",
+  "avatar_url": null
+}
 ```
 
 - 오류: 0-2. 오류 응답의 공통 오류만 발생
@@ -180,19 +200,24 @@
 
 | 필드 | 형식 | 필수 | 설명 |
 |---|---|---|---|
-| `file` | 파일 | 예 | jpg 또는 png, 10MB 이하 |
-| `kind` | 문자열 | 예 | `garment`(상의) 또는 `person`(인물) |
+| `file` | `file` | O | jpg 또는 png, 10MB 이하 |
+| `kind` | `string` | O | `garment`(상의) 또는 `person`(인물) |
 
 - 응답 (200)
 
 | 필드 | 형식 | 설명 |
 |---|---|---|
-| `image_id` | 문자열 | 이미지 번호 (`img_` + 12자리) |
-| `url` | 문자열 | 이미지 주소 (7. 이미지 파일 조회 API) |
-| `width`, `height` | 정수 | 이미지 크기 (픽셀) |
+| `image_id` | `string` | 이미지 번호 (`img_` + 12자리) |
+| `url` | `string` | 이미지 주소 (7. 이미지 파일 조회 API) |
+| `width`, `height` | `integer` | 이미지 크기 (픽셀) |
 
 ```json
-{ "image_id": "img_123", "url": "/api/files/img_123.jpg", "width": 768, "height": 1024 }
+{
+  "image_id": "img_123",
+  "url": "/api/files/img_123.jpg",
+  "width": 768,
+  "height": 1024
+}
 ```
 
 - 오류
@@ -220,29 +245,60 @@
 
 | 필드 | 형식 | 필수 | 설명 |
 |---|---|---|---|
-| `image_id` | 문자열 | 예 | 3-1. 이미지 업로드의 상의 이미지 번호 |
-| `points` | 배열 | 조건부 | 좌표 목록, 각 항목 `{ x, y, label }` |
-| `points[].x`, `points[].y` | 실수 | 예 | 이미지 내 위치, 0~1 비율 (왼쪽 위 0,0) |
-| `points[].label` | 정수 | 예 | 1 포함 (왼쪽 클릭), 0 제외 (오른쪽 클릭) |
-| `box` | 객체 | 조건부 | 상의를 감싸는 사각형 `{ x1, y1, x2, y2 }`, 0~1 비율 (추가 제안) |
+| `image_id` | `string` | O | 3-1. 이미지 업로드의 상의 이미지 번호 |
+| `points` | `array` | 조건 | 좌표 목록 `{ x, y, label }` |
+| `points[].x`, `.y` | `number` | O | 위치, 0~1 비율 |
+| `points[].label` | `integer` | O | 1 포함, 0 제외 |
+| `box` | `object` | 조건 | 상의 감싸는 사각형 (추가 제안) |
+
+- `x`, `y`: 왼쪽 위 0,0 ~ 오른쪽 아래 1,1
+- `label`: 1 포함 (왼쪽 클릭), 0 제외 (오른쪽 클릭)
+- `box`: `{ x1, y1, x2, y2 }`, 0~1 비율
 
 - 조건: 포함 좌표(`label: 1`) 1개 이상 또는 `box` 필수
 
 ```json
-{ "image_id": "img_123", "points": [ { "x": 0.52, "y": 0.41, "label": 1 }, { "x": 0.70, "y": 0.20, "label": 0 } ] }
+{
+  "image_id": "img_123",
+  "points": [
+    {
+      "x": 0.52,
+      "y": 0.41,
+      "label": 1
+    },
+    {
+      "x": 0.7,
+      "y": 0.2,
+      "label": 0
+    }
+  ]
+}
 ```
 
 - 응답 (200)
 
 | 필드 | 형식 | 설명 |
 |---|---|---|
-| `extraction_id` | 문자열 | 추출 번호 (`ext_` + 12자리), 5-1. 합성 요청에 사용 |
-| `mask_url` | 문자열 | 원본 크기 흑백 PNG 주소 (상의 영역 255, 나머지 0) |
-| `cutout_url` | 문자열 | 상의 영역만 남긴 투명 배경 PNG 주소 |
-| `bbox` | 객체 | 상의 영역 경계 사각형 `{ x, y, w, h }` (원본 픽셀 기준) |
+| `extraction_id` | `string` | 추출 번호 (`ext_` + 12자리) |
+| `mask_url` | `string` | 상의 영역 흑백 PNG 주소 |
+| `cutout_url` | `string` | 상의만 남긴 투명 배경 PNG 주소 |
+| `bbox` | `object` | 상의 영역 경계 사각형 `{ x, y, w, h }` |
+
+- `mask_url`: 원본과 같은 크기, 상의 영역 255·나머지 0
+- `bbox`: 원본 픽셀 기준
 
 ```json
-{ "extraction_id": "ext_456", "mask_url": "/api/files/ext_456_mask.png", "cutout_url": "/api/files/ext_456_cutout.png", "bbox": { "x": 120, "y": 200, "w": 400, "h": 520 } }
+{
+  "extraction_id": "ext_456",
+  "mask_url": "/api/files/ext_456_mask.png",
+  "cutout_url": "/api/files/ext_456_cutout.png",
+  "bbox": {
+    "x": 120,
+    "y": 200,
+    "w": 400,
+    "h": 520
+  }
+}
 ```
 
 - 오류
@@ -275,20 +331,26 @@
 
 | 필드 | 형식 | 필수 | 설명 |
 |---|---|---|---|
-| `extraction_id` | 문자열 | 예 | 4-1. 상의 영역 추출 결과 번호 |
-| `person_image_id` | 문자열 | 예 | 3-1. 이미지 업로드의 인물 이미지 번호 |
-| `area_mask` | 파일 | 예 | 착용 영역 흑백 PNG (지정 영역 255), 인물 이미지와 같은 비율 (크기는 서버에서 원본에 맞춤) |
+| `extraction_id` | `string` | O | 4-1. 상의 영역 추출 결과 번호 |
+| `person_image_id` | `string` | O | 3-1. 이미지 업로드의 인물 이미지 번호 |
+| `area_mask` | `file` | O | 착용 영역 흑백 PNG (지정 영역 255) |
+
+- `area_mask`: 인물 이미지와 같은 비율, 크기는 서버에서 원본에 맞춤
 
 - 응답 (200)
 
 | 필드 | 형식 | 설명 |
 |---|---|---|
-| `job_id` | 문자열 | 작업 번호 (`job_` + 12자리) |
-| `status` | 문자열 | `queued` (대기) |
-| `queue_position` | 정수 | 대기 순번 |
+| `job_id` | `string` | 작업 번호 (`job_` + 12자리) |
+| `status` | `string` | `queued` (대기) |
+| `queue_position` | `integer` | 대기 순번 |
 
 ```json
-{ "job_id": "job_789", "status": "queued", "queue_position": 1 }
+{
+  "job_id": "job_789",
+  "status": "queued",
+  "queue_position": 1
+}
 ```
 
 - 오류
@@ -308,15 +370,29 @@
 
 | 필드 | 형식 | 설명 |
 |---|---|---|
-| `job_id` | 문자열 | 작업 번호 |
-| `status` | 문자열 | `queued` 대기, `running` 합성 중, `done` 완료, `failed` 실패 |
-| `progress` | 실수 | 진행률 0~1 |
-| `queue_position` | 정수 | 대기 순번 (0: 대기 없음) |
-| `result_id` | 문자열 또는 null | 결과 번호 (`done`일 때) |
-| `error` | 객체 또는 null | 실패 사유 `{ code, message }` (`failed`일 때) |
+| `job_id` | `string` | 작업 번호 |
+| `status` | `string` | 작업 상태 (아래 표) |
+| `progress` | `number` | 진행률 0~1 |
+| `queue_position` | `integer` | 대기 순번 (0: 대기 없음) |
+| `result_id` | `string` \| `null` | 결과 번호 (`done`일 때) |
+| `error` | `object` \| `null` | 실패 사유 `{ code, message }` (`failed`일 때) |
+
+| `status` | 의미 |
+|---|---|
+| `queued` | 대기 |
+| `running` | 합성 중 |
+| `done` | 완료 (`result_id` 사용) |
+| `failed` | 실패 (`error` 확인) |
 
 ```json
-{ "job_id": "job_789", "status": "running", "progress": 0.34, "queue_position": 0, "result_id": null, "error": null }
+{
+  "job_id": "job_789",
+  "status": "running",
+  "progress": 0.34,
+  "queue_position": 0,
+  "result_id": null,
+  "error": null
+}
 ```
 
 - 실패 사유 (`error.code`)
@@ -344,17 +420,28 @@
 
 | 필드 | 형식 | 설명 |
 |---|---|---|
-| `result_id` | 문자열 | 결과 번호 (`res_` + 12자리) |
-| `image_url` | 문자열 | 합성 결과 이미지 주소 (PNG, 인물 이미지와 같은 크기) |
-| `thumb_url` | 문자열 | 미리보기 이미지 주소 (JPG, 가로 400px) |
-| `created_at` | 시각 | 생성 시각 |
-| `saved` | 불리언 | 사진첩 저장 여부 |
-| `favorite` | 불리언 | 좋아요 여부 |
-| `garment_image_id` | 문자열 | 사용한 상의 이미지 번호 |
-| `person_image_id` | 문자열 | 사용한 인물 이미지 번호 |
+| `result_id` | `string` | 결과 번호 (`res_` + 12자리) |
+| `image_url` | `string` | 합성 결과 이미지 주소 (PNG) |
+| `thumb_url` | `string` | 미리보기 이미지 주소 (JPG) |
+| `created_at` | `string` (시각) | 생성 시각 |
+| `saved` | `boolean` | 사진첩 저장 여부 |
+| `favorite` | `boolean` | 좋아요 여부 |
+| `garment_image_id` | `string` | 사용한 상의 이미지 번호 |
+| `person_image_id` | `string` | 사용한 인물 이미지 번호 |
+
+- `image_url`: 인물 이미지와 같은 크기 / `thumb_url`: 가로 400px
 
 ```json
-{ "result_id": "res_001", "image_url": "/api/files/res_001.png", "thumb_url": "/api/files/res_001_thumb.jpg", "created_at": "2026-10-12T20:45:00+09:00", "saved": false, "favorite": false, "garment_image_id": "img_123", "person_image_id": "img_124" }
+{
+  "result_id": "res_001",
+  "image_url": "/api/files/res_001.png",
+  "thumb_url": "/api/files/res_001_thumb.jpg",
+  "created_at": "2026-10-12T20:45:00+09:00",
+  "saved": false,
+  "favorite": false,
+  "garment_image_id": "img_123",
+  "person_image_id": "img_124"
+}
 ```
 
 - 오류
@@ -378,22 +465,41 @@
 
 | 조건 | 형식 | 필수 | 설명 |
 |---|---|---|---|
-| `saved` | `true` / `false` | 아니요 | 사진첩 "전체" / "최근 작업" |
-| `favorite` | `true` | 아니요 | "좋아요" |
-| `date` | `YYYY-MM-DD` | 아니요 | 해당 날짜 생성분 (한국 시간 기준) |
-| `sort` | `new` / `old` | 아니요 | 최신순 (기본) / 오래된순 |
+| `saved` | `true` / `false` | - | 사진첩 "전체" / "최근 작업" |
+| `favorite` | `true` | - | "좋아요" |
+| `date` | `YYYY-MM-DD` | - | 해당 날짜 생성분 (한국 시간 기준) |
+| `sort` | `new` / `old` | - | 최신순 (기본) / 오래된순 |
 | `limit`, `cursor` | - | - | 분할 조회 (미정) |
 
 - 응답 (200)
 
 | 필드 | 형식 | 설명 |
 |---|---|---|
-| `items` | 배열 | 결과 목록, 각 항목 `result_id`, `thumb_url`, `image_url`, `created_at`, `saved`, `favorite` |
-| `counts` | 객체 | 분류별 개수 `saved`(전체), `recent`(최근 작업), `favorite`(좋아요). 조건과 무관하게 전체 기준 |
-| `next_cursor` | null | 분할 조회용 (미정, 현재 항상 null) |
+| `items` | `array` | 결과 목록 (항목 필드는 5-3. 결과 조회의 앞 6개와 동일) |
+| `counts` | `object` | 분류별 개수: `saved` 전체, `recent` 최근 작업, `favorite` 좋아요 |
+| `next_cursor` | `null` | 분할 조회용 (미정) |
+
+- `counts`: 조회 조건과 무관하게 전체 기준
 
 ```json
-{ "items": [ { "result_id": "res_001", "thumb_url": "...", "image_url": "...", "created_at": "...", "saved": true, "favorite": true } ], "counts": { "saved": 20, "recent": 6, "favorite": 6 }, "next_cursor": null }
+{
+  "items": [
+    {
+      "result_id": "res_001",
+      "thumb_url": "...",
+      "image_url": "...",
+      "created_at": "...",
+      "saved": true,
+      "favorite": true
+    }
+  ],
+  "counts": {
+    "saved": 20,
+    "recent": 6,
+    "favorite": 6
+  },
+  "next_cursor": null
+}
 ```
 
 - 오류
@@ -413,8 +519,8 @@
 
 | 필드 | 형식 | 필수 | 설명 |
 |---|---|---|---|
-| `saved` | 불리언 | 조건부 | 사진첩 저장 여부 |
-| `favorite` | 불리언 | 조건부 | 좋아요 여부 |
+| `saved` | `boolean` | 조건 | 사진첩 저장 여부 |
+| `favorite` | `boolean` | 조건 | 좋아요 여부 |
 
 - 조건: `saved`, `favorite` 중 1개 이상
 - 응답 (200): 5-3. 결과 조회와 동일 (변경 후 상태)
