@@ -28,7 +28,7 @@
 ## 3. 디렉터리 구성
 
 ```
-CGI_V2/
+CGI_MOA/
 ├── README.md                        프로젝트 개요
 ├── docs/                            공용 문서
 │   ├── api.md                       API 명세

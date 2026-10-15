@@ -42,7 +42,7 @@ GRANT ALL PRIVILEGES ON cgi.* TO 'cgi_app'@'localhost';
 
 ### 2-3. 접속 설정 파일 생성
 
-1. PowerShell에서 저장소 폴더 `CGI_V2`로 이동
+1. PowerShell에서 저장소 폴더 `CGI_MOA`로 이동
 
 ```powershell
 cd $HOME\Desktop\CGI_V2
