@@ -52,13 +52,14 @@ CGI\Scripts\python.exe -m pip install xformers==0.0.28.post3 --index-url https:/
 
 - `--no-deps`: 2단계에서 설치한 PyTorch 버전을 바꾸지 않음
 
-6. AI 모델 파일 배치 (저장소 미포함, AI 기능·서버 담당에게 요청)
+6. AI 모델 파일 배치 (대용량이라 GitHub에 없음, AI 기능·서버 담당에게 요청)
 
-| 모델 | 파일 | 위치 |
-|---|---|---|
-| SAM2 | `sam2.1_hiera_base_plus.pt` | 저장소 `checkpoints/sam2/` |
-| AnyDoor | AnyDoor 공식 저장소 폴더 | `Desktop\AnyDoor` (다른 위치는 환경 변수 `ANYDOOR_DIR`로 지정) |
-| AnyDoor | `epoch=1-step=8687.ckpt` (약 16.8GB), `dinov2_vitg14_pretrain.pth` (약 4.5GB) | AnyDoor 폴더 `configs/inference.yaml`, `configs/anydoor.yaml`에 경로 지정 |
+| 모델 | 용도 | 필요한 파일 | 위치 |
+|---|---|---|---|
+| SAM2 | 상의 영역 추출 | 가중치 `sam2.1_hiera_base_plus.pt` | 저장소 `checkpoints/sam2/` |
+| AnyDoor | 이미지 합성 | 공식 코드 폴더 (합성 모듈이 불러와 실행) | `Desktop\AnyDoor` (다른 위치는 환경 변수 `ANYDOOR_DIR`) |
+| AnyDoor | 이미지 합성 | 가중치 `epoch=1-step=8687.ckpt` (약 16.8GB) | AnyDoor 폴더, `configs/inference.yaml`에 경로 지정 |
+| DINOv2 | AnyDoor 내부 이미지 특징 추출 | 가중치 `dinov2_vitg14_pretrain.pth` (약 4.5GB) | AnyDoor 폴더, `configs/anydoor.yaml`에 경로 지정 |
 
 7. MySQL 설정: [database.md](database.md)
 
