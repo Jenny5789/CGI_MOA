@@ -43,9 +43,13 @@ CGI\Scripts\python.exe -m pip install -r requirements.txt
 CGI\Scripts\python.exe -m pip install xformers==0.0.28.post3 --index-url https://download.pytorch.org/whl/cu124 --no-deps
 ```
 
-6. 모델 가중치 파일 배치 (저장소 미포함, AI 기능·서버 담당에게 요청)
-   - SAM2: `checkpoints/sam2/sam2.1_hiera_base_plus.pt`
-   - AnyDoor: [features/composition/README.md](../features/composition/README.md) "필요한 것"
+6. AI 모델 파일 배치 (저장소 미포함, AI 기능·서버 담당에게 요청)
+
+| 모델 | 파일 | 위치 |
+|---|---|---|
+| SAM2 | `sam2.1_hiera_base_plus.pt` | 저장소 `checkpoints/sam2/` |
+| AnyDoor | AnyDoor 공식 저장소 폴더 | `Desktop\AnyDoor` (다른 위치는 환경 변수 `ANYDOOR_DIR`로 지정) |
+| AnyDoor | `epoch=1-step=8687.ckpt` (약 16.8GB), `dinov2_vitg14_pretrain.pth` (약 4.5GB) | AnyDoor 폴더 `configs/inference.yaml`, `configs/anydoor.yaml`에 경로 지정 |
 
 7. MySQL 설정: [database.md](database.md)
 
