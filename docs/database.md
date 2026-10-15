@@ -70,7 +70,21 @@ DATABASE_URL=mysql+pymysql://cgi_app:2-2에서_정한_비밀번호@localhost:330
 
 ### 2-4. 연결 확인
 
-- 백엔드 실행 시 로그에 `DB 연결 완료 (로그인 기능 사용 가능)` 출력
+1. 저장소 폴더에서 백엔드 실행
+
+```powershell
+CGI\Scripts\python.exe -m uvicorn backend.main:app --port 8000
+```
+
+2. 실행 로그 확인
+
+| 로그 | 결과 |
+|---|---|
+| `DB 연결 완료 (로그인 기능 사용 가능)` | 정상 |
+| `DB에 연결하지 못했습니다: ...` | 실패, 뒤의 메시지로 4. 오류별 조치 확인 |
+| `DATABASE_URL이 없습니다` | 2-3. 접속 설정 파일 생성 미수행 |
+
+3. 종료: Ctrl+C
 
 ## 3. 백엔드 실행 시 자동 처리
 
@@ -82,10 +96,11 @@ DATABASE_URL=mysql+pymysql://cgi_app:2-2에서_정한_비밀번호@localhost:330
 
 ## 4. 오류별 조치
 
-| 로그 메시지 | 원인 | 조치 |
+- `DB에 연결하지 못했습니다:` 뒤에 나오는 메시지 기준
+
+| 메시지 | 원인 | 조치 |
 |---|---|---|
-| `Access denied for user 'cgi_app'` | `backend/.env` 비밀번호 불일치 | 2-3. 접속 설정 파일 생성의 비밀번호 확인 |
-| `Can't connect to MySQL server` | MySQL 중지 | "서비스"에서 `MySQL80` 시작, 또는 관리자 권한 PowerShell에서 `Start-Service MySQL80` |
-| `Unknown database 'cgi'` | 데이터베이스 미생성 | 2-2. 데이터베이스·MySQL 계정 생성 수행 |
+| `Access denied for user 'cgi_app'@'localhost' (using password: YES)` | `backend/.env` 비밀번호 불일치, 또는 `cgi_app` 계정 없음 | 2-3의 비밀번호 확인, 계정이 없으면 2-2 수행 |
+| `Access denied for user 'cgi_app'@'localhost' to database 'cgi'` | 데이터베이스 `cgi` 없음 또는 권한 없음 | 2-2. 데이터베이스·MySQL 계정 생성 수행 |
+| `Can't connect to MySQL server on 'localhost'` | MySQL 중지 | "서비스"에서 `MySQL80` 시작, 또는 관리자 권한 PowerShell에서 `Start-Service MySQL80` |
 | `'cryptography' package is required` | 패키지 누락 | `CGI\Scripts\python.exe -m pip install cryptography` |
-| `DATABASE_URL이 없습니다` | `backend/.env` 없음 | 2-3. 접속 설정 파일 생성 수행 |

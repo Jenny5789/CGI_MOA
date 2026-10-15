@@ -61,7 +61,7 @@ def init_db():
     """표 만들기 + 시험용 회원 넣기. 실패하면 로그만 남기고 넘어간다 (서버는 계속 켜짐)"""
     global _SessionLocal
     if not DATABASE_URL:
-        log.warning("DATABASE_URL이 없습니다 (backend/.env). 로그인 기능 없이 켭니다. 설정: docs/database.md")
+        log.warning("DATABASE_URL이 없습니다 (backend/.env). 로그인 기능 없이 켭니다. 설정: docs/database.md 2-3. 접속 설정 파일 생성")
         return
     try:
         engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_recycle=3600)
@@ -77,8 +77,10 @@ def init_db():
                 s.commit()
         _SessionLocal = SessionLocal
         log.info("DB 연결 완료 (로그인 기능 사용 가능)")
-    except Exception as e:  # 비밀번호가 담긴 접속 주소는 로그에 남기지 않는다
-        log.error("DB에 연결하지 못했습니다 (%s). 로그인 기능 없이 켭니다. 확인: docs/database.md 문제 해결", type(e).__name__)
+    except Exception as e:
+        # MySQL이 돌려준 오류 문장만 남긴다 (비밀번호가 담긴 접속 주소는 남기지 않음)
+        reason = getattr(e, "orig", None) or e
+        log.error("DB에 연결하지 못했습니다: %s. 로그인 기능 없이 켭니다. 조치: docs/database.md 4. 오류별 조치", reason)
 
 
 def get_db():
