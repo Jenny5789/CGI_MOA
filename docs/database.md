@@ -21,7 +21,7 @@
 Get-Service MySQL80
 ```
 
-- `MySQL80`이 목록에 없으면 MySQL Installer로 MySQL Server 8.0, MySQL Workbench 설치
+- MySQL 미설치 ("서비스" 화면에 `MySQL80` 없음, 또는 명령 실행 시 `서비스 이름이 'MySQL80'인 서비스를 찾을 수 없습니다` 오류): MySQL Installer로 MySQL Server 8.0, MySQL Workbench 설치
 
 ### 2-2. 데이터베이스·MySQL 계정 생성
 
