@@ -14,12 +14,14 @@
 
 ### 2-1. MySQL 실행 확인
 
+- 방법 1 (화면): 시작 메뉴에서 "서비스" 실행 → 목록의 `MySQL80` 상태가 "실행 중"이면 정상
+- 방법 2 (명령): 시작 메뉴에서 "PowerShell" 실행 후 입력 → `Status`가 `Running`이면 정상
+
 ```powershell
 Get-Service MySQL80
 ```
 
-- `Status`가 `Running`이면 정상
-- 서비스가 없으면 MySQL Installer로 MySQL Server 8.0, MySQL Workbench 설치
+- `MySQL80`이 목록에 없으면 MySQL Installer로 MySQL Server 8.0, MySQL Workbench 설치
 
 ### 2-2. 데이터베이스·MySQL 계정 생성
 
@@ -36,7 +38,7 @@ GRANT ALL PRIVILEGES ON cgi.* TO 'cgi_app'@'localhost';
 
 ### 2-3. 접속 설정 파일 생성
 
-- 저장소 최상위 디렉터리에서 실행
+- PowerShell에서 저장소 최상위 디렉터리로 이동 후 실행
 
 ```powershell
 Copy-Item backend\.env.example backend\.env
@@ -62,7 +64,7 @@ Copy-Item backend\.env.example backend\.env
 | 로그 메시지 | 원인 | 조치 |
 |---|---|---|
 | `Access denied for user 'cgi_app'` | `backend/.env` 비밀번호 불일치 | 2-3. 접속 설정 파일 생성의 비밀번호 확인 |
-| `Can't connect to MySQL server` | MySQL 중지 | `Start-Service MySQL80` (관리자 PowerShell) |
+| `Can't connect to MySQL server` | MySQL 중지 | "서비스"에서 `MySQL80` 시작, 또는 관리자 권한 PowerShell에서 `Start-Service MySQL80` |
 | `Unknown database 'cgi'` | 데이터베이스 미생성 | 2-2. 데이터베이스·MySQL 계정 생성 수행 |
 | `'cryptography' package is required` | 패키지 누락 | `CGI\Scripts\python.exe -m pip install cryptography` |
 | `DATABASE_URL이 없습니다` | `backend/.env` 없음 | 2-3. 접속 설정 파일 생성 수행 |
