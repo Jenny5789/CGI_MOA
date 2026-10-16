@@ -27,6 +27,7 @@ result = compose(ref_rgb, ref_mask, tar_rgb, tar_mask, seed=1234, on_progress=fn
 - 반환: `np.uint8` (H, W, 3) RGB, 인물 이미지와 같은 크기
 - `ref_mask`: 상의 영역 추출 모듈(`extract_object`) 결과를 그대로 사용
 - `tar_mask`: 영역을 감싸는 사각형만 사용 (칠한 모양은 결과에 영향 적음)
+- 다시 그리는 범위: `tar_mask` 사각형(1.1배)을 다시 1.3배 넓힌 정사각형 (AnyDoor 기본 1.5~2.9배 무작위 대신 고정, `AnyDoorComposer(crop_ratio=...)`로 변경)
 - `warmup()`: 모델 로딩 + 2스텝 시험 합성 (백엔드 시작 시 자동 실행)
 - 모델은 첫 호출 시 1회 로딩 후 재사용
 - 계산 방식: float16, save_memory (화질 차이 없음, 2026-10-11 확인)
