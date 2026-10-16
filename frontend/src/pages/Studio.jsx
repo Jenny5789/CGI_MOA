@@ -1,22 +1,24 @@
 /* 합성하기: 단계별 안내 화면
    1 상의 사진 고르기 -> 2 인물 사진 고르기
    -> 3 점 찍어 상의 추출 -> 확인 -> 다듬기 팝업(브러시, 지우개) -> 완료
-   -> 4 점 찍어 입힐 영역 지정 -> 확인 -> 다듬기 팝업(브러시, 지우개) -> 다음 -> 합성 설정 팝업(체크 두 개) -> 합성 시작
+   -> 4 점 찍어 입힐 영역 추출 -> 확인 -> 다듬기 팝업(브러시, 지우개) -> 다음 -> 합성 설정 팝업(체크 두 개) -> 합성 시작
    -> 결과, 저장
    오른쪽 "내 작업 기록"은 서버의 저장된 결과 목록(명세 6-1)을 보여 준다.
    서버 연결 (src/api/studio.js)
    - 1·2단계: 고른 사진을 서버에 올린다(명세 3-1)
    - 3단계: 점만 찍어 둔다. "확인"을 누르면 서버 SAM2로 실제 윤곽을 받아 다듬기 팝업을 연다(4-1)
-   - 4단계: "합성 시작"에서 서버 AnyDoor 합성 요청 → 2초마다 진행 확인 → 결과(5-1~5-3)
+   - 4단계: 3단계와 같이 인물 사진에 점을 찍고 "확인"을 누르면 SAM2로 지금 입은 상의 영역을 받아 다듬기 팝업을 연다(4-1).
+     "합성 시작"에서 서버 AnyDoor 합성 요청 → 2초마다 진행 확인 → 결과(5-1~5-3)
    - 결과 "저장": 서버에 저장 표시(6-2)
    아직 서버에 안 가는 것: 다듬기 팝업에서 고친 상의 윤곽(서버는 SAM2 윤곽으로 합성), 합성 설정 체크 두 개(opts) */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import studioCss from '../styles/studio-guide.css?inline';
 import usePageStyle from '../components/usePageStyle.js';
 import useToast from '../components/useToast.js';
 import TopNav from '../components/TopNav.jsx';
 import {
-  boxFit, drawContain, drawCover, drawDot, fly, loadImage, makeWork, maskBBox, newCanvas, nowText, paintTint, pointer,
+  boxFit, drawContain, drawCover, drawDot, fly, loadImage, makeWork, maskBBox, newCanvas, nowText, pointer,
 } from '../studio/canvas.js';
 import MaskEditor from '../studio/MaskEditor.jsx';
 import { listResults, updateResult } from '../api/results.js';
@@ -41,13 +43,13 @@ const STEPS = [
 ];
 
 const SLOTS = [
-  { n: 1, name: '상의 사진', empty: '선택 전' },
+  { n: 1, name: '상의 사진', empty: '옷 사진 또는 착용 사진' },
   { n: 2, name: '인물 사진', empty: '선택 전' },
   { n: 3, name: '지정한 상의', empty: '지정 전' },
 ];
 
 const PICK_TEXT = {
-  1: { title: '1. 상의 사진 선택', helpTitle: '권장 사진', help: <>합성할 <em>상의</em>가 담긴 사진을 선택합니다.<br />상의가 또렷하게 보이는 사진일수록 결과가 자연스럽습니다.</> },
+  1: { title: '1. 상의 사진 선택', helpTitle: '사용할 수 있는 사진', help: <>옷만 찍은 사진, 사람이 입은 사진 모두 사용할 수 있습니다.</> },
   2: { title: '2. 인물 사진 선택', helpTitle: '권장 사진', help: <>상의를 입힐 <em>인물</em>의 사진을 선택합니다.<br />상반신이 잘 보이는 사진을 권장합니다.</> },
 };
 
@@ -133,12 +135,12 @@ export default function Studio() {
   const [leaving, setLeaving] = useState(false);
   const [enterTick, setEnterTick] = useState(0);
   const [resizeTick, setResizeTick] = useState(0);
-  const [done, setDone] = useState({ 1: false, 2: false, 3: false });
+  const [done, setDone] = useState({ 1: false, 2: false, 3: false, 4: false }); // 4: 합성까지 끝남
   const [slots, setSlots] = useState({ 1: null, 2: null, 3: null });
   const [pick, setPick] = useState({ 1: { src: null, fromSample: false, confirm: false }, 2: { src: null, fromSample: false, confirm: false } });
   const [dragover, setDragover] = useState({ 1: false, 2: false });
   const [c3ui, setC3ui] = useState({ total: 0, neg: 0, pos: 0, canUndo: false });
-  const [c4ui, setC4ui] = useState({ touched: false, canUndo: false });
+  const [c4ui, setC4ui] = useState({ neg: 0, pos: 0, canUndo: false });
   const [editor, setEditor] = useState(null); // 다듬기 팝업: { kind: 'extract' | 'area', image, mask }
   const [settingsOpen, setSettingsOpen] = useState(false); // 합성 설정 팝업
   const [opts, setOpts] = useState({ refine: false, shape: false }); // Reference Mask Refine, Enable Shape Control
@@ -153,8 +155,9 @@ export default function Studio() {
   /* ---------- 그리기용 데이터 (화면에 바로 보이지 않는 값은 ref에 둔다) ---------- */
   const data = useRef({ obj: null, bg: null, cutout: null, result: null });
   const s3 = useRef({ src: null, w: 0, h: 0, work: null, pts: [], hist: [], dw: 0, dh: 0 });
-  const s4 = useRef({ src: null, w: 0, h: 0, work: null, mask: null, dots: [], bbox: null, touched: false, hist: [], dw: 0, dh: 0 });
+  const s4 = useRef({ src: null, w: 0, h: 0, work: null, pts: [], hist: [], dw: 0, dh: 0 });
   const stepRef = useRef(0);
+  const navigate = useNavigate();
   const navigating = useRef(false);
 
   const c3Ref = useRef(null);
@@ -219,10 +222,11 @@ export default function Studio() {
       if (n === 1) {
         data.current.cutout = null;
         s3.current.src = null;
-        setDone((d) => ({ ...d, 3: false }));
+        setDone((d) => ({ ...d, 3: false, 4: false }));
         setSlots((s) => ({ ...s, 3: null }));
       } else {
         s4.current.src = null;
+        setDone((d) => ({ ...d, 4: false }));
       }
     }
     setDone((d) => ({ ...d, [n]: true }));
@@ -271,7 +275,7 @@ export default function Studio() {
     render3();
   };
 
-  // 되돌리기: 바꾸기 직전의 점 목록을 쌓아 두고 하나씩 꺼내 복원한다 (최대 50단계)
+  // 실행 취소: 바꾸기 직전의 점 목록을 쌓아 두고 하나씩 꺼내 복원한다 (최대 50단계)
   const pushHist3 = () => {
     const s = s3.current;
     s.hist.push(s.pts.map((q) => ({ x: q.x, y: q.y, neg: q.neg })));
@@ -346,20 +350,20 @@ export default function Studio() {
     cx.drawImage(s.edited, 0, 0);
     const cutout = { canvas: cut, bbox: bb };
     data.current.cutout = cutout;
-    setDone((d) => ({ ...d, 3: true }));
+    setDone((d) => ({ ...d, 3: true, 4: false }));
     await fly(c3Ref.current, slotRef[3].current, () => setSlots((sl) => ({ ...sl, 3: cutout })));
     go(4);
   };
 
-  /* ---------- 4단계: 합성 영역 지정 (화면에서는 점, 팝업에서 브러시와 지우개) ---------- */
+  /* ---------- 4단계: 합성 영역 지정 (3단계와 같이 점 → SAM2 → 팝업에서 브러시와 지우개) ---------- */
   const render4 = () => {
     const s = s4.current;
     const ctx = c4Ref.current.getContext('2d');
     ctx.clearRect(0, 0, s.dw, s.dh);
     ctx.drawImage(s.work, 0, 0, s.dw, s.dh);
-    paintTint(ctx, s.mask, s.dw, s.dh, 'rgba(31, 81, 56, 0.55)');
-    s.dots.forEach((p) => drawDot(ctx, p.x * s.dw, p.y * s.dh, '#16171b'));
-    const next = { touched: s.touched, canUndo: s.hist.length > 0 };
+    s.pts.forEach((p) => drawDot(ctx, p.x * s.dw, p.y * s.dh, p.neg ? '#e11d48' : '#16171b'));
+    const pos = s.pts.filter((p) => !p.neg).length;
+    const next = { neg: s.pts.length - pos, pos, canUndo: s.hist.length > 0 };
     setC4ui((prev) => (sameUi(prev, next) ? prev : next));
   };
 
@@ -369,7 +373,7 @@ export default function Studio() {
     const s = s4.current;
     if (s.src !== bg.src) {
       const w = makeWork(bg.img);
-      Object.assign(s, { src: bg.src, work: w.work, w: w.w, h: w.h, mask: newCanvas(w.w, w.h), dots: [], touched: false, hist: [], edited: null, editedKey: null });
+      Object.assign(s, { src: bg.src, work: w.work, w: w.w, h: w.h, pts: [], hist: [], samMask: null, samKey: null, edited: null, editedKey: null });
     }
     const d = boxFit(c4Ref.current, s.w, s.h);
     s.dw = d.w; s.dh = d.h;
@@ -377,59 +381,63 @@ export default function Studio() {
     render4();
   };
 
-  // 되돌리기: 점 찍기 직전의 영역과 점 목록을 쌓아 두고 하나씩 꺼내 복원한다 (최대 20단계)
+  // 실행 취소: 바꾸기 직전의 점 목록을 쌓아 두고 하나씩 꺼내 복원한다 (최대 50단계)
   const pushHist4 = () => {
     const s = s4.current;
-    const snap = newCanvas(s.w, s.h);
-    snap.getContext('2d').drawImage(s.mask, 0, 0);
-    s.hist.push({ mask: snap, dots: s.dots.map((d) => ({ x: d.x, y: d.y })), touched: s.touched });
-    if (s.hist.length > 20) s.hist.shift();
+    s.hist.push(s.pts.map((q) => ({ x: q.x, y: q.y, neg: q.neg })));
+    if (s.hist.length > 50) s.hist.shift();
   };
 
-  // 몸통을 클릭하면 그 둘레로 영역이 잡힌다
   const onDown4 = (e) => {
     const s = s4.current;
     if (!s.work) return;
     const p = pointer(e, c4Ref.current);
+    const hit = s.pts.findIndex((q) => Math.hypot(q.x * s.dw - p.px, q.y * s.dh - p.py) < 11);
     pushHist4();
-    const ctx = s.mask.getContext('2d');
-    const r = Math.min(s.w, s.h) * 0.17;
-    ctx.fillStyle = '#fff';
-    ctx.beginPath();
-    ctx.arc(p.x * s.w, p.y * s.h, r, 0, Math.PI * 2);
-    ctx.fill();
-    s.dots.push({ x: p.x, y: p.y });
-    s.touched = true;
+    if (hit >= 0) s.pts.splice(hit, 1);
+    else s.pts.push({ x: p.x, y: p.y, neg: e.button === 2 });
     render4();
   };
 
   const reset4 = () => {
     const s = s4.current;
-    if (!s.work) return;
-    if (s.touched) pushHist4();
-    s.mask.getContext('2d').clearRect(0, 0, s.w, s.h);
-    s.dots = []; s.touched = false;
+    if (!s.work || !s.pts.length) return;
+    pushHist4();
+    s.pts = [];
     render4();
   };
 
   const undo4 = () => {
     const s = s4.current;
     if (!s.work || !s.hist.length) return;
-    const h = s.hist.pop();
-    const ctx = s.mask.getContext('2d');
-    ctx.clearRect(0, 0, s.w, s.h);
-    ctx.drawImage(h.mask, 0, 0);
-    s.dots = h.dots; s.touched = h.touched;
+    s.pts = s.hist.pop();
     render4();
   };
 
-  // 확인: 점으로 잡은 영역을 다듬기 팝업으로 연다. 점을 바꾸지 않았으면 지난번에 다듬은 영역에서 이어서 한다.
-  const confirm4 = () => {
+  // 확인: 인물 사진에 찍은 점을 서버에 보내 SAM2로 지금 입은 상의 영역을 찾고(3단계와 같은 명세 4-1), 그 결과로 다듬기 팝업을 연다.
+  // 이 추출 결과는 합성 영역 그림으로만 쓰고, 합성 요청의 extraction_id는 3단계 것을 그대로 쓴다.
+  // 점을 바꾸지 않았으면 서버에 다시 묻지 않고, 지난번에 다듬은 영역(없으면 지난 SAM2 결과)에서 이어서 한다.
+  const confirm4 = async () => {
     const s = s4.current;
-    if (!s.touched || !data.current.cutout) return;
-    const key = JSON.stringify(s.dots);
-    const start = s.edited && s.editedKey === key ? s.edited : s.mask;
-    setEditor({ kind: 'area', image: s.work, mask: start });
+    if (!s.work || !s.pts.some((p) => !p.neg) || s.extracting || !data.current.cutout) return;
+    const key = JSON.stringify(s.pts);
+    if (s.edited && s.editedKey === key) { setEditor({ kind: 'area', image: s.work, mask: s.edited }); return; }
+    if (s.samMask && s.samKey === key) { setEditor({ kind: 'area', image: s.work, mask: s.samMask }); return; }
+
+    s.extracting = true;
+    showToast('합성 영역을 찾는 중입니다…');
+    try {
+      const { image_id: imageId } = await data.current.bg.upload;
+      const points = s.pts.map((p) => ({ x: p.x, y: p.y, label: p.neg ? 0 : 1 }));
+      const ext = await extractGarment(imageId, points);
+      const mask = await maskFromUrl(ext.mask_url, s.w, s.h);
+      Object.assign(s, { samMask: mask, samKey: key });
+      setEditor({ kind: 'area', image: s.work, mask });
+    } catch (e) {
+      showToast(`합성 영역을 찾지 못했습니다: ${e.message}`);
+    } finally {
+      s.extracting = false;
+    }
   };
 
   // 다듬기 완료: 다듬은 영역을 기억하고 합성 설정 팝업을 연다
@@ -437,7 +445,8 @@ export default function Studio() {
     const s = s4.current;
     s.edited = newCanvas(s.w, s.h);
     s.edited.getContext('2d').drawImage(mask, 0, 0);
-    s.editedKey = JSON.stringify(s.dots);
+    s.editedKey = JSON.stringify(s.pts);
+    setDone((d) => ({ ...d, 4: false }));
     setEditor(null);
     setSettingsOpen(true);
   };
@@ -462,7 +471,7 @@ export default function Studio() {
   const startCompose = async () => {
     if (!s4.current.edited || !data.current.cutout) return;
     const ext = data.current.extraction;
-    if (!ext) { showToast('3단계에서 상의를 다시 지정해 주세요'); return; }
+    if (!ext) { showToast('3단계에서 상의를 다시 지정해 주십시오'); return; }
     setSettingsOpen(false);
     setProgress(null);
     setBusy(true);
@@ -478,6 +487,7 @@ export default function Studio() {
       out.getContext('2d').drawImage(img, 0, 0);
       data.current.result = out;
       setSaved(false);
+      setDone((d) => ({ ...d, 4: true }));
       await showResult({ canvas: out }, false);
     } catch (e) {
       showToast(`합성하지 못했습니다: ${e.message}`);
@@ -677,7 +687,7 @@ export default function Studio() {
             <button type="button" className="sg-nav-btn" disabled={!canPrev} onClick={() => { if (canPrev) go(step - 1); }}>← 이전</button>
             <ol className="sg-stepper">
               {STEPS.map((s) => (
-                <li key={s.n} className={(s.n === step ? 'current' : '') + (s.n < 4 && done[s.n] && s.n !== step ? ' done' : '')}>
+                <li key={s.n} className={(s.n === step ? 'current' : '') + (done[s.n] && s.n !== step ? ' done' : '')}>
                   <span>{s.n}</span>{s.label}
                 </li>
               ))}
@@ -697,7 +707,7 @@ export default function Studio() {
                 <li><b>3</b> 상의 영역 지정</li>
                 <li><b>4</b> 합성 영역 지정</li>
               </ul>
-              <button type="button" className="sg-big-btn" onClick={() => go(1)}>시작하기</button>
+              <button type="button" className="sg-big-btn" onClick={() => go(1)}>시작</button>
             </section>
 
             {renderPick(1)}
@@ -708,7 +718,7 @@ export default function Studio() {
               <h2 className="sg-title">3. 상의 영역 지정</h2>
               <div className="sg-help">
                 <b>사용 방법</b>
-                <p>사진 속 <em>상의를 클릭</em>하여 영역을 지정합니다.<br />왼쪽 클릭은 영역에 포함할 부분, 오른쪽 클릭은 제외할 부분을 표시하며, 찍은 점을 다시 클릭하면 삭제됩니다.<br />확인을 누르면 경계를 세밀하게 수정할 수 있습니다.</p>
+                <p><em>상의</em>를 왼쪽 클릭하여 선택합니다.<br />제외할 부분은 오른쪽 클릭합니다.</p>
               </div>
               <div className="sg-canvas-box">
                 <canvas ref={c3Ref} className="sg-canvas" hidden={!done[1]} onMouseDown={onDown3} onContextMenu={(e) => e.preventDefault()} />
@@ -716,7 +726,7 @@ export default function Studio() {
               </div>
               <div className="sg-actions">
                 <span className="sg-chip">포함 {c3ui.pos}개 · 제외 {c3ui.neg}개</span>
-                <button type="button" className="sg-ghost" disabled={!done[1] || !c3ui.canUndo} onClick={undo3}>되돌리기</button>
+                <button type="button" className="sg-ghost" disabled={!done[1] || !c3ui.canUndo} onClick={undo3}>실행 취소</button>
                 <button type="button" className="sg-ghost" onClick={reset3}>전체 삭제</button>
                 <button type="button" className="sg-confirm" disabled={!done[1] || c3ui.pos === 0} onClick={confirm3}>확인</button>
               </div>
@@ -727,16 +737,17 @@ export default function Studio() {
               <h2 className="sg-title">4. 합성 영역 지정</h2>
               <div className="sg-help">
                 <b>사용 방법</b>
-                <p>상의를 입힐 <em>몸통 부분을 클릭</em>하여 영역을 지정합니다.<br />클릭한 위치를 중심으로 영역이 표시됩니다.<br />확인을 누르면 영역을 세밀하게 수정한 뒤 합성을 시작할 수 있습니다.</p>
+                <p>인물이 입고 있는 <em>상의</em>를 왼쪽 클릭하여 선택합니다.<br />제외할 부분은 오른쪽 클릭합니다.</p>
               </div>
               <div className="sg-canvas-box">
                 <canvas ref={c4Ref} className="sg-canvas" hidden={!done[2]} onMouseDown={onDown4} onContextMenu={(e) => e.preventDefault()} />
                 <p className="sg-canvas-empty" hidden={done[2]}>2단계에서 인물 사진을 먼저 선택해야 합니다.</p>
               </div>
               <div className="sg-actions">
-                <button type="button" className="sg-ghost" disabled={!done[2] || !c4ui.canUndo} onClick={undo4}>되돌리기</button>
+                <span className="sg-chip">포함 {c4ui.pos}개 · 제외 {c4ui.neg}개</span>
+                <button type="button" className="sg-ghost" disabled={!done[2] || !c4ui.canUndo} onClick={undo4}>실행 취소</button>
                 <button type="button" className="sg-ghost" onClick={reset4}>전체 삭제</button>
-                <button type="button" className="sg-confirm" disabled={!done[2] || !c4ui.touched} onClick={confirm4}>확인</button>
+                <button type="button" className="sg-confirm" disabled={!done[2] || c4ui.pos === 0} onClick={confirm4}>확인</button>
               </div>
             </section>
 
@@ -747,8 +758,9 @@ export default function Studio() {
                 <canvas ref={cResRef} className="sg-canvas" />
               </div>
               <div className="sg-actions sg-actions-center">
-                <button type="button" className="sg-confirm" disabled={fromHistory || saved} onClick={save}>{fromHistory || saved ? '저장됨' : '저장'}</button>
-                <button type="button" className="sg-ghost" onClick={redo}>{fromHistory ? '새로 합성' : '다시 합성'}</button>
+                <button type="button" className="sg-confirm" disabled={fromHistory || saved} onClick={save}>{fromHistory || saved ? '저장 완료' : '저장'}</button>
+                {(fromHistory || saved) && <button type="button" className="sg-confirm" onClick={() => navigate('/mypage')}>마이페이지로 이동</button>}
+                <button type="button" className="sg-ghost" onClick={redo}>{fromHistory ? '신규 합성' : '재합성'}</button>
               </div>
             </section>
           </div>
@@ -801,11 +813,11 @@ export default function Studio() {
         <MaskEditor
           key={editor.kind}
           title="상의 영역 수정"
-          help={<>브러시로 빠진 부분을 추가합니다.<br />지우개로 상의가 아닌 부분을 지웁니다.</>}
+          help="빠진 부분은 브러시로 칠하고, 잘못 잡힌 부분은 지우개로 지웁니다."
           image={editor.image}
           mask={editor.mask}
           tint="rgba(125, 26, 36, 0.5)"
-          cancelLabel="점 다시 지정"
+          cancelLabel="점 재지정"
           doneLabel="다음 단계"
           onCancel={closeEditor}
           onDone={finish3}
@@ -815,11 +827,11 @@ export default function Studio() {
         <MaskEditor
           key={editor.kind}
           title="합성 영역 수정"
-          help={<>브러시로 상의가 들어갈 부분을 추가합니다.<br />지우개로 영역을 벗어난 부분을 지웁니다.</>}
+          help="빠진 부분은 브러시로 칠하고, 잘못 잡힌 부분은 지우개로 지웁니다."
           image={editor.image}
           mask={editor.mask}
           tint="rgba(31, 81, 56, 0.55)"
-          cancelLabel="점 다시 지정"
+          cancelLabel="점 재지정"
           doneLabel="다음"
           onCancel={closeEditor}
           onDone={finish4}
