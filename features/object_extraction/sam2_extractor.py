@@ -51,7 +51,7 @@ class Sam2Extractor:
         multimask  : None이면 자동. point 1개만 줬을 때만 후보 3개 중 score 최대를
                      고르고, point가 여러 개이거나 box가 있으면 단일 마스크를 쓴다
                      (여러 프롬프트에서 후보 선택은 작은 부분만 고르는 경향이 있음)
-        postprocess: 가장 큰 연결 영역만 남기고 작은 내부 구멍을 채운다
+        postprocess: 포함 점이 찍힌 연결 영역만 남기고(점이 없으면 가장 큰 영역) 작은 내부 구멍을 채운다
 
         return     : np.ndarray, uint8 0/1, (H, W)
         """
@@ -89,7 +89,7 @@ class Sam2Extractor:
         mask = masks[int(np.argmax(scores))].astype(np.uint8)
 
         if postprocess:
-            mask = keep_largest_component(mask)
+            mask = keep_clicked_components(mask, points)
             mask = fill_small_holes(mask)
 
         if mask.sum() == 0:
@@ -110,16 +110,20 @@ def extract_object(image_rgb, points=None, neg_points=None, box=None, **kwargs):
     )
 
 
-def keep_largest_component(mask, close_kernel_px=15):
-    """가장 큰 연결 영역만 남긴다. 연결 판단은 closing한 사본으로 한다."""
+def keep_clicked_components(mask, points=(), close_kernel_px=15):
+    """포함 점이 찍힌 연결 영역을 모두 남긴다 (팔 등에 가려 상의가 여러 조각으로 나뉜 경우).
+    점이 하나도 영역 위에 없으면(박스만 준 경우 등) 가장 큰 연결 영역만 남긴다.
+    연결 판단은 closing한 사본으로 한다."""
     closed = cv2.morphologyEx(
         mask, cv2.MORPH_CLOSE, np.ones((close_kernel_px, close_kernel_px), np.uint8)
     )
     n, labels, stats, _ = cv2.connectedComponentsWithStats(closed, connectivity=8)
     if n <= 1:
         return mask
-    largest = 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))
-    return mask & (labels == largest).astype(np.uint8)
+    keep = {int(labels[int(y), int(x)]) for x, y in points} - {0}
+    if not keep:
+        keep = {1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))}
+    return mask & np.isin(labels, list(keep)).astype(np.uint8)
 
 
 def fill_small_holes(mask, max_hole_area=400):
