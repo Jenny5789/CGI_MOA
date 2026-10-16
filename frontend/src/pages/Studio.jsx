@@ -493,6 +493,7 @@ export default function Studio() {
         ...h.filter((x) => x.id !== resultId),
       ]);
       setActiveHist(resultId);
+      setDone((d) => ({ ...d, 4: true }));
       await showResult({ canvas: out }, false, resultId);
     } catch (e) {
       showToast(`합성하지 못했습니다: ${e.message}`);
@@ -767,8 +768,9 @@ export default function Studio() {
                 <canvas ref={cResRef} className="sg-canvas" />
               </div>
               <div className="sg-actions sg-actions-center">
-                <button type="button" className="sg-confirm" disabled={saved} onClick={save}>{saved ? '저장됨' : '저장'}</button>
-                <button type="button" className="sg-ghost" onClick={redo}>{fromHistory ? '새로 합성' : '다시 합성'}</button>
+                <button type="button" className="sg-confirm" disabled={saved} onClick={save}>{saved ? '저장 완료' : '저장'}</button>
+                {saved && <button type="button" className="sg-confirm" onClick={() => navigate('/mypage')}>마이페이지로 이동</button>}
+                <button type="button" className="sg-ghost" onClick={redo}>{fromHistory ? '신규 합성' : '재합성'}</button>
               </div>
             </section>
           </div>
