@@ -8,6 +8,7 @@
 - 합성 전담 일꾼(스레드) 하나가 들어온 순서대로 한 번에 한 장씩 처리
 - GPU는 추출과 같은 GPU_LOCK으로 차례를 지킨다 (합성 중에 들어온 추출 요청은 합성이 끝날 때까지 기다림)
 - AnyDoor는 features/composition의 compose를 그대로 쓴다 (50스텝, float16 + save_memory)
+- 상의 윤곽: 화면 "다듬기"에서 고친 윤곽(garment_mask, 추가 제안)을 보내면 그것으로, 안 보내면 4-1 SAM2 윤곽으로 합성
 - 로그인 필요. 자기 추출 결과·인물 사진으로만 합성, 자기 작업만 진행 확인. 작업·결과에 회원 번호(user_id) 기록
 - 작업·결과는 storage/jobs, storage/results에 파일로 저장
 """
@@ -124,7 +125,9 @@ def _run(job_id):
     person = load_image_info(job["person_image_id"])
 
     ref = np.array(Image.open(IMAGES_DIR / garment["filename"]).convert("RGB"))
-    ref_mask = (np.array(Image.open(EXTRACTIONS_DIR / ext["mask"]).convert("L")) > 127).astype(np.uint8)
+    # 상의 윤곽: 화면에서 다듬은 윤곽이 있으면 그것, 없으면 4-1 SAM2 윤곽
+    ref_mask_path = JOBS_DIR / job["garment_mask"] if job.get("garment_mask") else EXTRACTIONS_DIR / ext["mask"]
+    ref_mask = (np.array(Image.open(ref_mask_path).convert("L")) > 127).astype(np.uint8)
     tar = np.array(Image.open(IMAGES_DIR / person["filename"]).convert("RGB"))
     tar_mask = (np.array(Image.open(JOBS_DIR / job["area_mask"]).convert("L")) > 127).astype(np.uint8)
 
@@ -163,35 +166,52 @@ def _run(job_id):
 
 # ---------- 주소 ----------
 
+async def _read_mask(upload, width, height, code, label):
+    """흑백 PNG(칠한 곳 255)를 읽어 원본 크기(width×height)의 0/1 배열로 바꾼다.
+    화면은 줄인 사진 위에서 칠하므로 비율만 같으면 되고, 크기는 서버가 원본에 맞춘다."""
+    data = await upload.read(MAX_UPLOAD_BYTES + 1)
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise ApiError(400, code, f"{label}이 너무 큽니다.")
+    try:
+        img = Image.open(io.BytesIO(data))
+        img.load()
+    except (UnidentifiedImageError, OSError):
+        raise ApiError(400, code, f"{label}을 읽을 수 없습니다.")
+    img = img.convert("L").resize((width, height), Image.NEAREST)
+    return (np.array(img) > 127).astype(np.uint8)
+
+
 @router.post("/api/compose")
 async def request_compose(
     extraction_id: str = Form(...),
     person_image_id: str = Form(...),
     area_mask: UploadFile = File(...),
+    garment_mask: UploadFile | None = File(None),
     user: User = Depends(current_user),
 ):
-    load_extraction_info(extraction_id, user)          # 없거나 남의 것이면 404
+    ext = load_extraction_info(extraction_id, user)     # 없거나 남의 것이면 404
     person = load_image_info(person_image_id, user)    # 없거나 남의 것이면 404
 
-    data = await area_mask.read(MAX_UPLOAD_BYTES + 1)
-    if len(data) > MAX_UPLOAD_BYTES:
-        raise ApiError(400, "INVALID_AREA_MASK", "입힐 영역 그림이 너무 큽니다.")
-    try:
-        mask_img = Image.open(io.BytesIO(data))
-        mask_img.load()
-    except (UnidentifiedImageError, OSError):
-        raise ApiError(400, "INVALID_AREA_MASK", "입힐 영역 그림을 읽을 수 없습니다.")
-
     # 명세 5-1: 인물 사진과 같은 비율이면 되고, 크기는 서버가 원본에 맞춘다 (칠한 곳 255)
-    mask_img = mask_img.convert("L").resize((person["width"], person["height"]), Image.NEAREST)
-    mask = (np.array(mask_img) > 127).astype(np.uint8)
+    mask = await _read_mask(area_mask, person["width"], person["height"], "INVALID_AREA_MASK", "입힐 영역 그림")
     if mask.sum() == 0:
         raise ApiError(400, "EMPTY_AREA", "입힐 영역을 칠해 주세요.")
+
+    # 추가 제안: 화면 "다듬기"에서 고친 상의 윤곽. 상의 사진과 같은 비율, 크기는 서버가 맞춘다
+    edited = None
+    if garment_mask is not None:
+        edited = await _read_mask(garment_mask, ext["width"], ext["height"], "INVALID_GARMENT_MASK", "상의 윤곽 그림")
+        if edited.sum() == 0:
+            raise ApiError(400, "EMPTY_GARMENT_MASK", "상의 윤곽이 비어 있습니다. 다듬기에서 상의를 칠해 주세요.")
 
     job_id = "job_" + uuid.uuid4().hex[:12]
     area_name = f"{job_id}_area.png"
     JOBS_DIR.mkdir(parents=True, exist_ok=True)
     Image.fromarray(mask * 255).save(JOBS_DIR / area_name)
+    garment_name = None
+    if edited is not None:
+        garment_name = f"{job_id}_garment.png"
+        Image.fromarray(edited * 255).save(JOBS_DIR / garment_name)
 
     job = {
         "job_id": job_id,
@@ -203,6 +223,7 @@ async def request_compose(
         "extraction_id": extraction_id,
         "person_image_id": person_image_id,
         "area_mask": area_name,
+        "garment_mask": garment_name,  # 다듬은 상의 윤곽 파일 (없으면 None → SAM2 윤곽)
         "seed": random.randint(0, 2 ** 31 - 1),
         "created_at": now_kst(),
     }
