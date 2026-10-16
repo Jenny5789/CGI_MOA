@@ -1,26 +1,56 @@
-# scripts
+# 단위 테스트·점검 스크립트
 
-- 서버·화면 없이 AI 기능만 시험
-- 실행: 저장소 맨 위 폴더, `CGI` 가상환경
-- 모델 파일 필요: SAM2([설명](../features/object_extraction/README.md)), AnyDoor([설명](../features/composition/README.md), 합성 시험만)
+## 1. 개요
 
-## test_object_extraction.py (SAM2 추출)
+- 역할: 웹 화면·서버 없이 AI 모듈(SAM2, AnyDoor) 단독 실행, 개발 환경 점검
+- 실행 위치: 저장소 최상위 디렉터리 (PowerShell)
+- 실행 환경: 가상환경 `CGI` ([environment.md](../docs/environment.md))
 
-- `python scripts/test_object_extraction.py 사진.jpg --points "x1,y1;x2,y2" --out mask.png`
-- `--points`: 포함 점 (원본 픽셀, `;`로 구분)
-- `--neg`: 제외 점 (선택) / `--box`: `x1,y1,x2,y2` (선택)
-- 결과: 흑백 윤곽 PNG (흰색 = 상의)
+| 스크립트 | 용도 | 필요 모델 |
+|---|---|---|
+| `check_env.py` | 개발 환경 점검 | - |
+| `test_object_extraction.py` | 상의 영역 추출 단독 실행 | SAM2 |
+| `test_compose.py` | 이미지 합성 단독 실행 | AnyDoor |
 
-## test_compose.py (AnyDoor 합성)
+## 2. check_env.py (개발 환경 점검)
 
-- `python scripts/test_compose.py --garment 옷.jpg --garment-mask 옷윤곽.png --person 인물.jpg --area 입힐영역.png --out compose.jpg`
-- 옷 윤곽: `test_object_extraction.py` 결과
-- 입힐 영역: 흑백 PNG (흰색 = 입힐 곳)
-- `--seed`: 기본 1234 (같으면 같은 결과)
-- 결과: 옷 | 인물 | 합성 나란히, 걸린 시간·GPU 메모리 출력
+```powershell
+CGI\Scripts\python.exe scripts\check_env.py
+```
 
-## check_env.py (개발 환경 점검)
+- 점검: Python·패키지 버전, GPU, AnyDoor 폴더, SAM2 모델 가중치, `backend/.env`
+- 판정 기준: [environment.md 3. 설치 확인](../docs/environment.md#3-설치-확인)
 
-- `python scripts/check_env.py`
-- 점검: 가상환경, Python·패키지 버전, GPU, AnyDoor 폴더, SAM2 모델 가중치, `backend/.env`
-- 기준·조치: [../docs/environment.md](../docs/environment.md) "3. 설치 확인"
+## 3. test_object_extraction.py (상의 영역 추출)
+
+```powershell
+CGI\Scripts\python.exe scripts\test_object_extraction.py 상의.jpg --points "487,731;483,443" --out mask.png
+```
+
+| 옵션 | 필수 | 설명 |
+|---|---|---|
+| 첫 인자 | O | 상의 이미지 경로 |
+| `--points` | 조건 | 포함 점 `x,y` (원본 픽셀, 여러 개는 `;`로 구분) |
+| `--neg` | - | 제외 점 (형식 같음) |
+| `--box` | 조건 | 상의를 감싸는 사각형 `x1,y1,x2,y2` |
+| `--out` | - | 결과 파일 (기본 `mask.png`) |
+
+- 조건: `--points`, `--neg`, `--box` 중 1개 이상
+- 결과: 흑백 PNG (흰색: 상의 영역)
+
+## 4. test_compose.py (이미지 합성)
+
+```powershell
+CGI\Scripts\python.exe scripts\test_compose.py --garment 상의.jpg --garment-mask mask.png --person 인물.jpg --area 착용영역.png --out compose.jpg
+```
+
+| 옵션 | 필수 | 설명 |
+|---|---|---|
+| `--garment` | O | 상의 이미지 |
+| `--garment-mask` | O | 상의 영역 흑백 PNG (3. 결과 사용) |
+| `--person` | O | 인물 이미지 |
+| `--area` | O | 착용 영역 흑백 PNG (흰색: 합성 위치) |
+| `--out` | - | 결과 파일 (기본 `compose.jpg`) |
+| `--seed` | - | 같은 값이면 같은 결과 (기본 1234) |
+
+- 결과: 상의 | 인물 | 합성 결과를 나란히 붙인 이미지, 소요 시간·최대 GPU 메모리 출력
