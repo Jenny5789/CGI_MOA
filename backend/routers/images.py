@@ -17,6 +17,7 @@ from backend.auth import current_user
 from backend.config import ALLOWED_FORMATS, IMAGE_KINDS, IMAGES_DIR, MAX_UPLOAD_BYTES
 from backend.db import User
 from backend.errors import ApiError
+from backend.file_keys import signed_url
 
 router = APIRouter()
 KST = timezone(timedelta(hours=9))
@@ -65,4 +66,4 @@ async def upload_image(file: UploadFile = File(...), kind: str = Form(...), user
     }
     (IMAGES_DIR / f"{image_id}.json").write_text(json.dumps(info, ensure_ascii=False), encoding="utf-8")
 
-    return {"image_id": image_id, "url": f"/api/files/{filename}", "width": img.width, "height": img.height}
+    return {"image_id": image_id, "url": signed_url(filename), "width": img.width, "height": img.height}
