@@ -331,7 +331,7 @@
 | `extraction_id` | `string` | O | 4-1. 상의 영역 추출 결과 번호 |
 | `person_image_id` | `string` | O | 3-1. 이미지 업로드의 인물 이미지 번호 |
 | `area_mask` | `file` | O | 착용 영역 흑백 PNG (지정 영역 255) |
-| `garment_mask` | `file` | X | 다듬은 상의 윤곽 흑백 PNG (상의 255) (추가 제안) |
+| `garment_mask` | `file` | - | 다듬은 상의 윤곽 흑백 PNG (상의 255) (추가 제안) |
 
 - `area_mask`: 인물 이미지와 같은 비율, 크기는 서버에서 원본에 맞춤
 - `garment_mask`: 상의 이미지와 같은 비율, 크기는 서버에서 원본에 맞춤
