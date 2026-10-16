@@ -3,7 +3,7 @@
    -> 3 점 찍어 상의 추출 -> 확인 -> 다듬기 팝업(브러시, 지우개) -> 완료
    -> 4 점 찍어 입힐 영역 지정 -> 확인 -> 다듬기 팝업(브러시, 지우개) -> 다음 -> 합성 설정 팝업(체크 두 개) -> 합성 시작
    -> 결과, 저장
-   오른쪽 "내 작업 기록"은 서버의 저장된 결과 목록(명세 6-1)을 보여 준다.
+   오른쪽 "내 작업 기록"은 저장 여부와 관계없이 합성한 결과 전체(명세 6-1)를 보여 준다. 저장하지 않은 결과는 24시간 뒤 서버에서 삭제된다.
    서버 연결 (src/api/studio.js)
    - 1·2단계: 고른 사진을 서버에 올린다(명세 3-1)
    - 3단계: 점만 찍어 둔다. "확인"을 누르면 서버 SAM2로 실제 윤곽을 받아 다듬기 팝업을 연다(4-1)
@@ -16,7 +16,7 @@ import usePageStyle from '../components/usePageStyle.js';
 import useToast from '../components/useToast.js';
 import TopNav from '../components/TopNav.jsx';
 import {
-  boxFit, drawContain, drawCover, drawDot, fly, loadImage, makeWork, maskBBox, newCanvas, nowText, paintTint, pointer,
+  boxFit, drawContain, drawCover, drawDot, fly, loadImage, makeWork, maskBBox, newCanvas, paintTint, pointer,
 } from '../studio/canvas.js';
 import MaskEditor from '../studio/MaskEditor.jsx';
 import { listResults, updateResult } from '../api/results.js';
@@ -144,9 +144,9 @@ export default function Studio() {
   const [opts, setOpts] = useState({ refine: false, shape: false }); // Reference Mask Refine, Enable Shape Control
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(null); // 합성 진행 상황 (서버 작업 정보: status, progress, queue_position)
-  const [result, setResult] = useState(null); // { entry: { canvas } 또는 { src }, fromHistory }
+  const [result, setResult] = useState(null); // { entry: { canvas } 또는 { src }, fromHistory, id(결과 번호) }
   const [saved, setSaved] = useState(false);
-  const [history, setHistory] = useState([]); // 서버에서 받은 저장된 결과 + 이번에 저장한 결과(isNew)
+  const [history, setHistory] = useState([]); // 합성한 결과 전체 (서버 목록 + 이번에 합성한 결과 isNew), 항목마다 saved
   const [activeHist, setActiveHist] = useState(null);
   const [panels, setPanels] = useState(() => ({ left: readPanel('left'), right: readPanel('right') }));
 
@@ -442,8 +442,8 @@ export default function Studio() {
     setSettingsOpen(true);
   };
 
-  const showResult = async (entry, fromHistory) => {
-    setResult({ entry, fromHistory });
+  const showResult = async (entry, fromHistory, id) => {
+    setResult({ entry, fromHistory, id });
     await go('result');
   };
 
@@ -478,7 +478,13 @@ export default function Studio() {
       out.getContext('2d').drawImage(img, 0, 0);
       data.current.result = out;
       setSaved(false);
-      await showResult({ canvas: out }, false);
+      // 합성이 끝나면 저장하지 않아도 내 작업 기록 맨 위에 붙인다
+      setHistory((h) => [
+        { id: resultId, d: formatKoreanDate(res.created_at), entry: { canvas: out }, isNew: true, saved: false },
+        ...h.filter((x) => x.id !== resultId),
+      ]);
+      setActiveHist(resultId);
+      await showResult({ canvas: out }, false, resultId);
     } catch (e) {
       showToast(`합성하지 못했습니다: ${e.message}`);
     } finally {
@@ -487,43 +493,47 @@ export default function Studio() {
   };
 
   /* ---------- 결과, 저장, 작업 기록 ---------- */
-  // 화면에 들어오면 저장된 결과를 최신순으로 받아 온다. 받기 전에 이번에 저장한 결과(isNew)는 그대로 둔다
+  // 화면에 들어오면 합성한 결과 전체(저장 여부 무관)를 최신순으로 받아 온다. 받기 전에 이번에 합성한 결과(isNew)는 그대로 둔다
   useEffect(() => {
     let ignore = false;
-    listResults({ saved: true, sort: 'new' })
+    listResults({ sort: 'new' })
       .then((res) => {
         if (ignore) return;
         const fromServer = res.items.map((r) => ({
-          id: r.result_id, d: formatKoreanDate(r.created_at), entry: { src: r.image_url, thumb: r.thumb_url }, isNew: false,
+          id: r.result_id, d: formatKoreanDate(r.created_at), entry: { src: r.image_url, thumb: r.thumb_url }, isNew: false, saved: r.saved,
         }));
-        setHistory((h) => [...h.filter((x) => x.isNew), ...fromServer]);
+        setHistory((h) => {
+          const fresh = h.filter((x) => x.isNew);
+          return [...fresh, ...fromServer.filter((x) => !fresh.some((f) => f.id === x.id))];
+        });
       })
       .catch((e) => { if (!ignore) showToast(e.message); });
     return () => { ignore = true; };
   }, [showToast]);
 
-  // 저장: 서버에 "저장함"으로 알리고(명세 6-2) 내 작업 기록 맨 위에 붙인다. 서버 결과는 사진첩 "전체"로 옮겨진다
+  // 저장: 서버에 "저장함"으로 알린다(명세 6-2). 저장한 결과만 마이페이지 사진첩에 나온다.
+  // 방금 합성한 결과, 내 작업 기록에서 연 저장 안 한 결과 모두 저장할 수 있다
   const save = async () => {
-    if (!result || result.fromHistory || saved || !data.current.result) return;
+    if (!result || !result.id || saved) return;
+    const { id } = result;
     setSaved(true);
-    const resultId = data.current.resultId;
     try {
-      if (resultId) await updateResult(resultId, { saved: true });
+      await updateResult(id, { saved: true });
     } catch (e) {
       setSaved(false);
       showToast(`저장하지 못했습니다: ${e.message}`);
       return;
     }
-    const id = resultId || 'new-' + Date.now();
-    setHistory((h) => [{ id, d: nowText(), entry: { canvas: data.current.result }, isNew: true }, ...h.filter((x) => x.id !== id)]);
-    showToast('작업 기록에 저장했습니다');
+    setHistory((h) => h.map((x) => (x.id === id ? { ...x, saved: true } : x)));
+    showToast('사진첩에 저장했습니다');
   };
 
   const redo = () => { go(result && result.fromHistory ? 1 : 4); };
 
   const openHistory = (item) => {
     setActiveHist(item.id);
-    showResult(item.entry, true);
+    setSaved(!!item.saved);
+    showResult(item.entry, true, item.id);
   };
 
   // 3, 4단계에 들어오거나 창 크기가 바뀌면 캔버스를 칸에 다시 맞춘다
@@ -742,19 +752,19 @@ export default function Studio() {
 
             {/* 결과 */}
             <section className={viewClass('result')} data-view="result" hidden={viewName !== 'result'}>
-              <h2 className="sg-title">{fromHistory ? '저장된 결과' : '합성 결과'}</h2>
+              <h2 className="sg-title">{fromHistory && saved ? '저장된 결과' : '합성 결과'}</h2>
               <div className="sg-canvas-box sg-result-box">
                 <canvas ref={cResRef} className="sg-canvas" />
               </div>
               <div className="sg-actions sg-actions-center">
-                <button type="button" className="sg-confirm" disabled={fromHistory || saved} onClick={save}>{fromHistory || saved ? '저장됨' : '저장'}</button>
+                <button type="button" className="sg-confirm" disabled={saved} onClick={save}>{saved ? '저장됨' : '저장'}</button>
                 <button type="button" className="sg-ghost" onClick={redo}>{fromHistory ? '새로 합성' : '다시 합성'}</button>
               </div>
             </section>
           </div>
         </main>
 
-        {/* 오른쪽: 저장해 둔 결과 */}
+        {/* 오른쪽: 합성한 결과 전체 (저장 여부 무관) */}
         <aside className="sg-right">
           <div className="sg-side-head">
             <h2 className="sg-side-title">내 작업 기록</h2>
