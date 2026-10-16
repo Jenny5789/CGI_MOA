@@ -161,7 +161,7 @@ export default function MaskEditor({ title, help, image, mask, tint, cancelLabel
           {ring && ring.inside && <span className="sg-brush-ring" style={{ left: ring.left, top: ring.top, width: size, height: size }} />}
         </div>
         <div className="sg-actions">
-          <button type="button" className="sg-ghost" disabled={!canUndo} onClick={undo}>되돌리기</button>
+          <button type="button" className="sg-ghost" disabled={!canUndo} onClick={undo}>실행 취소</button>
           <button type="button" className="sg-ghost" onClick={onCancel}>{cancelLabel}</button>
           <button type="button" className="sg-confirm" disabled={empty} onClick={() => onDone(ed.current.mask)}>{doneLabel}</button>
         </div>
