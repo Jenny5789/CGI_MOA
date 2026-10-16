@@ -9,12 +9,11 @@ import { getMe } from '../api/me.js';
 import { formatKoreanDate } from '../utils/date.js';
 
 // 사진첩은 서버의 결과 목록(명세 6-1)을 보여 준다. 탭, 날짜, 정렬을 바꿀 때마다 서버에 다시 묻는다.
-// 합성할 때마다 '최근 작업'에 자동으로 쌓이고(saved: false), 마음에 들면 저장해서 '전체'로 옮긴다.
+// 사진첩에는 저장한 결과만 나온다. 저장하지 않은 결과는 합성하기 화면의 '내 작업 기록'에서 보고 저장할 수 있다 (24시간 뒤 삭제).
 // filters: 서버에 보낼 조건, count: 탭 옆 숫자로 쓸 counts 항목
 const VIEWS = {
   all: { label: '전체', desc: '상상을 현실로 만든 나만의 작품들을 한눈에 확인해보세요.', filters: { saved: true }, count: 'saved' },
-  recent: { label: '최근 작업', desc: '합성할 때마다 자동으로 쌓입니다. 마음에 드는 결과만 저장해보세요. 저장하지 않은 결과는 3일 뒤 사라집니다.', filters: { saved: false }, count: 'recent' },
-  fav: { label: '좋아요', desc: '좋아요를 누른 이미지를 모아 볼 수 있습니다.', filters: { favorite: true }, count: 'favorite' },
+  fav: { label: '좋아요', desc: '좋아요를 누른 이미지를 모아 볼 수 있습니다.', filters: { saved: true, favorite: true }, count: 'favorite' },
 };
 
 export default function MyPage() {

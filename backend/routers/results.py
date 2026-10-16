@@ -3,7 +3,7 @@
 - GET   /api/results            : 결과 목록 (명세 6-1). 사진첩 탭, 내 작업 기록
 - GET   /api/results/{id}       : 결과 하나 (명세 5-3)
 - PATCH /api/results/{id}       : 저장 / 좋아요 (명세 6-2)
-- 저장하지 않은 결과는 만든 지 3일 뒤 지운다 (명세 5-3, 10/12 결정). 목록을 볼 때 지난 것을 정리한다
+- 저장하지 않은 결과는 만든 지 24시간 뒤 지운다 (명세 5-3, 10/16 결정: 3일 → 24시간). 목록을 볼 때 지난 것을 정리한다
 - 로그인 필요. 자기 결과만 보이고 바꿀 수 있음 (남의 결과는 404). 결과는 storage/results에 파일(json)로 저장
 - 사진 주소(image_url, thumb_url)는 응답할 때 열쇠를 붙여 줌 (명세 7장, backend/file_keys.py). json에는 열쇠 없는 주소 그대로
 """
@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from backend.auth import current_user
-from backend.config import RESULT_KEEP_DAYS, RESULTS_DIR
+from backend.config import RESULT_KEEP_HOURS, RESULTS_DIR
 from backend.db import User
 from backend.errors import ApiError
 from backend.file_keys import signed_url
@@ -66,8 +66,8 @@ def _all_records():
 
 
 def _remove_expired(records):
-    """저장하지 않고 3일이 지난 결과를 지우고, 남은 것만 돌려준다"""
-    limit = datetime.now(KST) - timedelta(days=RESULT_KEEP_DAYS)
+    """저장하지 않고 24시간이 지난 결과를 지우고, 남은 것만 돌려준다"""
+    limit = datetime.now(KST) - timedelta(hours=RESULT_KEEP_HOURS)
     kept = []
     for r in records:
         if not r.get("saved") and datetime.fromisoformat(r["created_at"]) < limit:
@@ -88,7 +88,7 @@ def list_results(
     user: User = Depends(current_user),
 ):
     with _lock:
-        records = _remove_expired(_all_records())  # 3일 지난 것은 모든 회원 것을 함께 정리
+        records = _remove_expired(_all_records())  # 24시간 지난 것은 모든 회원 것을 함께 정리
     records = [r for r in records if is_owner(r, user)]
 
     if date is not None:
@@ -100,7 +100,7 @@ def list_results(
     counts = {
         "saved": sum(1 for r in records if r.get("saved")),
         "recent": sum(1 for r in records if not r.get("saved")),
-        "favorite": sum(1 for r in records if r.get("favorite")),
+        "favorite": sum(1 for r in records if r.get("saved") and r.get("favorite")),  # 사진첩(저장한 결과)의 좋아요 탭
     }
     items = records
     if saved is not None:

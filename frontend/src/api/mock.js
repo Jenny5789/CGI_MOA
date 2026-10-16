@@ -127,7 +127,7 @@ const routes = {
     const counts = {
       saved: db.results.filter((r) => r.saved).length,
       recent: db.results.filter((r) => !r.saved).length,
-      favorite: db.results.filter((r) => r.favorite).length,
+      favorite: db.results.filter((r) => r.saved && r.favorite).length,
     };
     return ok({ items: list.map(listItem), counts, next_cursor: null });
   },
