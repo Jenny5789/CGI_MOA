@@ -486,15 +486,16 @@ a { color: inherit; }
 /* ---------- 창 높이가 작아도 첫 화면(위쪽 소개와 예시 사진)이 한 화면에 들어오게 ----------
    글자, 여백, 예시 사진 크기를 창 높이에 맞춰 줄인다. 큰 화면에서는 위의 원래 크기를 넘지 않는다. */
 @media (min-width: 1001px) {
-  .ln-hero { padding: clamp(24px, 4vh, 56px) 48px clamp(40px, 7vh, 120px); }
+  /* 오른쪽 예시 사진 칸을 넓혀 세 사진이 서로 닿지 않게 한다 */
+  .ln-hero { grid-template-columns: 1fr 1.5fr; padding: clamp(24px, 4vh, 56px) 48px clamp(40px, 7vh, 120px); }
   .ln-logo-text { margin-bottom: clamp(16px, 3vh, 36px); }
   .ln-hero h1 { font-size: clamp(40px, min(4.8vw, 7vh), 78px); margin-bottom: clamp(16px, 2.6vh, 30px); }
   .ln-sub { font-size: clamp(18px, min(1.9vw, 2.8vh), 30px); margin-bottom: clamp(22px, 3.6vh, 42px); }
   .ln-btn { padding: clamp(16px, 2.4vh, 24px) clamp(32px, 3vw, 46px); font-size: clamp(18px, 2.2vh, 22px); }
   .ln-compose { height: clamp(400px, calc(100vh - 330px), 640px); }
-  .ln-card-object { top: 1.5%; height: 40.5%; width: auto; aspect-ratio: 290 / 260; }
-  .ln-card-bg { top: 43.8%; height: 40.5%; width: auto; aspect-ratio: 290 / 260; }
-  .ln-card-result { height: 94%; }
+  .ln-card-object { top: 2%; height: 43%; width: auto; aspect-ratio: 290 / 260; }
+  .ln-card-bg { top: 52%; left: 20px; height: 43%; width: auto; aspect-ratio: 290 / 260; }
+  .ln-card-result { width: 62%; height: 96%; }
   .ln-thumbs { margin-top: clamp(14px, 2.4vh, 28px); }
   .ln-thumb-polaroid img { height: clamp(80px, 12vh, 130px); }
 }
