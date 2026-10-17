@@ -1,4 +1,5 @@
 """서버 설정 (저장 위치, 제한 값)."""
+import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent  # 저장소 맨 위 폴더
@@ -20,3 +21,6 @@ IMAGE_KINDS = {"garment", "person"}
 
 # 명세 5-3: 저장하지 않은 합성 결과를 남겨 두는 시간 (10/12 3일 → 10/16 24시간)
 RESULT_KEEP_HOURS = 24
+
+# 합성 후 원본 복원 후처리 (얼굴·머리·배경을 원본으로 되돌림, features/composition/restore.py). 끄기: MOA_RESTORE_ORIGINAL=0
+RESTORE_ORIGINAL = os.environ.get("MOA_RESTORE_ORIGINAL", "1") != "0"

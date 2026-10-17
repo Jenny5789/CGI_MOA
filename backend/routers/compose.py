@@ -25,7 +25,7 @@ from fastapi import APIRouter, Depends, File, Form, UploadFile
 from PIL import Image, UnidentifiedImageError
 
 from backend.auth import current_user
-from backend.config import EXTRACTIONS_DIR, IMAGES_DIR, JOBS_DIR, MAX_UPLOAD_BYTES, RESULTS_DIR
+from backend.config import EXTRACTIONS_DIR, IMAGES_DIR, JOBS_DIR, MAX_UPLOAD_BYTES, RESTORE_ORIGINAL, RESULTS_DIR
 from backend.db import User
 from backend.errors import ApiError
 from backend.gpu import GPU_LOCK
@@ -134,8 +134,16 @@ def _run(job_id):
     def on_progress(p):
         _update(job_id, progress=round(min(p, 1.0), 3))
 
+    garment_found = None
     with GPU_LOCK:
         result = compose(ref, ref_mask, tar, tar_mask, seed=job["seed"], on_progress=on_progress)
+        if RESTORE_ORIGINAL:
+            # 원본 복원 후처리: 얼굴·머리·배경은 원본, 새 상의(SAM2로 찾음)는 어깨 끝까지 유지
+            from features.composition import find_garment, restore_original
+
+            garment = find_garment(result, tar_mask)
+            garment_found = garment is not None
+            result = restore_original(tar, result, tar_mask, garment)
 
     result_id = "res_" + uuid.uuid4().hex[:12]
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -159,6 +167,8 @@ def _run(job_id):
         "job_id": job_id,
         "extraction_id": job["extraction_id"],
         "seed": job["seed"],
+        "restore_original": RESTORE_ORIGINAL,  # 원본 복원 후처리 적용 여부
+        "garment_found": garment_found,       # 새 상의 찾기 성공 여부 (실패 시 상단 경계만으로 복원, 미적용 시 None)
     }
     (RESULTS_DIR / f"{result_id}.json").write_text(json.dumps(record, ensure_ascii=False), encoding="utf-8")
     _update(job_id, status="done", progress=1.0, result_id=result_id, finished_at=now_kst())

@@ -32,11 +32,26 @@ result = compose(ref_rgb, ref_mask, tar_rgb, tar_mask, seed=1234, on_progress=fn
 - 모델은 첫 호출 시 1회 로딩 후 재사용
 - 계산 방식: float16, save_memory (화질 차이 없음, 2026-10-11 확인)
 
+### 원본 복원 후처리 (`restore.py`)
+
+```python
+from features.composition import find_garment, restore_original
+
+garment = find_garment(result, tar_mask)                       # 합성 결과의 새 상의 영역 (SAM2), 실패 시 None
+final = restore_original(tar_rgb, result, tar_mask, garment)   # RGB uint8, 인물 이미지와 같은 크기
+```
+
+- 착용 영역 상단 경계(세로줄마다 착용 영역 최상단을 이은 선) 위 = 원본, 아래 = 합성 결과 (블렌딩 폭 20px)
+- 새 상의 영역은 경계 위라도 합성 결과 유지 (어깨 끝 잘림 방지)
+- `find_garment`: 착용 영역을 감싼 박스를 프롬프트로 SAM2 실행, 착용 영역 대비 0.3~2배 밖이면 `None` (상단 경계만으로 복원)
+- 서버: `backend/routers/compose.py`가 합성 직후 적용
+
 ## 3. 환경 변수
 
 | 이름 | 용도 | 기본값 |
 |---|---|---|
 | `ANYDOOR_DIR` | AnyDoor 폴더 위치 | `Desktop\AnyDoor` |
+| `MOA_RESTORE_ORIGINAL` | 서버의 원본 복원 후처리 켜기(1)·끄기(0) | `1` |
 
 ## 4. 필요 파일
 
