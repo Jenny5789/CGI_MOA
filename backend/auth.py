@@ -22,6 +22,7 @@ from backend.errors import ApiError
 from backend.storage import KST
 
 TOKEN_HOURS = 3
+USERNAME_MAX = 12  # 아이디 최대 글자 수 (화면 frontend/src/auth/signupRules.js와 같게)
 _ITERATIONS = 600_000
 _PASSWORD_RULE = re.compile(r"^(?=.*\d).{8,}$")  # 명세 2-2: 8자 이상, 숫자 포함
 # 명세 2-2 이메일: 인증 메일은 보내지 않지만, 형식이 맞아야 하고 한 이메일로 한 번만 가입 (무분별한 가입 방지)
@@ -49,8 +50,8 @@ def password_ok(password: str) -> bool:
 
 
 def username_ok(username: str) -> bool:
-    """명세 2-2 아이디: 공백 없이 1~50자 (앞뒤 공백은 미리 지운 값)"""
-    return bool(username) and len(username) <= 50 and not any(c.isspace() for c in username)
+    """명세 2-2 아이디: 공백 없이 1~12자 (앞뒤 공백은 미리 지운 값, 10/17 50자 → 12자)"""
+    return bool(username) and len(username) <= USERNAME_MAX and not any(c.isspace() for c in username)
 
 
 def normalize_email(email: str | None) -> str | None:

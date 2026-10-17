@@ -134,7 +134,8 @@ function LoginModal({ modal, onClose, onSubmit, onSignup }) {
   };
 
   return (
-    <div className={'auth-modal' + (modal.open ? ' open' : '')} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    // 바깥(흐린 화면)을 눌러도 닫히지 않는다. 닫기는 ×, Esc
+    <div className={'auth-modal' + (modal.open ? ' open' : '')}>
       <div className="auth-modal-box" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title">
         <button type="button" className="auth-modal-close" aria-label="닫기" onClick={onClose}>×</button>
         <h2 className="auth-modal-title" id="auth-modal-title">로그인</h2>

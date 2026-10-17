@@ -1,11 +1,12 @@
 /* 회원가입 입력 규칙 (명세 2-2). 실제 서버 backend/auth.py와 같은 규칙.
    회원가입 창이 입력하는 동안 안내할 때와, 가짜 서버(mock.js)가 검사할 때 같이 쓴다. */
 
-export const USERNAME_HINT = '공백 없이 50자 이하';
+export const USERNAME_MAX = 12; // 아이디 최대 글자 수 (서버 backend/auth.py USERNAME_MAX와 같게)
+export const USERNAME_HINT = `공백 없이 ${USERNAME_MAX}자 이하`;
 export const PASSWORD_HINT = '8자 이상, 숫자 1개 이상 포함';
 export const PHONE_HINT = '010-1234-5678';
 
-export const usernameOk = (v) => !!v && v.length <= 50 && !/\s/.test(v);
+export const usernameOk = (v) => !!v && v.length <= USERNAME_MAX && !/\s/.test(v);
 
 export const passwordOk = (v) => /^(?=.*\d).{8,}$/.test(v || '');
 

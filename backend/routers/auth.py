@@ -58,7 +58,7 @@ def login(body: LoginBody, db: Session = Depends(get_db)):
 def register(body: RegisterBody, db: Session = Depends(get_db)):
     username = body.username.strip()
     if not username_ok(username):
-        raise ApiError(400, "INVALID_USERNAME", "아이디는 공백 없이 50자 이하로 입력해 주세요.")
+        raise ApiError(400, "INVALID_USERNAME", "아이디는 공백 없이 12자 이하로 입력해 주세요.")
     if not password_ok(body.password):
         raise ApiError(400, "INVALID_PASSWORD", "비밀번호는 8자 이상이고 숫자를 포함해야 합니다.")
     email = normalize_email(body.email)
@@ -90,7 +90,7 @@ def check_username(username: str = "", db: Session = Depends(get_db)):
     # 회원가입 창의 "중복확인" 버튼. 가입할 때도 다시 확인하므로 여기 결과는 안내용
     username = username.strip()
     if not username_ok(username):
-        raise ApiError(400, "INVALID_USERNAME", "아이디는 공백 없이 50자 이하로 입력해 주세요.")
+        raise ApiError(400, "INVALID_USERNAME", "아이디는 공백 없이 12자 이하로 입력해 주세요.")
     return {"username": username, "available": find_user(db, username) is None}
 
 

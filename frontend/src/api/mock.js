@@ -119,7 +119,7 @@ const routes = {
   // 명세 2-2, 2-6. 실제 서버(backend/routers/auth.py)와 같은 규칙과 오류 코드
   'POST /auth/register': (body) => {
     const username = ((body && body.username) || '').trim();
-    if (!usernameOk(username)) return fail(400, 'INVALID_USERNAME', '아이디는 공백 없이 50자 이하로 입력해 주세요.');
+    if (!usernameOk(username)) return fail(400, 'INVALID_USERNAME', '아이디는 공백 없이 12자 이하로 입력해 주세요.');
     if (!passwordOk(body.password)) return fail(400, 'INVALID_PASSWORD', '비밀번호는 8자 이상이고 숫자를 포함해야 합니다.');
     const email = normalizeEmail(body.email);
     if (!email) return fail(400, 'INVALID_EMAIL', '올바른 이메일 주소를 입력해 주세요.');
@@ -133,7 +133,7 @@ const routes = {
   },
   'GET /auth/check-username': (body, params, query) => {
     const username = (query.username || '').trim();
-    if (!usernameOk(username)) return fail(400, 'INVALID_USERNAME', '아이디는 공백 없이 50자 이하로 입력해 주세요.');
+    if (!usernameOk(username)) return fail(400, 'INVALID_USERNAME', '아이디는 공백 없이 12자 이하로 입력해 주세요.');
     return ok({ username, available: !users.some((u) => u.username === username) });
   },
   'POST /auth/logout': () => ok({}),

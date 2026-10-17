@@ -179,6 +179,10 @@
 .auth-check-btn:hover:not(:disabled) { background: #f1f0ec; }
 .auth-check-btn:disabled { opacity: .4; cursor: default; }
 
+/* 필수 칸 이름은 굵게 + 자주색 *, 선택 칸은 보통 굵기 */
+.auth-field .auth-label-req { font-weight: 800; }
+.auth-req { margin-left: 3px; color: #a1232f; font-style: normal; font-weight: 800; }
+.auth-field .auth-label-opt { font-weight: 500; color: #3d3d3d; }
 .auth-optional { margin-left: 4px; color: #6f6f6f; font-style: normal; font-weight: 500; }
 
 /* 칸 아래 안내: 오류는 자주색, 확인 완료는 검정 */
