@@ -1,4 +1,5 @@
 """서버 설정 (저장 위치, 제한 값)."""
+import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent  # 저장소 맨 위 폴더
@@ -22,3 +23,6 @@ IMAGE_KINDS = {"garment", "person"}
 RESULT_KEEP_HOURS = 24
 RECENT_IMAGE_KEEP_HOURS = 24  # 합성하기 "최근 사용한 사진" 목록에 남기는 시간 (10/17, 올린 사진 기록 db.UploadedImage)
 RECENT_IMAGE_LIMIT = 12       # 최근 사용한 사진 목록 최대 장수 (상의, 인물 사진 각각)
+
+# 합성 후 원본 복원 후처리 (얼굴·머리·배경을 원본으로 되돌림, features/composition/restore.py). 끄기: MOA_RESTORE_ORIGINAL=0
+RESTORE_ORIGINAL = os.environ.get("MOA_RESTORE_ORIGINAL", "1") != "0"

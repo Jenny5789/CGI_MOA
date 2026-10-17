@@ -20,7 +20,7 @@ mask = extract_object(image_rgb, points=[(x1, y1)], neg_points=[(x2, y2)], box=(
 | `points` | `[(x, y), ...]` | 조건 | 포함 점 (상의 위) |
 | `neg_points` | `[(x, y), ...]` | - | 제외 점 |
 | `box` | `(x1, y1, x2, y2)` | 조건 | 상의를 감싸는 사각형 영역 |
-| `postprocess` | `bool` | - | 가장 큰 영역만 남기고 작은 구멍 채움 (기본 `True`) |
+| `postprocess` | `bool` | - | 포함 점이 찍힌 영역만 남기고(점이 없으면 가장 큰 영역) 작은 구멍 채움 (기본 `True`) |
 
 - 조건: `points`, `neg_points`, `box` 중 1개 이상
 - 좌표: 원본 이미지 픽셀 기준 (0~1 비율 아님)

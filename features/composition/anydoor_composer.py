@@ -6,6 +6,8 @@
 - AnyDoor 폴더(기본 Desktop\\AnyDoor)의 run_inference.py는 고치지 않는다.
   scripts/anydoor_compose_test.py와 같은 방식으로 모델 로딩과 inference_single_image 부분만 읽어서 쓴다.
 - 설정: 50스텝, float16 + save_memory (2026-10-11 확인: 화질 차이 없음)
+- 인물 사진에서 잘라 다시 그리는 정사각형: AnyDoor 기본 1.5~2.9배 무작위 → 1.3배 고정
+  (2026-10-12 결정: 배율 비교 실험에서 머리카락·귀걸이 유지가 낫고 옷 변형이 가장 적음, run_inference.py는 그대로)
 - 모델 파일(16.8GB)은 본체 RAM에서 열고 모델 가중치(약 9.2GB)만 GPU로 옮긴다 (load_on_cpu).
   원래 코드는 파일 전체를 GPU에서 열어 10GB를 넘기고, 모자란 만큼 본체 메모리를 빌려 써서 느려졌다.
   (2026-10-13 측정: 같은 사진·seed로 1장 115초 → 60초, 결과 그림은 완전히 같음)
@@ -25,6 +27,7 @@ import numpy as np
 
 ANYDOOR_DIR = Path(os.environ.get("ANYDOOR_DIR", Path.home() / "Desktop" / "AnyDoor"))
 DDIM_STEPS = 50  # 기본 스텝 수. compose(steps=...)로 바꿀 수 있다
+CROP_RATIO = 1.3  # 잘라 다시 그리는 정사각형 배율 (None이면 AnyDoor 기본 1.5~2.9배 무작위)
 
 
 # run_inference.py process_pairs에서 다시 그릴 영역(collage_mask)을 사각형으로 채우는 줄
@@ -46,11 +49,12 @@ def _patch_shape_control(src):
 
 
 class AnyDoorComposer:
-    def __init__(self, anydoor_dir=ANYDOOR_DIR, save_memory=True, fp16=True, load_on_cpu=True):
+    def __init__(self, anydoor_dir=ANYDOOR_DIR, save_memory=True, fp16=True, load_on_cpu=True, crop_ratio=CROP_RATIO):
         self.anydoor_dir = Path(anydoor_dir).resolve()
         self.save_memory = save_memory
         self.fp16 = fp16
         self.load_on_cpu = load_on_cpu
+        self.crop_ratio = crop_ratio
         self._ns = None
         self._progress = None  # 합성 중에만 설정되는 진행률 알림 함수
 
@@ -73,6 +77,13 @@ class AnyDoorComposer:
         if "ddim_steps = 50" not in src:
             raise RuntimeError("run_inference.py에서 ddim_steps = 50을 찾지 못했습니다. AnyDoor 코드가 바뀌었는지 확인하세요.")
         src = src.replace("ddim_steps = 50", "ddim_steps = _MOA_DDIM_STEPS", 1)
+        if self.crop_ratio is not None:
+            # 정사각형 배율: expand_bbox가 randint(앞×10, 뒤×10)/10으로 뽑으므로 [1.3, 1.4]면 항상 1.3
+            # (scripts/anydoor_crop_sweep.py와 같은 값. 뽑기 횟수는 그대로라 같은 seed면 배율만 다른 결과)
+            if "ratio=[1.5, 3]" not in src:
+                raise RuntimeError("run_inference.py에서 ratio=[1.5, 3]을 찾지 못했습니다. AnyDoor 코드가 바뀌었는지 확인하세요.")
+            r = round(float(self.crop_ratio), 1)
+            src = src.replace("ratio=[1.5, 3]", f"ratio=[{r}, {round(r + 0.1, 1)}]", 1)
 
         # run_inference.py가 ./configs/... 같은 상대 경로를 쓰므로 불러오는 동안만 AnyDoor 폴더로 이동
         if str(self.anydoor_dir) not in sys.path:
