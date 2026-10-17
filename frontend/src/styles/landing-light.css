@@ -439,17 +439,18 @@ a { color: inherit; }
 /* ---------- 창 높이가 작아도 첫 화면(위쪽 소개와 예시 사진)이 한 화면에 들어오게 ----------
    글자, 여백, 예시 사진 크기를 창 높이에 맞춰 줄인다. 큰 화면에서는 위의 원래 크기를 넘지 않는다. */
 @media (min-width: 1001px) {
-  /* 오른쪽 예시 사진 칸을 넓혀 세 사진이 서로 닿지 않게 한다 */
+  /* 오른쪽 예시 사진 칸을 넓혀 사진을 크게 보여 준다 */
   .ln-hero { grid-template-columns: 1fr 1.5fr; padding: clamp(24px, 4vh, 56px) 48px clamp(40px, 7vh, 120px); }
   .ln-logo-text { margin-bottom: clamp(16px, 3vh, 36px); }
   .ln-hero h1 { font-size: clamp(40px, min(4.8vw, 7vh), 78px); margin-bottom: clamp(16px, 2.6vh, 30px); }
   .ln-sub { font-size: clamp(18px, min(1.9vw, 2.8vh), 30px); margin-bottom: clamp(22px, 3.6vh, 42px); }
   .ln-btn { padding: clamp(16px, 2.4vh, 24px) clamp(32px, 3vw, 46px); font-size: clamp(18px, 2.2vh, 22px); }
-  /* --h: 예시 사진 칸 높이. 왼쪽 두 장의 크기와 결과 사진의 시작 위치를 모두 이 값으로 계산해 서로 겹치지 않게 한다 */
+  /* --h: 예시 사진 칸 높이. 세 장을 서로 살짝 겹쳐 붙인다 (원래 디자인처럼 왼쪽 두 장이 결과 사진의 왼쪽 가장자리를 덮음).
+     왼쪽 두 장의 크기와 결과 사진의 시작 위치를 모두 이 값으로 계산해 창 크기가 바뀌어도 겹치는 정도가 같다 */
   .ln-compose { --h: clamp(500px, calc(100vh - 250px), 720px); height: var(--h); }
-  .ln-card-object { top: 0; height: calc(var(--h) * 0.46); width: auto; aspect-ratio: 11 / 12; }
-  .ln-card-bg { top: calc(var(--h) * 0.53); left: 20px; height: calc(var(--h) * 0.46); width: auto; aspect-ratio: 11 / 12; }
-  .ln-card-result { top: 0; left: calc(var(--h) * 0.46 * 11 / 12 + 64px); right: 0; width: auto; height: 98%; }
+  .ln-card-object { top: 0; height: calc(var(--h) * 0.48); width: auto; aspect-ratio: 11 / 12; }
+  .ln-card-bg { top: calc(var(--h) * 0.47); left: 28px; height: calc(var(--h) * 0.48); width: auto; aspect-ratio: 11 / 12; }
+  .ln-card-result { top: 0; left: calc(var(--h) * 0.48 * 11 / 12 - 24px); right: 0; width: auto; height: 98%; }
 }
 
 /* ---------- 들어올 때 연출 ----------
