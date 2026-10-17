@@ -30,20 +30,6 @@ export function checkUsername(username) {
   return request('GET', `/auth/check-username?username=${encodeURIComponent(username)}`);
 }
 
-// 저장된 토큰이 아직 유효한지 서버에 확인 (명세 2-3, 화면을 열 때 1회, 10/18)
-// 만료·무효(401)면 토큰을 지우고 false. 서버에 닿지 못하는 등 다른 실패는 확인할 수 없으니 그대로 둔다(true)
-export async function checkLogin() {
-  if (!getToken()) return false;
-  try {
-    await request('GET', '/me', undefined, { notifyExpired: false });
-    return true;
-  } catch (e) {
-    if (e.status !== 401) return true;
-    setToken(null);
-    return false;
-  }
-}
-
 // 로그인 시간 연장 (명세 외 추가 10/15). 성공하면 새 만료 시각(Date)을 돌려준다. 이미 만료됐으면 401 → 로그아웃 처리됨
 export async function extendLogin() {
   const data = await request('POST', '/auth/extend');
