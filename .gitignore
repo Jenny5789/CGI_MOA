@@ -30,3 +30,7 @@ backend/.env
 
 # 개인 작업 메모 (팀 공유 안 함)
 docs/작업메모.md
+
+# 화면 예시 생성 이미지 원본 PNG (장당 약 2MB): 각자 보관하고, 저장소에는 scripts/compress_web_images.py로 줄인 JPG만 올림
+generated_assets/
+frontend/public/assets/generated/**/*.png

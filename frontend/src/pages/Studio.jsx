@@ -24,16 +24,20 @@ import MaskEditor from '../studio/MaskEditor.jsx';
 import { listResults, updateResult } from '../api/results.js';
 import { extractGarment, getJob, getResult, requestCompose, uploadImage } from '../api/studio.js';
 import { formatKoreanDate } from '../utils/date.js';
+import { baseModels, fullBodyModels, thumbOf, topsOnly, topsWorn } from '../data/generatedAssets.js';
 
 // 이 화면은 body 아래가 세로로 꽉 차는 구조라서 React가 끼워 넣은 #root 칸도 같은 모양으로 맞춘다
 const ROOT_CSS = '\n#root { height: 100%; display: flex; flex-direction: column; min-height: 0; }\n'
   + '@media (max-width: 1100px) { #root { height: auto; display: block; } }\n';
 const PAGE_CSS = studioCss + ROOT_CSS;
 
-const SAMPLES = {
-  1: ['/assets/gallery/AutumnWarm_Male.jpg', '/assets/gallery/SpringWarm_Female.jpg', '/assets/gallery/SummerCool_Female.jpg'],
-  2: ['/assets/samples/sample-object-person.jpg', '/assets/gallery/girl_Santorini.jpg', '/assets/gallery/Paris_Female.jpg'],
+// 예시 사진: 단계 제목 옆에는 묶음마다 3장씩(6장)만 보이고, 전체는 "더보기" 창에서 묶음별로 고른다
+const SAMPLE_GROUPS = {
+  1: [{ label: '옷만 찍은 사진', items: topsOnly }, { label: '사람이 입은 사진', items: topsWorn }],
+  2: [{ label: '상반신', items: baseModels }, { label: '전신', items: fullBodyModels }],
 };
+const SAMPLES = { 1: SAMPLE_GROUPS[1].flatMap((g) => g.items), 2: SAMPLE_GROUPS[2].flatMap((g) => g.items) };
+const FEATURED = { 1: SAMPLE_GROUPS[1].flatMap((g) => g.items.slice(0, 3)), 2: SAMPLE_GROUPS[2].flatMap((g) => g.items.slice(0, 3)) };
 
 const STEPS = [
   { n: 1, label: '상의 사진' },
@@ -142,6 +146,7 @@ export default function Studio() {
   const [c3ui, setC3ui] = useState({ total: 0, neg: 0, pos: 0, canUndo: false });
   const [c4ui, setC4ui] = useState({ neg: 0, pos: 0, canUndo: false });
   const [editor, setEditor] = useState(null); // 다듬기 팝업: { kind: 'extract' | 'area', image, mask }
+  const [sampleBrowser, setSampleBrowser] = useState(null); // 예시 더보기 창: 1 상의 사진 / 2 인물 사진
   const [settingsOpen, setSettingsOpen] = useState(false); // 합성 설정 팝업
   const [opts, setOpts] = useState({ refine: false, shape: false }); // Reference Mask Refine, Enable Shape Control
   const [busy, setBusy] = useState(false);
@@ -240,6 +245,14 @@ export default function Studio() {
     const cur = step === 1 ? data.current.obj : data.current.bg;
     if (cur) showPreview(step, cur.src, SAMPLES[step].includes(cur.src));
   }, [step, enterTick]);
+
+  // 예시 더보기 창은 Esc로도 닫는다
+  useEffect(() => {
+    if (!sampleBrowser) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') setSampleBrowser(null); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [sampleBrowser]);
 
   // 사진을 칸 밖에 놓쳐도 브라우저가 그 사진을 열어 버리지 않게 막는다
   useEffect(() => {
@@ -616,11 +629,19 @@ export default function Studio() {
           <div className="sg-head-tools">
             <span className="sg-sample-label">예시</span>
             <div className="sg-samples">
-              {SAMPLES[n].map((src) => (
+              {FEATURED[n].map((src) => (
                 <button key={src} type="button" className={'sg-sample' + (p.fromSample && p.src === src ? ' selected' : '')} onClick={() => showPreview(n, src, true)}>
-                  <img src={src} alt="" />
+                  <img src={thumbOf(src)} alt="" loading="lazy" decoding="async" />
                 </button>
               ))}
+              <button
+                type="button"
+                className={'sg-sample sg-sample-more' + (p.fromSample && !FEATURED[n].includes(p.src) ? ' selected' : '')}
+                aria-label={`예시 ${SAMPLES[n].length}장 모두 보기`}
+                onClick={() => setSampleBrowser(n)}
+              >
+                더보기
+              </button>
             </div>
             <label className="sg-upload-btn">
               <input ref={inputRef[n]} type="file" accept="image/*" hidden onChange={(e) => { takeFile(n, e.target.files[0]); e.target.value = ''; }} />
@@ -846,6 +867,37 @@ export default function Studio() {
           onCancel={closeEditor}
           onDone={finish4}
         />
+      )}
+
+      {/* 1, 2단계 예시 더보기: 묶음별로 전체 예시를 보여 주고, 고르면 큰 화면에 띄운 뒤 닫는다 */}
+      {sampleBrowser && (
+        <div className="sg-modal" role="dialog" aria-modal="true" aria-label="예시 사진">
+          <div className="sg-modal-box sg-modal-wide sg-sample-browser">
+            <div className="sg-modal-head">
+              <h3>{sampleBrowser === 1 ? '상의 사진 예시' : '인물 사진 예시'}</h3>
+              <button type="button" className="sg-modal-close" aria-label="닫기" onClick={() => setSampleBrowser(null)}>×</button>
+            </div>
+            <div className="sg-sample-scroll">
+              {SAMPLE_GROUPS[sampleBrowser].map((g) => (
+                <section key={g.label} className="sg-sample-group">
+                  <h4>{g.label}<span>{g.items.length}장</span></h4>
+                  <div className="sg-sample-grid">
+                    {g.items.map((src) => (
+                      <button
+                        key={src}
+                        type="button"
+                        className={'sg-sample-tile' + (pick[sampleBrowser].fromSample && pick[sampleBrowser].src === src ? ' selected' : '')}
+                        onClick={() => { showPreview(sampleBrowser, src, true); setSampleBrowser(null); }}
+                      >
+                        <img src={thumbOf(src)} alt="" loading="lazy" decoding="async" />
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* 합성 설정 팝업 */}
