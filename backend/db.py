@@ -2,6 +2,7 @@
 
 - 접속 정보: backend/.env 의 DATABASE_URL (각자 컴퓨터의 MySQL, GitHub에 올리지 않음). 만드는 법: docs/database.md
 - 서버가 켜질 때 init_db()가 표가 없으면 만들고, 시험용 회원 test / test1234 를 넣는다
+- 예전에 만든 표에 새 칸이 없으면 추가한다 (_add_missing_columns, 10/17 회원가입 전화번호 phone)
 - DB에 접속하지 못해도 서버는 켜진다 (추출·합성은 DB를 안 씀). 그때 로그인 관련 주소만 503
 """
 import logging
@@ -9,7 +10,7 @@ import os
 from datetime import datetime, timezone
 
 from dotenv import load_dotenv
-from sqlalchemy import DateTime, ForeignKey, Integer, String, create_engine, select
+from sqlalchemy import DateTime, ForeignKey, Integer, String, create_engine, inspect, select, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
 from backend.config import ROOT
@@ -35,7 +36,8 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(50), unique=True)
     password_hash: Mapped[str] = mapped_column(String(255))  # 원문은 저장하지 않음 (auth.py)
     name: Mapped[str] = mapped_column(String(100))
-    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True)  # 회원가입 필수 (10/17), 예전 회원은 비어 있을 수 있음
+    phone: Mapped[str | None] = mapped_column(String(20), nullable=True)  # 선택, "010-1234-5678" 형식으로 저장
     created_at: Mapped[datetime] = mapped_column(DateTime)  # UTC
 
 
@@ -66,6 +68,7 @@ def init_db():
     try:
         engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_recycle=3600)
         Base.metadata.create_all(engine)
+        _add_missing_columns(engine)
         SessionLocal = sessionmaker(engine, expire_on_commit=False)
         with SessionLocal() as s:
             if s.scalar(select(User).where(User.username == TEST_USER["username"])) is None:
@@ -81,6 +84,15 @@ def init_db():
         # MySQL이 돌려준 오류 문장만 남긴다 (비밀번호가 담긴 접속 주소는 남기지 않음)
         reason = getattr(e, "orig", None) or e
         log.error("DB에 연결하지 못했습니다: %s. 로그인 기능 없이 켭니다. 조치: docs/database.md 4. 오류별 조치", reason)
+
+
+def _add_missing_columns(engine):
+    """create_all은 이미 있는 표를 고치지 않으므로, 나중에 생긴 칸은 여기서 추가한다 (데이터는 그대로)"""
+    cols = {c["name"] for c in inspect(engine).get_columns("users")}
+    if "phone" not in cols:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE users ADD COLUMN phone VARCHAR(20) NULL"))
+        log.info("users 표에 phone(전화번호) 칸을 추가했습니다")
 
 
 def get_db():

@@ -17,6 +17,19 @@ export async function login(username, password) {
   return data.user;
 }
 
+// 명세 2-2. 가입하면 바로 로그인 상태가 된다 (토큰 저장). form: { username, password, email, phone? }
+export async function register(form) {
+  const data = await request('POST', '/auth/register', form);
+  setToken(data.token);
+  setExpiresAt(data.expires_at);
+  return data.user;
+}
+
+// 명세 2-6. 아이디 중복확인 → { username, available }
+export function checkUsername(username) {
+  return request('GET', `/auth/check-username?username=${encodeURIComponent(username)}`);
+}
+
 // 로그인 시간 연장 (명세 외 추가 10/15). 성공하면 새 만료 시각(Date)을 돌려준다. 이미 만료됐으면 401 → 로그아웃 처리됨
 export async function extendLogin() {
   const data = await request('POST', '/auth/extend');

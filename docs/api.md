@@ -53,6 +53,7 @@
 |---|---|---|---|
 | 로그인 | 아이디·비밀번호 입력 후 로그인 | `POST /api/auth/login` | [2-1. 로그인](#2-1-로그인) |
 | 회원가입 | 회원 정보 입력 후 가입 | `POST /api/auth/register` | [2-2. 회원가입](#2-2-회원가입) |
+| 아이디 중복확인 | 회원가입 창에서 중복확인 버튼 | `GET /api/auth/check-username` | [2-6. 아이디 중복확인](#2-6-아이디-중복확인) |
 
 ### 1-2. 합성하기 페이지 (`/studio`)
 
@@ -130,8 +131,9 @@
 |---|---|---|---|
 | `username` | `string` | O | 아이디 (공백 없이 50자 이하) |
 | `password` | `string` | O | 비밀번호 (8자 이상, 숫자 1개 이상 포함) |
+| `email` | `string` | O | 이메일 (형식 검사, 소문자로 저장, 한 이메일로 1회만 가입) |
+| `phone` | `string` | - | 휴대폰 번호 (`010-1234-5678`, 하이픈 생략 가능, `010-1234-5678` 형식으로 저장) |
 | `name` | `string` | - | 이름 (생략 시 아이디로 저장) |
-| `email` | `string` | - | 이메일 |
 
 - 응답 (200): 2-1. 로그인과 동일
 - 오류
@@ -140,9 +142,13 @@
 |---|---|---|
 | 400 | `INVALID_USERNAME` | 아이디 공백 포함 또는 50자 초과 |
 | 400 | `INVALID_PASSWORD` | 비밀번호 규칙 위반 |
+| 400 | `INVALID_EMAIL` | 이메일 누락 또는 형식 오류 |
+| 400 | `INVALID_PHONE` | 전화번호 입력 시 휴대폰 번호 형식 오류 |
 | 409 | `DUPLICATE_USERNAME` | 이미 사용 중인 아이디 |
+| 409 | `DUPLICATE_EMAIL` | 이미 가입된 이메일 (대소문자 구분 없음) |
 
-- 비고: 프론트엔드도 전송 전 비밀번호 규칙을 동일하게 검사
+- 비고: 프론트엔드도 전송 전 같은 규칙으로 검사 (`frontend/src/auth/signupRules.js`), 비밀번호 확인 칸은 프론트엔드에서만 비교
+- 비고: 이메일 인증 메일은 보내지 않음 (형식 검사와 중복 가입 금지로 무분별한 가입 방지)
 
 ### 2-3. 내 정보 조회
 
@@ -156,6 +162,7 @@
 | `username` | `string` | 아이디 |
 | `name` | `string` | 이름 |
 | `email` | `string` \| `null` | 이메일 |
+| `phone` | `string` \| `null` | 휴대폰 번호 |
 | `avatar_url` | `string` \| `null` | 프로필 이미지 주소 (현재 null) |
 
 ```json
@@ -164,6 +171,7 @@
   "username": "test",
   "name": "MOA User",
   "email": "moa.user@example.com",
+  "phone": null,
   "avatar_url": null
 }
 ```
@@ -185,6 +193,17 @@
 - 응답 (200): `{ "expires_at": "2026-10-15T21:05:00+09:00" }` (토큰 문자열은 그대로)
 - 오류: 0-2. 오류 응답의 공통 오류만 발생 (이미 만료된 토큰은 401, 재로그인 필요)
 - 비고: 연장 안내 시점 등 화면 규칙은 [login_extend.md](login_extend.md)
+
+### 2-6. 아이디 중복확인
+
+- 개요: 회원가입 창의 중복확인 버튼. 가입 요청(2-2) 때도 서버가 다시 확인
+- 요청: `GET /api/auth/check-username?username=newbie`, 인증 불필요
+- 응답 (200): `{ "username": "newbie", "available": true }` (`available`: 사용 가능 여부, `username`: 앞뒤 공백을 지운 값)
+- 오류
+
+| 상태 코드 | `code` | 발생 조건 |
+|---|---|---|
+| 400 | `INVALID_USERNAME` | 아이디 비어 있음, 공백 포함 또는 50자 초과 |
 
 [↑ 1. 페이지별 호출 API](#1-페이지별-호출-api)
 

@@ -24,6 +24,9 @@ from backend.storage import KST
 TOKEN_HOURS = 3
 _ITERATIONS = 600_000
 _PASSWORD_RULE = re.compile(r"^(?=.*\d).{8,}$")  # 명세 2-2: 8자 이상, 숫자 포함
+# 명세 2-2 이메일: 인증 메일은 보내지 않지만, 형식이 맞아야 하고 한 이메일로 한 번만 가입 (무분별한 가입 방지)
+_EMAIL_RULE = re.compile(r"^[a-z0-9._%+-]+@[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$")
+_PHONE_RULE = re.compile(r"^01[016789]\d{7,8}$")  # 휴대폰 번호 (하이픈 빼고 10~11자리)
 
 
 def hash_password(password: str) -> str:
@@ -43,6 +46,25 @@ def verify_password(password: str, stored: str) -> bool:
 
 def password_ok(password: str) -> bool:
     return bool(_PASSWORD_RULE.match(password or ""))
+
+
+def username_ok(username: str) -> bool:
+    """명세 2-2 아이디: 공백 없이 1~50자 (앞뒤 공백은 미리 지운 값)"""
+    return bool(username) and len(username) <= 50 and not any(c.isspace() for c in username)
+
+
+def normalize_email(email: str | None) -> str | None:
+    """소문자로 맞춘 이메일. 형식이 틀리면 None"""
+    e = (email or "").strip().lower()
+    return e if len(e) <= 255 and _EMAIL_RULE.match(e) else None
+
+
+def normalize_phone(phone: str | None) -> str | None:
+    """"010-1234-5678" 모양으로 맞춘 휴대폰 번호. 형식이 틀리면 None (빈 값 처리는 부르는 쪽에서)"""
+    digits = re.sub(r"[\s-]", "", phone or "")
+    if not _PHONE_RULE.match(digits):
+        return None
+    return f"{digits[:3]}-{digits[3:-4]}-{digits[-4:]}"
 
 
 def _token_hash(token: str) -> str:
@@ -105,3 +127,7 @@ def current_user(credentials: HTTPAuthorizationCredentials | None = Depends(_bea
 
 def find_user(db: Session, username: str) -> User | None:
     return db.scalar(select(User).where(User.username == username))
+
+
+def find_user_by_email(db: Session, email: str) -> User | None:
+    return db.scalar(select(User).where(User.email == email))

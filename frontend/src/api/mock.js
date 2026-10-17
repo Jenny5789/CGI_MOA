@@ -1,6 +1,8 @@
 /* 가짜 서버. 실제 서버처럼 조금 기다린 뒤 { status, data } 를 돌려준다.
    기능을 하나씩 옮길 때마다 아래 routes에 주소를 추가한다. 주소 안의 {이름} 부분은 params로, ?뒤 조건은 query로 넘어온다.
    데이터는 메모리에만 있어서 새로고침하면 처음 상태로 돌아간다. */
+import { normalizeEmail, normalizePhone, passwordOk, usernameOk } from '../auth/signupRules.js';
+
 const DEMO_ID = 'test';
 const DEMO_PW = 'test';
 const DEMO_TOKEN = 'mock-token';
@@ -103,12 +105,36 @@ async function fakeMask(image, points, box) {
   };
 }
 
+// 회원 (회원가입한 사람은 새로고침 전까지만 남는다). 가짜 서버는 토큰 하나(DEMO_TOKEN)를 모두에게 준다
+const users = [{ id: 1, username: DEMO_ID, password: DEMO_PW, name: 'MOA User', email: 'moa.user@example.com' }];
+
 const routes = {
   'POST /auth/login': (body) => {
-    if (body && body.username === DEMO_ID && body.password === DEMO_PW) {
-      return ok({ token: DEMO_TOKEN, expires_at: expiresAt(), user: { id: 1, username: DEMO_ID, name: 'MOA User' } });
+    const u = body && users.find((x) => x.username === body.username && x.password === body.password);
+    if (u) {
+      return ok({ token: DEMO_TOKEN, expires_at: expiresAt(), user: { id: u.id, username: u.username, name: u.name } });
     }
     return fail(401, 'INVALID_CREDENTIALS', '아이디 또는 비밀번호가 올바르지 않습니다');
+  },
+  // 명세 2-2, 2-6. 실제 서버(backend/routers/auth.py)와 같은 규칙과 오류 코드
+  'POST /auth/register': (body) => {
+    const username = ((body && body.username) || '').trim();
+    if (!usernameOk(username)) return fail(400, 'INVALID_USERNAME', '아이디는 공백 없이 50자 이하로 입력해 주세요.');
+    if (!passwordOk(body.password)) return fail(400, 'INVALID_PASSWORD', '비밀번호는 8자 이상이고 숫자를 포함해야 합니다.');
+    const email = normalizeEmail(body.email);
+    if (!email) return fail(400, 'INVALID_EMAIL', '올바른 이메일 주소를 입력해 주세요.');
+    const phone = (body.phone || '').trim() ? normalizePhone(body.phone) : null;
+    if (phone === null && (body.phone || '').trim()) return fail(400, 'INVALID_PHONE', '휴대폰 번호를 010-1234-5678 형식으로 입력해 주세요.');
+    if (users.some((u) => u.username === username)) return fail(409, 'DUPLICATE_USERNAME', '이미 사용 중인 아이디입니다.');
+    if (users.some((u) => u.email === email)) return fail(409, 'DUPLICATE_EMAIL', '이미 가입된 이메일입니다.');
+    const u = { id: users.length + 1, username, password: body.password, name: username, email, phone };
+    users.push(u);
+    return ok({ token: DEMO_TOKEN, expires_at: expiresAt(), user: { id: u.id, username, name: u.name } });
+  },
+  'GET /auth/check-username': (body, params, query) => {
+    const username = (query.username || '').trim();
+    if (!usernameOk(username)) return fail(400, 'INVALID_USERNAME', '아이디는 공백 없이 50자 이하로 입력해 주세요.');
+    return ok({ username, available: !users.some((u) => u.username === username) });
   },
   'POST /auth/logout': () => ok({}),
   'POST /auth/extend': () => ok({ expires_at: expiresAt() }),
@@ -203,7 +229,7 @@ const routes = {
 };
 
 // 로그인 없이 쓸 수 있는 주소
-const PUBLIC = new Set(['POST /auth/login']);
+const PUBLIC = new Set(['POST /auth/login', 'POST /auth/register', 'GET /auth/check-username']);
 
 // "GET /results/res_001?x=1" 을 routes의 "GET /results/{id}" 와 맞춰 본다
 function match(method, path) {

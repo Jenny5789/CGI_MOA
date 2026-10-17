@@ -18,6 +18,7 @@ const BASE = '/api'; // 개발 중에는 vite.config.js의 프록시가 실제 �
 // mixed 모드에서 실제 서버로 보낼 요청 ("방식 주소" 모양으로 검사)
 const REAL_ROUTES = [
   /^POST \/auth\/(login|register|logout|extend)$/, // 로그인, 회원가입, 로그아웃, 시간 연장 (2-1, 2-2, 2-4, 추가)
+  /^GET \/auth\/check-username(\?.*)?$/,       // 아이디 중복확인 (2-6)
   /^GET \/me$/,                               // 내 정보 (2-3)
   /^POST \/images$/,
   /^POST \/extract$/,

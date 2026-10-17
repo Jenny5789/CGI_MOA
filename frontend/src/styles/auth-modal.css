@@ -151,6 +151,43 @@
   cursor: pointer;
 }
 
+/* ---------- 회원가입 팝업 (SignupModal.jsx) ---------- */
+.auth-modal-signup .auth-modal-box {
+  max-width: 460px;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+}
+
+/* 아이디 칸 + 중복확인 버튼 */
+.auth-field-row { display: flex; gap: 8px; }
+.auth-field-row input { flex: 1; min-width: 0; }
+
+.auth-check-btn {
+  flex: none;
+  height: 46px;
+  padding: 0 16px;
+  border: 1.5px solid #16171b;
+  background: #ffffff;
+  color: #16171b;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background .15s, opacity .15s;
+}
+.auth-check-btn:hover:not(:disabled) { background: #f1f0ec; }
+.auth-check-btn:disabled { opacity: .4; cursor: default; }
+
+.auth-optional { margin-left: 4px; color: #6f6f6f; font-style: normal; font-weight: 500; }
+
+/* 칸 아래 안내: 오류는 자주색, 확인 완료는 검정 */
+.auth-msg { display: block; margin-top: 6px; font-size: 13px; line-height: 1.5; }
+.auth-msg.error { color: #a1232f; }
+.auth-msg.ok { color: #16171b; }
+.auth-msg.ok::before { content: "✓ "; }
+.auth-field input.invalid { border-color: #a1232f; }
+
 /* ---------- 안내 토스트 (이 팝업 전용) ---------- */
 .auth-toast {
   position: fixed;

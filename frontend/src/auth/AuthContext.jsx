@@ -1,10 +1,11 @@
-/* 로그인 상태와 로그인 팝업.
+/* 로그인 상태와 로그인 팝업, 회원가입 팝업(SignupModal.jsx).
    로그인 요청은 src/api/auth.js가 보낸다. 서버가 없는 지금은 가짜 서버가 아이디 test / 비밀번호 test 로만 로그인시킨다.
    로그인하면 받은 토큰을 이 브라우저에 저장하고, 토큰이 있으면 로그인된 상태로 본다. */
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import useToast from '../components/useToast.js';
 import * as authApi from '../api/auth.js';
+import SignupModal from './SignupModal.jsx';
 import { getToken, UNAUTHORIZED_EVENT } from '../api/client.js';
 
 const WELCOME = 'MOA에 오신 것을 환영합니다.';
@@ -21,6 +22,7 @@ export const useAuth = () => useContext(AuthContext);
 export function AuthProvider({ children }) {
   const [loggedIn, setLoggedIn] = useState(() => !!getToken());
   const [modal, setModal] = useState({ open: false, sub: WELCOME, next: null });
+  const [signup, setSignup] = useState({ open: false, next: null }); // next: 가입 뒤 갈 화면 (로그인 창에서 넘어온 경우)
   const [toast, showToast] = useToast(2000);
   const navigate = useNavigate();
   const location = useLocation();
@@ -30,6 +32,14 @@ export function AuthProvider({ children }) {
   }, []);
 
   const closeLogin = useCallback(() => setModal({ open: false, sub: WELCOME, next: null }), []);
+
+  // 회원가입 창: 로그인 창이 열려 있었으면 닫고 연다
+  const openSignup = useCallback((next = null) => {
+    setModal({ open: false, sub: WELCOME, next: null });
+    setSignup({ open: true, next });
+  }, []);
+
+  const closeSignup = useCallback(() => setSignup({ open: false, next: null }), []);
 
   // 로그인이 필요한 화면(합성하기, 마이페이지)에서 튕겨 왔을 때 로그인 팝업을 바로 연다
   useEffect(() => {
@@ -64,6 +74,16 @@ export function AuthProvider({ children }) {
     return true;
   };
 
+  // 명세 2-2. 실패하면 오류를 그대로 던져 SignupModal이 칸 옆에 알려 준다
+  const register = async (form) => {
+    const next = signup.next;
+    await authApi.register(form);
+    setLoggedIn(true);
+    closeSignup();
+    if (next) navigate(next);
+    showToast('가입이 완료되었습니다. ' + WELCOME);
+  };
+
   const logout = () => {
     authApi.logout();
     setLoggedIn(false);
@@ -71,12 +91,20 @@ export function AuthProvider({ children }) {
     showToast('로그아웃되었습니다');
   };
 
-  const value = { loggedIn, openLogin, login, logout, showToast };
+  const value = { loggedIn, openLogin, openSignup, login, logout, showToast };
 
   return (
     <AuthContext.Provider value={value}>
       {children}
-      <LoginModal modal={modal} onClose={closeLogin} onSubmit={login} onSignup={() => showToast('회원가입은 준비 중입니다')} />
+      <LoginModal modal={modal} onClose={closeLogin} onSubmit={login} onSignup={() => openSignup(modal.next)} />
+      {signup.open && (
+        <SignupModal
+          onClose={closeSignup}
+          onSubmit={register}
+          onLogin={() => { const next = signup.next; closeSignup(); openLogin(next); }}
+          showToast={showToast}
+        />
+      )}
       <div className={'auth-toast' + (toast.show ? ' show' : '')}>{toast.msg}</div>
     </AuthContext.Provider>
   );
