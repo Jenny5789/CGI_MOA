@@ -194,9 +194,11 @@ body { display: flex; flex-direction: column; overflow: hidden; }
   font-weight: 700;
   transition: background .3s ease, border-color .3s ease, color .3s ease, transform .3s var(--ease);
 }
+/* 단계 표시: 끝난 단계는 검정으로 칠하고, 지금 단계는 자주색으로 칠해 크게 (왼쪽 진행 상황의 지금 칸과 같은 색) */
+.sg-stepper li.done { color: var(--ink); }
+.sg-stepper li.done span { background: var(--ink); border-color: var(--ink); color: #fff; }
 .sg-stepper li.current { color: var(--ink); font-weight: 800; }
-.sg-stepper li.current span { background: var(--ink); border-color: var(--ink); color: #fff; transform: scale(1.12); }
-.sg-stepper li.done span { border-color: var(--ink); color: var(--ink); }
+.sg-stepper li.current span { background: var(--accent); border-color: var(--accent); color: #fff; transform: scale(1.12); }
 
 .sg-stage {
   flex: 1;
@@ -362,6 +364,52 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 .sg-sample img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .sg-sample:hover { transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0, 0, 0, 0.16); }
 .sg-sample.selected { border-color: var(--ink); }
+.sg-sample-more {
+  width: auto;
+  padding: 0 12px;
+  background: var(--white);
+  border: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.sg-sample-more.selected { border: 2px solid var(--ink); }
+
+/* 예시 더보기 창: 묶음별 격자, 창 안에서만 스크롤 */
+.sg-sample-browser { height: min(760px, 90vh); }
+.sg-sample-scroll { flex: 1; min-height: 0; overflow-y: auto; padding-right: 6px; }
+.sg-sample-group + .sg-sample-group { margin-top: 24px; }
+.sg-sample-group h4 { margin: 0 0 10px; font-size: 16px; font-weight: 800; }
+.sg-sample-group h4 span { margin-left: 8px; font-size: 13px; font-weight: 500; color: var(--muted); }
+.sg-sample-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 10px; }
+.sg-sample-tile {
+  aspect-ratio: 1 / 1;
+  padding: 0;
+  overflow: hidden;
+  border: 2px solid transparent;
+  background: #eee;
+  transition: border-color .2s ease, transform .25s var(--ease), box-shadow .25s ease;
+}
+.sg-sample-tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.sg-sample-tile:hover { transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0, 0, 0, 0.16); }
+.sg-sample-tile.selected { border-color: var(--ink); }
+/* 최근 사용한 사진 묶음: 기본 예시와 선으로 나눈다 */
+.sg-sample-recent { padding-bottom: 22px; border-bottom: 1px solid var(--border); }
+
+/* 상단 막대 왼쪽: 초기화 + 이전. 버튼·단계 이름이 두 줄로 꺾이지 않게 하고, 좁은 화면에서는 조금 작게 */
+.sg-bar-side { display: flex; align-items: center; gap: 8px; }
+.sg-nav-btn, .sg-stepper li { white-space: nowrap; }
+@media (max-width: 1279px) {
+  .sg-bar { gap: 10px; padding: 10px 14px; }
+  .sg-nav-btn { padding: 0 12px; font-size: 14px; }
+  .sg-stepper li { padding: 0 5px; }
+}
+.sg-reset-btn { border-color: #c9c6be; color: var(--muted); }
+.sg-reset-btn:hover:not(:disabled) { border-color: var(--ink); color: var(--ink); }
+
+/* 확인 창 본문 */
+.sg-modal-text { margin: 4px 0 26px; font-size: 16px; line-height: 1.7; color: var(--muted); }
 
 .sg-upload-btn {
   display: inline-flex;
@@ -478,6 +526,34 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 }
 .sg-canvas { display: block; touch-action: none; cursor: crosshair; animation: sg-fade .45s ease backwards; }
 .sg-canvas[hidden] { display: none; }
+
+/* 3·4단계 확대 버튼 (사진 칸 오른쪽 위) */
+.sg-zoom {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.92);
+}
+.sg-zoom button {
+  min-width: 30px;
+  height: 30px;
+  padding: 0 8px;
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.sg-zoom button:hover:not(:disabled) { background: #f1f0ec; }
+.sg-zoom button:disabled { color: #c4c1b9; cursor: default; }
+.sg-zoom span { min-width: 46px; text-align: center; font-size: 13px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
 .sg-canvas-empty { margin: 0; color: var(--muted); font-size: 14px; }
 .sg-canvas-empty[hidden] { display: none; }
 .sg-result-box .sg-canvas { cursor: default; }
@@ -570,11 +646,12 @@ body { display: flex; flex-direction: column; overflow: hidden; }
   position: relative;
   aspect-ratio: 4 / 3;
   overflow: hidden;
-  background: #eee;
+  background: #fff;
   border: 1px solid var(--border);
   transition: border-color .2s ease, transform .25s var(--ease), box-shadow .25s ease;
 }
-.sg-hist-thumb img, .sg-hist-thumb canvas { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* 가운데 결과와 같게 사진 전체를 보여 준다 (자르지 않음) */
+.sg-hist-thumb img, .sg-hist-thumb canvas { width: 100%; height: 100%; object-fit: contain; display: block; }
 .sg-hist-date {
   display: block;
   padding: 0;

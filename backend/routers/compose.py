@@ -9,6 +9,8 @@
 - GPU는 추출과 같은 GPU_LOCK으로 차례를 지킨다 (합성 중에 들어온 추출 요청은 합성이 끝날 때까지 기다림)
 - AnyDoor는 features/composition의 compose를 그대로 쓴다 (50스텝, float16 + save_memory)
 - 상의 윤곽: 화면 "다듬기"에서 고친 윤곽(garment_mask, 추가 제안)을 보내면 그것으로, 안 보내면 4-1 SAM2 윤곽으로 합성
+- 합성 설정 (10/17): refine="1" 상의 경계 다듬기(Reference Mask Refine), shape_control="1" 칠한 모양 그대로
+  (Enable Shape Control). 생략하면 둘 다 끔. 작업 기록(storage/jobs)에 함께 남긴다
 - 로그인 필요. 자기 추출 결과·인물 사진으로만 합성, 자기 작업만 진행 확인. 작업·결과에 회원 번호(user_id) 기록
 - 작업·결과는 storage/jobs, storage/results에 파일로 저장
 """
@@ -28,7 +30,7 @@ from backend.auth import current_user
 from backend.config import EXTRACTIONS_DIR, IMAGES_DIR, JOBS_DIR, MAX_UPLOAD_BYTES, RESTORE_ORIGINAL, RESULTS_DIR
 from backend.db import User
 from backend.errors import ApiError
-from backend.gpu import GPU_LOCK
+from backend.gpu import GPU_LOCK, release_cached_memory
 from backend.storage import _ID, is_owner, load_extraction_info, load_image_info, now_kst
 
 router = APIRouter()
@@ -74,19 +76,33 @@ def _public(job):
 
 # ---------- 서버 켤 때 예열 ----------
 
+# 예열 상태 (/api/health로 화면에 알림, 10/17): off 예열 안 함 / running 진행 중 / done 끝 / failed 실패
+# 진행 중에는 추출·합성이 GPU_LOCK에서 기다리므로, 화면은 이 값을 보고 "합성 준비 중" 안내를 띄운다
+_warmup_state = "off"
+
+
+def warmup_state():
+    return _warmup_state
+
+
 def start_warmup():
     """AnyDoor를 미리 불러오고 2스텝 합성을 한 번 돌린다 (뒤에서 진행, 서버는 바로 응답).
     예열 중에 들어온 합성·추출은 GPU_LOCK에서 기다렸다가 예열이 끝나면 처리된다."""
     def run():
+        global _warmup_state
         from features.composition import warmup
         print("[MOA] AnyDoor 예열 시작 (모델 불러오기 + 2스텝 합성, 1~2분)", flush=True)  # 서버 창에서 바로 보이게 print
         try:
             with GPU_LOCK:
                 warmup()
+            _warmup_state = "done"
             print("[MOA] AnyDoor 예열 끝: 합성 준비 완료", flush=True)
         except Exception:  # 예열이 실패해도 서버는 계속 돈다 (첫 합성 때 다시 불러온다)
+            _warmup_state = "failed"
             log.exception("AnyDoor 예열 실패")
 
+    global _warmup_state
+    _warmup_state = "running"
     threading.Thread(target=run, name="compose-warmup", daemon=True).start()
 
 
@@ -136,14 +152,18 @@ def _run(job_id):
 
     garment_found = None
     with GPU_LOCK:
-        result = compose(ref, ref_mask, tar, tar_mask, seed=job["seed"], on_progress=on_progress)
-        if RESTORE_ORIGINAL:
-            # 원본 복원 후처리: 얼굴·머리·배경은 원본, 새 상의(SAM2로 찾음)는 어깨 끝까지 유지
-            from features.composition import find_garment, restore_original
+        try:
+            result = compose(ref, ref_mask, tar, tar_mask, seed=job["seed"], on_progress=on_progress,
+                             shape_control=job.get("shape_control", False), refine=job.get("refine", False))
+            if RESTORE_ORIGINAL:
+                # 원본 복원 후처리: 얼굴·머리·배경은 원본, 새 상의(SAM2로 찾음)는 어깨 끝까지 유지
+                from features.composition import find_garment, restore_original
 
-            garment = find_garment(result, tar_mask)
-            garment_found = garment is not None
-            result = restore_original(tar, result, tar_mask, garment)
+                garment = find_garment(result, tar_mask)
+                garment_found = garment is not None
+                result = restore_original(tar, result, tar_mask, garment)
+        finally:
+            release_cached_memory()  # 다 쓴 GPU 메모리를 돌려준다 (backend/gpu.py)
 
     result_id = "res_" + uuid.uuid4().hex[:12]
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -197,6 +217,8 @@ async def request_compose(
     person_image_id: str = Form(...),
     area_mask: UploadFile = File(...),
     garment_mask: UploadFile | None = File(None),
+    refine: str = Form("0"),
+    shape_control: str = Form("0"),
     user: User = Depends(current_user),
 ):
     ext = load_extraction_info(extraction_id, user)     # 없거나 남의 것이면 404
@@ -234,6 +256,8 @@ async def request_compose(
         "person_image_id": person_image_id,
         "area_mask": area_name,
         "garment_mask": garment_name,  # 다듬은 상의 윤곽 파일 (없으면 None → SAM2 윤곽)
+        "refine": refine == "1",  # 합성 설정: 상의 경계 다듬기
+        "shape_control": shape_control == "1",  # 합성 설정: 칠한 모양 그대로
         "seed": random.randint(0, 2 ** 31 - 1),
         "created_at": now_kst(),
     }

@@ -15,7 +15,7 @@ export function StudioLink({ className, children }) {
 const navClass = ({ isActive }) => 'nav-item' + (isActive ? ' active' : '');
 
 export default function TopNav() {
-  const { loggedIn, openLogin, logout, showToast } = useAuth();
+  const { loggedIn, openLogin, openSignup, logout } = useAuth();
 
   return (
     <header className="topnav">
@@ -32,7 +32,7 @@ export default function TopNav() {
         </div>
         <div className="topnav-auth">
           {!loggedIn && (
-            <a className="auth-btn" href="#" onClick={(e) => { e.preventDefault(); showToast('회원가입은 준비 중입니다'); }}>회원가입</a>
+            <a className="auth-btn" href="#" onClick={(e) => { e.preventDefault(); openSignup(); }}>회원가입</a>
           )}
           <a
             className="auth-btn auth-btn-primary"

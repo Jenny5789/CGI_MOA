@@ -29,7 +29,7 @@ from backend.config import EXTRACTIONS_DIR, IMAGES_DIR
 from backend.db import User
 from backend.errors import ApiError
 from backend.file_keys import signed_url
-from backend.gpu import GPU_LOCK
+from backend.gpu import GPU_LOCK, release_cached_memory
 from backend.storage import load_image_info, now_kst
 from features.object_extraction import extract_object
 
@@ -85,7 +85,10 @@ def extract(req: ExtractRequest, user: User = Depends(current_user)):
     started = time.perf_counter()
     try:
         with GPU_LOCK:
-            mask = extract_object(image_rgb, points=pos, neg_points=neg, box=box)
+            try:
+                mask = extract_object(image_rgb, points=pos, neg_points=neg, box=box)
+            finally:
+                release_cached_memory()  # 다 쓴 GPU 메모리를 돌려준다 (backend/gpu.py)
     except RuntimeError:
         # 빈 마스크 (extract_object가 RuntimeError로 알려 줌)
         raise ApiError(400, "EMPTY_MASK", "상의를 찾지 못했습니다. 점이나 박스 위치를 바꿔 다시 시도해 주세요.")

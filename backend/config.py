@@ -12,7 +12,7 @@ JOBS_DIR = STORAGE_DIR / "jobs"                # 합성 작업 기록, 입힐 �
 RESULTS_DIR = STORAGE_DIR / "results"          # 합성 결과 (res_...)
 
 # /api/files 로 보여 줄 파일: 이름 앞부분으로 폴더를 고른다
-FILE_DIRS = {"img": IMAGES_DIR, "ext": EXTRACTIONS_DIR, "res": RESULTS_DIR}
+FILE_DIRS = {"img": IMAGES_DIR, "ext": EXTRACTIONS_DIR, "res": RESULTS_DIR, "job": JOBS_DIR}  # job: 입힐 영역·다듬은 윤곽 (작업 기록 불러오기)
 
 # 명세 3-1: 10MB 이하, jpg/png
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
@@ -21,6 +21,8 @@ IMAGE_KINDS = {"garment", "person"}
 
 # 명세 5-3: 저장하지 않은 합성 결과를 남겨 두는 시간 (10/12 3일 → 10/16 24시간)
 RESULT_KEEP_HOURS = 24
+RECENT_IMAGE_KEEP_HOURS = 24  # 합성하기 "최근 사용한 사진" 목록에 남기는 시간 (10/17, 올린 사진 기록 db.UploadedImage)
+RECENT_IMAGE_LIMIT = 12       # 최근 사용한 사진 목록 최대 장수 (상의, 인물 사진 각각)
 
 # 합성 후 원본 복원 후처리 (얼굴·머리·배경을 원본으로 되돌림, features/composition/restore.py). 끄기: MOA_RESTORE_ORIGINAL=0
 RESTORE_ORIGINAL = os.environ.get("MOA_RESTORE_ORIGINAL", "1") != "0"

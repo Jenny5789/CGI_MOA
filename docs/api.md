@@ -53,18 +53,21 @@
 |---|---|---|---|
 | 로그인 | 아이디·비밀번호 입력 후 로그인 | `POST /api/auth/login` | [2-1. 로그인](#2-1-로그인) |
 | 회원가입 | 회원 정보 입력 후 가입 | `POST /api/auth/register` | [2-2. 회원가입](#2-2-회원가입) |
+| 아이디 중복확인 | 회원가입 창에서 중복확인 버튼 | `GET /api/auth/check-username` | [2-6. 아이디 중복확인](#2-6-아이디-중복확인) |
 
 ### 1-2. 합성하기 페이지 (`/studio`)
 
 | 구분 | 사용자 동작 | 호출 API | 상세 설명 |
 |---|---|---|---|
 | 1·2단계 | 상의·인물 이미지 선택 | `POST /api/images` | [3-1. 이미지 업로드](#3-1-이미지-업로드) |
+| 1·2단계 | 더보기 창의 최근 사용한 사진 | `GET /api/images/recent` | [3-2. 최근 사용한 이미지](#3-2-최근-사용한-이미지) |
 | 3단계 | 상의 위 좌표 지정 후 확인 | `POST /api/extract` | [4-1. 상의 영역 추출](#4-1-상의-영역-추출) |
 | 4단계 | 착용 영역 지정 후 합성 시작 | `POST /api/compose` | [5-1. 합성 요청](#5-1-합성-요청) |
 | 합성 중 화면 | 진행 상태 확인 (2초 간격 자동) | `GET /api/jobs/{job_id}` | [5-2. 진행 상태 조회](#5-2-진행-상태-조회) |
 | 결과 화면 | 합성 결과 확인 | `GET /api/results/{result_id}` | [5-3. 결과 조회](#5-3-결과-조회) |
 | 결과 화면 | 합성 결과 저장 | `PATCH /api/results/{result_id}` | [6-2. 결과 저장 및 좋아요](#6-2-결과-저장-및-좋아요) |
 | 오른쪽 패널 | 내 작업 기록 확인 (저장 여부 무관) | `GET /api/results` | [6-1. 결과 목록 조회](#6-1-결과-목록-조회) |
+| 오른쪽 패널 (추가 제안) | 작업 기록을 열면 1~4단계 채우기 | `GET /api/results/{result_id}/source` | [6-4. 결과 재료 조회](#6-4-결과-재료-조회-추가-제안) |
 
 ### 1-3. 마이페이지 (`/mypage`)
 
@@ -128,21 +131,26 @@
 
 | 필드 | 형식 | 필수 | 설명 |
 |---|---|---|---|
-| `username` | `string` | O | 아이디 (공백 없이 50자 이하) |
+| `username` | `string` | O | 아이디 (공백 없이 12자 이하) |
 | `password` | `string` | O | 비밀번호 (8자 이상, 숫자 1개 이상 포함) |
+| `email` | `string` | O | 이메일 (형식 검사, 소문자로 저장, 한 이메일로 1회만 가입) |
+| `phone` | `string` | - | 휴대폰 번호 (`010-1234-5678`, 하이픈 생략 가능, `010-1234-5678` 형식으로 저장) |
 | `name` | `string` | - | 이름 (생략 시 아이디로 저장) |
-| `email` | `string` | - | 이메일 |
 
 - 응답 (200): 2-1. 로그인과 동일
 - 오류
 
 | 상태 코드 | `code` | 발생 조건 |
 |---|---|---|
-| 400 | `INVALID_USERNAME` | 아이디 공백 포함 또는 50자 초과 |
+| 400 | `INVALID_USERNAME` | 아이디 공백 포함 또는 12자 초과 |
 | 400 | `INVALID_PASSWORD` | 비밀번호 규칙 위반 |
+| 400 | `INVALID_EMAIL` | 이메일 누락 또는 형식 오류 |
+| 400 | `INVALID_PHONE` | 전화번호 입력 시 휴대폰 번호 형식 오류 |
 | 409 | `DUPLICATE_USERNAME` | 이미 사용 중인 아이디 |
+| 409 | `DUPLICATE_EMAIL` | 이미 가입된 이메일 (대소문자 구분 없음) |
 
-- 비고: 프론트엔드도 전송 전 비밀번호 규칙을 동일하게 검사
+- 비고: 프론트엔드도 전송 전 같은 규칙으로 검사 (`frontend/src/auth/signupRules.js`), 비밀번호 확인 칸은 프론트엔드에서만 비교
+- 비고: 이메일 인증 메일은 보내지 않음 (형식 검사와 중복 가입 금지로 무분별한 가입 방지)
 
 ### 2-3. 내 정보 조회
 
@@ -156,6 +164,7 @@
 | `username` | `string` | 아이디 |
 | `name` | `string` | 이름 |
 | `email` | `string` \| `null` | 이메일 |
+| `phone` | `string` \| `null` | 휴대폰 번호 |
 | `avatar_url` | `string` \| `null` | 프로필 이미지 주소 (현재 null) |
 
 ```json
@@ -164,6 +173,7 @@
   "username": "test",
   "name": "MOA User",
   "email": "moa.user@example.com",
+  "phone": null,
   "avatar_url": null
 }
 ```
@@ -186,6 +196,17 @@
 - 오류: 0-2. 오류 응답의 공통 오류만 발생 (이미 만료된 토큰은 401, 재로그인 필요)
 - 비고: 연장 안내 시점 등 화면 규칙은 [login_extend.md](login_extend.md)
 
+### 2-6. 아이디 중복확인
+
+- 개요: 회원가입 창의 중복확인 버튼. 가입 요청(2-2) 때도 서버가 다시 확인
+- 요청: `GET /api/auth/check-username?username=newbie`, 인증 불필요
+- 응답 (200): `{ "username": "newbie", "available": true }` (`available`: 사용 가능 여부, `username`: 앞뒤 공백을 지운 값)
+- 오류
+
+| 상태 코드 | `code` | 발생 조건 |
+|---|---|---|
+| 400 | `INVALID_USERNAME` | 아이디 비어 있음, 공백 포함 또는 12자 초과 |
+
 [↑ 1. 페이지별 호출 API](#1-페이지별-호출-api)
 
 ## 3. 이미지 업로드 API
@@ -199,6 +220,7 @@
 |---|---|---|---|
 | `file` | `file` | O | jpg 또는 png, 10MB 이하 |
 | `kind` | `string` | O | `garment`(상의) 또는 `person`(인물) |
+| `from_sample` | `string` | - | `1`이면 예시 이미지에서 고른 것 (3-2 최근 목록에서 제외), 생략 시 `0` |
 
 - 응답 (200)
 
@@ -230,6 +252,32 @@
   - 이후 추출·합성 요청은 `image_id`로 이미지 지정
   - 휴대폰 사진의 회전 정보(EXIF)를 반영해 바로 세워 저장
   - 긴 변 길이 제한 (미정, 제안 4096px)
+  - 업로드 기록을 DB `images` 표에 남기고 작은 이미지(긴 변 240px, `img_..._thumb.jpg`)도 함께 저장 (3-2용)
+
+### 3-2. 최근 사용한 이미지
+
+- 개요: 최근 24시간 동안 직접 업로드한 이미지 목록 (합성하기 1·2단계 더보기 창에서 다시 고르기)
+- 요청: `GET /api/images/recent?kind=garment`, 인증 필요 (`kind`: `garment` 또는 `person`)
+- 응답 (200): `{ "items": [ ... ] }` 최신순, 최대 12장
+
+| 필드 | 형식 | 설명 |
+|---|---|---|
+| `image_id` | `string` | 이미지 번호 (다시 고르면 업로드 없이 이 번호로 추출·합성) |
+| `url` | `string` | 원본 이미지 주소 |
+| `thumb_url` | `string` | 작은 이미지 주소 (목록 표시용) |
+| `width`, `height` | `integer` | 원본 크기 (픽셀) |
+| `created_at` | `string` | 업로드 시각 (한국 시간) |
+
+- 오류
+
+| 상태 코드 | `code` | 발생 조건 |
+|---|---|---|
+| 400 | `INVALID_KIND` | `kind`가 `garment`·`person`이 아님 |
+
+- 비고
+  - 제외: 예시 이미지(`from_sample=1`), 다른 회원의 이미지
+  - 같은 파일을 여러 번 올리면 가장 최근 것 한 장만
+  - 보관: 24시간 지난 기록은 목록 조회 때 DB에서 삭제 (이미지 파일은 유지, 서버 설정 `RECENT_IMAGE_KEEP_HOURS`)
 
 [↑ 1. 페이지별 호출 API](#1-페이지별-호출-api)
 
@@ -332,11 +380,16 @@
 | `person_image_id` | `string` | O | 3-1. 이미지 업로드의 인물 이미지 번호 |
 | `area_mask` | `file` | O | 착용 영역 흑백 PNG (지정 영역 255) |
 | `garment_mask` | `file` | - | 다듬은 상의 윤곽 흑백 PNG (상의 255) (추가 제안) |
+| `refine` | `string` | - | `1`이면 상의 경계 다듬기 (Reference Mask Refine), 생략 시 `0` |
+| `shape_control` | `string` | - | `1`이면 칠한 모양 그대로 (Enable Shape Control), 생략 시 `0` |
 
 - `area_mask`: 인물 이미지와 같은 비율, 크기는 서버에서 원본에 맞춤
 - `garment_mask`: 상의 이미지와 같은 비율, 크기는 서버에서 원본에 맞춤
   - 생략 시 4-1. 상의 영역 추출의 윤곽(SAM2)으로 합성
   - 용도: 합성하기 3단계 다듬기에서 고친 윤곽 반영 (예: 상의 위 목걸이 제외)
+- `refine`, `shape_control`: 합성하기 4단계 뒤 합성 설정 팝업 (AnyDoor 웹 데모의 같은 이름 옵션과 같은 동작)
+  - `refine=1`: AnyDoor의 보정 모델(`iseg/coarse_mask_refine.pth`, CPU 약 1~2초)로 상의 윤곽 가장자리를 다듬은 뒤 합성
+  - `shape_control=1`: 다시 그릴 영역을 착용 영역을 감싼 사각형 대신 칠한 모양 그대로 (칠하지 않은 곳은 유지, 대신 새 상의가 칠한 모양을 넘지 않음)
 
 - 응답 (200)
 
@@ -532,6 +585,30 @@
 
 - 요청: `DELETE /api/results/{result_id}`
 - 비고: 현재 프론트엔드에 삭제 기능 없음, 도입 여부 미정
+
+### 6-4. 결과 재료 조회 (추가 제안)
+
+- 개요: 결과를 만든 재료 조회. 합성하기 "내 작업 기록"에서 결과를 열 때 1~4단계(상의·인물 사진, 상의 영역, 합성 영역)와 합성 설정을 채움
+- 요청: `GET /api/results/{result_id}/source`, 인증 필요
+- 응답 (200)
+
+| 필드 | 형식 | 설명 |
+|---|---|---|
+| `result_id` | `string` | 결과 번호 |
+| `garment` | `object` | 상의 사진 `{ image_id, url, width, height }` (3-1 응답과 같은 모양) |
+| `person` | `object` | 인물 사진 `{ image_id, url, width, height }` |
+| `extraction_id` | `string` | 합성에 쓴 추출 번호 (재합성 때 5-1에 그대로 사용) |
+| `garment_mask_url` | `string` | 상의 윤곽 흑백 PNG (다듬은 윤곽, 없으면 4-1 SAM2 윤곽), 7장 열쇠 포함 |
+| `area_mask_url` | `string` | 입힐 영역 흑백 PNG, 7장 열쇠 포함 |
+| `refine` | `boolean` | 합성 설정: 상의 경계 보정 |
+| `shape_control` | `boolean` | 합성 설정: 영역 모양 유지 |
+
+- 오류
+
+| 상태 코드 | `code` | 발생 조건 |
+|---|---|---|
+| 404 | `RESULT_NOT_FOUND` | 결과 번호 없음 또는 다른 사용자의 결과 |
+| 404 | `SOURCE_NOT_FOUND` | 재료 파일 중 일부가 없음 (화면은 결과만 표시) |
 
 [↑ 1. 페이지별 호출 API](#1-페이지별-호출-api)
 
