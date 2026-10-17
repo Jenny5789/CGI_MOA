@@ -11,6 +11,11 @@
   (2026-10-13 측정: 같은 사진·seed로 1장 115초 → 60초, 결과 그림은 완전히 같음)
 - 모델은 처음 호출할 때 한 번만 불러오고 이후 재사용한다 (체크포인트 16.8GB라 시간이 걸림).
 - warmup(): 짧은 합성을 한 번 미리 돌려 GPU 첫 실행 준비를 끝내 둔다 (서버 켤 때 사용).
+- 합성 설정 (화면 "합성 설정" 팝업, 2026-10-17, AnyDoor 웹 데모 run_gradio_demo.py와 같은 동작):
+  - shape_control (Enable Shape Control): 다시 그릴 영역을 입힐 영역을 감싼 사각형 대신 칠한 모양 그대로.
+    run_inference.py에는 없는 기능이라 웹 데모 process_pairs의 같은 줄을 불러올 때 끼워 넣는다 (_patch_shape_control)
+  - refine (Reference Mask Refine): AnyDoor에 들어 있는 작은 보정 모델(iseg/coarse_mask_refine.pth, CPU)로
+    옷 윤곽 가장자리를 다듬은 뒤 합성 (refine_ref_mask)
 """
 import os
 import sys
@@ -20,6 +25,24 @@ import numpy as np
 
 ANYDOOR_DIR = Path(os.environ.get("ANYDOOR_DIR", Path.home() / "Desktop" / "AnyDoor"))
 DDIM_STEPS = 50  # 기본 스텝 수. compose(steps=...)로 바꿀 수 있다
+
+
+# run_inference.py process_pairs에서 다시 그릴 영역(collage_mask)을 사각형으로 채우는 줄
+_BOX_LINE = "    collage_mask[y1:y2,x1:x2,:] = 1.0"
+
+
+def _patch_shape_control(src):
+    """칠한 모양 그대로: _MOA_SHAPE_CONTROL이 참이면 사각형 대신 칠한 모양(tar_mask의 잘라낸 부분)을 다시 그릴 영역으로.
+    웹 데모(run_gradio_demo.py) process_pairs의 enable_shape_control 분기와 같다. AnyDoor 파일은 그대로 두고 불러온 글자만 바꾼다"""
+    if _BOX_LINE not in src:
+        raise RuntimeError("run_inference.py에서 collage_mask 사각형 줄을 찾지 못했습니다. AnyDoor 코드가 바뀌었는지 확인하세요.")
+    shape = (
+        "\n    if _MOA_SHAPE_CONTROL:"
+        "\n        _cy1, _cy2, _cx1, _cx2 = tar_box_yyxx_crop"
+        "\n        _m = tar_mask[_cy1:_cy2, _cx1:_cx2].astype(np.float32)"
+        "\n        collage_mask = np.stack([_m, _m, _m], -1)"
+    )
+    return src.replace(_BOX_LINE, _BOX_LINE + shape, 1)
 
 
 class AnyDoorComposer:
@@ -37,6 +60,7 @@ class AnyDoorComposer:
 
         src = (self.anydoor_dir / "run_inference.py").read_text(encoding="utf-8")
         src = src.split("if __name__ == '__main__':")[0]
+        src = _patch_shape_control(src)
         if self.save_memory:
             # AnyDoor 원래 옵션: 안 쓰는 부품을 CPU로 옮기고(low_vram_shift) attention을 나눠 계산
             src = src.replace("save_memory = False", "save_memory = True", 1)
@@ -78,10 +102,12 @@ class AnyDoorComposer:
             return sample(*args, **kwargs)
 
         sampler.sample = sample_with_progress
+        ns["_MOA_SHAPE_CONTROL"] = False
         self._ns = ns
         return ns
 
-    def compose(self, ref_rgb, ref_mask, tar_rgb, tar_mask, seed=None, on_progress=None, steps=DDIM_STEPS):
+    def compose(self, ref_rgb, ref_mask, tar_rgb, tar_mask, seed=None, on_progress=None, steps=DDIM_STEPS,
+                shape_control=False, refine=False):
         """합성 결과(RGB uint8)를 돌려준다.
 
         ref_rgb, tar_rgb : np.uint8 (H, W, 3) RGB
@@ -89,11 +115,16 @@ class AnyDoorComposer:
         seed       : 같은 seed면 같은 결과 (None이면 무작위)
         on_progress: 0~1 진행률을 받는 함수 (스텝마다 호출)
         steps      : DDIM 스텝 수 (기본 50). 줄이면 빨라지지만 품질이 바뀔 수 있다
+        shape_control: 참이면 칠한 모양 그대로 다시 그림 (거짓이면 칠한 영역을 감싼 사각형)
+        refine     : 참이면 옷 윤곽 가장자리를 보정 모델로 다듬은 뒤 합성
         """
         import torch
 
         ns = self._load()
         ns["_MOA_DDIM_STEPS"] = int(steps)
+        ns["_MOA_SHAPE_CONTROL"] = bool(shape_control)
+        if refine:
+            ref_mask = self.refine_ref_mask(ref_rgb, ref_mask)
         if seed is not None:
             ns["seed_everything"](int(seed))
         self._progress = on_progress
@@ -103,6 +134,38 @@ class AnyDoorComposer:
         finally:
             self._progress = None
         return np.clip(gen, 0, 255).astype(np.uint8)
+
+    def refine_ref_mask(self, ref_rgb, ref_mask, max_side=1024):
+        """옷 윤곽(0/1)을 AnyDoor의 보정 모델(iseg)로 다듬는다. 웹 데모 process_image_mask와 같음 (CPU, GPU 안 씀).
+        큰 사진은 긴 변 max_side로 줄여 계산하고 원래 크기로 되돌린다. 보정 결과가 비면 원래 윤곽을 쓴다"""
+        import cv2
+        import torch
+
+        if getattr(self, "_iseg", None) is None:
+            if str(self.anydoor_dir) not in sys.path:
+                sys.path.insert(0, str(self.anydoor_dir))
+            from iseg.coarse_mask_refine_util import BaselineModel
+
+            model = BaselineModel().eval()
+            path = self.anydoor_dir / "iseg" / "coarse_mask_refine.pth"
+            weights = torch.load(path, map_location="cpu", weights_only=True)["state_dict"]
+            model.load_state_dict(weights, strict=True)
+            self._iseg = model
+
+        h, w = ref_mask.shape
+        sc = min(1.0, max_side / max(h, w))
+        img, mask = ref_rgb, ref_mask
+        if sc < 1.0:
+            size = (round(w * sc), round(h * sc))
+            img = cv2.resize(ref_rgb, size, interpolation=cv2.INTER_AREA)
+            mask = cv2.resize(ref_mask, size, interpolation=cv2.INTER_NEAREST)
+        x = torch.from_numpy(np.ascontiguousarray(img.transpose(2, 0, 1))).float().div(255).unsqueeze(0)
+        m = torch.from_numpy(mask.astype(np.float32)).unsqueeze(0).unsqueeze(0)
+        with torch.no_grad():
+            pred = (self._iseg(x, m)["instances"][0, 0].numpy() > 0.5).astype(np.uint8)
+        if sc < 1.0:
+            pred = cv2.resize(pred, (w, h), interpolation=cv2.INTER_NEAREST)
+        return pred if pred.sum() > 0 else ref_mask
 
     def warmup(self, steps=2):
         """모델을 불러오고 짧은 합성을 한 번 돌린다. 결과는 버린다.
@@ -125,9 +188,11 @@ def _get_default():
     return _default
 
 
-def compose(ref_rgb, ref_mask, tar_rgb, tar_mask, seed=None, on_progress=None, steps=DDIM_STEPS):
+def compose(ref_rgb, ref_mask, tar_rgb, tar_mask, seed=None, on_progress=None, steps=DDIM_STEPS,
+            shape_control=False, refine=False):
     """모듈 단위 진입점. 기본 composer를 한 번만 만들어 재사용한다."""
-    return _get_default().compose(ref_rgb, ref_mask, tar_rgb, tar_mask, seed=seed, on_progress=on_progress, steps=steps)
+    return _get_default().compose(ref_rgb, ref_mask, tar_rgb, tar_mask, seed=seed, on_progress=on_progress, steps=steps,
+                                  shape_control=shape_control, refine=refine)
 
 
 def warmup(steps=2):

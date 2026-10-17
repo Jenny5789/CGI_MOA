@@ -55,15 +55,69 @@ export function drawContain(ctx, src, sx, sy, sw, sh, dw, dh) {
   ctx.drawImage(src, sx, sy, sw, sh, (dw - w) / 2, (dh - h) / 2, w, h);
 }
 
-// 마스크 모양대로 반투명 색을 덮는다
-export function paintTint(ctx, mask, dw, dh, color) {
-  const tmp = newCanvas(dw, dh);
-  const t = tmp.getContext('2d');
-  t.drawImage(mask, 0, 0, dw, dh);
-  t.globalCompositeOperation = 'source-in';
-  t.fillStyle = color;
-  t.fillRect(0, 0, dw, dh);
-  ctx.drawImage(tmp, 0, 0);
+/* ---------- 선택 영역 표시 (다듬기 팝업) ----------
+   포토샵 선택 영역처럼: 안쪽은 천천히 움직이는 검정·흰색 빗금(반투명이라 사진이 비침), 가장자리는 움직이는 흑백 점선(개미 행렬).
+   색이 없는(채도 0) 검정과 흰색을 번갈아 써서 어떤 색 옷 위에서도 둘 중 하나는 잘 보이게 한다.
+   buildSelection은 영역이 바뀔 때만, paintSelection은 매 프레임 부른다. */
+
+// 대각선 줄무늬 한 칸 (한 변 2w, 줄 폭 w). base가 있으면 바탕을 그 색으로 채운다
+const tiles = new Map();
+function stripeTile(color, w, base) {
+  const key = `${color}|${w}|${base || ''}`;
+  if (!tiles.has(key)) {
+    const s = w * 2;
+    const c = newCanvas(s, s);
+    const t = c.getContext('2d');
+    if (base) { t.fillStyle = base; t.fillRect(0, 0, s, s); }
+    t.fillStyle = color;
+    t.beginPath(); t.moveTo(0, 0); t.lineTo(w, 0); t.lineTo(0, w); t.closePath(); t.fill();
+    t.beginPath(); t.moveTo(s, 0); t.lineTo(s, w); t.lineTo(w, s); t.lineTo(0, s); t.closePath(); t.fill();
+    tiles.set(key, c);
+  }
+  return tiles.get(key);
+}
+
+// 영역(화면 크기)과 그 가장자리 띠(안쪽으로 2px)를 만든다. 칠하는 동안 자주 불리므로 크기가 같으면 캔버스를 다시 쓴다
+export function buildSelection(mask, dw, dh, prev) {
+  const sel = prev && prev.area.width === dw && prev.area.height === dh ? prev : {
+    area: newCanvas(dw, dh), inner: newCanvas(dw, dh), edge: newCanvas(dw, dh), fill: newCanvas(dw, dh), ants: newCanvas(dw, dh),
+  };
+  const a = sel.area.getContext('2d');
+  a.clearRect(0, 0, dw, dh);
+  a.drawImage(mask, 0, 0, dw, dh);
+  const n = sel.inner.getContext('2d'); // 2px 깎은 영역
+  n.globalCompositeOperation = 'source-over';
+  n.clearRect(0, 0, dw, dh);
+  n.drawImage(sel.area, 0, 0);
+  n.globalCompositeOperation = 'destination-in';
+  [[2, 0], [-2, 0], [0, 2], [0, -2]].forEach(([x, y]) => n.drawImage(sel.area, x, y));
+  const e = sel.edge.getContext('2d'); // 영역 - 깎은 영역 = 가장자리 띠
+  e.globalCompositeOperation = 'source-over';
+  e.clearRect(0, 0, dw, dh);
+  e.drawImage(sel.area, 0, 0);
+  e.globalCompositeOperation = 'destination-out';
+  e.drawImage(sel.inner, 0, 0);
+  return sel;
+}
+
+// 모양(shape) 안만 무늬로 채워 ctx에 그린다. phase만큼 무늬를 옆으로 밀어 움직이게 한다
+function paintPattern(ctx, shape, out, tile, phase) {
+  const o = out.getContext('2d');
+  o.globalCompositeOperation = 'source-over';
+  o.clearRect(0, 0, out.width, out.height);
+  o.drawImage(shape, 0, 0);
+  o.globalCompositeOperation = 'source-in';
+  o.save();
+  o.translate(phase % tile.width, 0);
+  o.fillStyle = o.createPattern(tile, 'repeat');
+  o.fillRect(-tile.width, 0, out.width + tile.width * 2, out.height);
+  o.restore();
+  ctx.drawImage(out, 0, 0);
+}
+
+export function paintSelection(ctx, sel, phase) {
+  paintPattern(ctx, sel.area, sel.fill, stripeTile('rgba(0, 0, 0, 0.4)', 7, 'rgba(255, 255, 255, 0.4)'), phase * 0.6);
+  paintPattern(ctx, sel.edge, sel.ants, stripeTile('#000', 4, '#fff'), phase);
 }
 
 export function drawDot(ctx, x, y, color) {

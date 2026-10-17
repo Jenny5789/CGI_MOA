@@ -3,6 +3,7 @@
 - GET   /api/results            : 결과 목록 (명세 6-1). 사진첩 탭, 내 작업 기록
 - GET   /api/results/{id}       : 결과 하나 (명세 5-3)
 - PATCH /api/results/{id}       : 저장 / 좋아요 (명세 6-2)
+- GET   /api/results/{id}/source: 결과를 만든 재료 (명세 외 추가 제안). 합성하기 "내 작업 기록"에서 결과를 열 때 1~4단계를 채운다
 - 저장하지 않은 결과는 만든 지 24시간 뒤 지운다 (명세 5-3, 10/16 결정: 3일 → 24시간). 목록을 볼 때 지난 것을 정리한다
 - 로그인 필요. 자기 결과만 보이고 바꿀 수 있음 (남의 결과는 404). 결과는 storage/results에 파일(json)로 저장
 - 사진 주소(image_url, thumb_url)는 응답할 때 열쇠를 붙여 줌 (명세 7장, backend/file_keys.py). json에는 열쇠 없는 주소 그대로
@@ -16,11 +17,11 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from backend.auth import current_user
-from backend.config import RESULT_KEEP_HOURS, RESULTS_DIR
+from backend.config import EXTRACTIONS_DIR, JOBS_DIR, RESULT_KEEP_HOURS, RESULTS_DIR
 from backend.db import User
 from backend.errors import ApiError
 from backend.file_keys import signed_url
-from backend.storage import _ID, KST, is_owner
+from backend.storage import _ID, KST, is_owner, load_extraction_info, load_image_info
 
 router = APIRouter()
 _lock = threading.Lock()  # 저장/좋아요를 동시에 바꿀 때 파일이 엉키지 않게
@@ -119,6 +120,43 @@ def list_results(
 def get_result(result_id: str, user: User = Depends(current_user)):
     record = _load(result_id, user)
     return _public(record, DETAIL_KEYS)
+
+
+@router.get("/api/results/{result_id}/source")
+def get_result_source(result_id: str, user: User = Depends(current_user)):
+    """결과를 만든 재료: 상의·인물 사진, 상의 윤곽(다듬은 것, 없으면 SAM2 것), 입힐 영역, 합성 설정.
+    재료 파일 중 하나라도 없으면 404 SOURCE_NOT_FOUND (화면은 결과만 보여 준다)"""
+    record = _load(result_id, user)
+    missing = ApiError(404, "SOURCE_NOT_FOUND", "이 결과의 재료를 찾을 수 없습니다.")
+    job_id = record.get("job_id")
+    job_path = JOBS_DIR / f"{job_id}.json" if isinstance(job_id, str) and _ID.match(job_id) else None
+    if job_path is None or not job_path.is_file():
+        raise missing
+    job = json.loads(job_path.read_text(encoding="utf-8"))
+    try:
+        ext = load_extraction_info(record["extraction_id"], user)
+        garment = load_image_info(record["garment_image_id"], user)
+        person = load_image_info(record["person_image_id"], user)
+    except (ApiError, KeyError):
+        raise missing
+    garment_mask = (JOBS_DIR / job["garment_mask"]) if job.get("garment_mask") else (EXTRACTIONS_DIR / ext["mask"])
+    area_mask = JOBS_DIR / job["area_mask"]
+    if not garment_mask.is_file() or not area_mask.is_file():
+        raise missing
+
+    def image(info):
+        return {"image_id": info["image_id"], "url": signed_url(info["filename"]), "width": info["width"], "height": info["height"]}
+
+    return {
+        "result_id": result_id,
+        "garment": image(garment),
+        "person": image(person),
+        "extraction_id": record["extraction_id"],
+        "garment_mask_url": signed_url(garment_mask.name),
+        "area_mask_url": signed_url(area_mask.name),
+        "refine": bool(job.get("refine", False)),
+        "shape_control": bool(job.get("shape_control", False)),
+    }
 
 
 class ResultPatch(BaseModel):
