@@ -21,10 +21,12 @@ const REAL_ROUTES = [
   /^GET \/auth\/check-username(\?.*)?$/,       // 아이디 중복확인 (2-6)
   /^GET \/me$/,                               // 내 정보 (2-3)
   /^POST \/images$/,
+  /^GET \/images\/recent(\?.*)?$/, // 최근 사용한 사진 (3-2)
   /^POST \/extract$/,
   /^POST \/compose$/,
   /^GET \/jobs\/[^/?]+$/,
   /^GET \/results\/[^/?]+$/,   // 결과 하나 받기 (5-3)
+  /^GET \/results\/[^/?]+\/source$/, // 결과를 만든 재료 (명세 외)
   /^GET \/results(\?.*)?$/,     // 결과 목록: 사진첩, 내 작업 기록 (6-1)
   /^PATCH \/results\/[^/?]+$/, // 저장 / 좋아요 (6-2)
 ];

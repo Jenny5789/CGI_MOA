@@ -18,11 +18,12 @@ import usePageStyle from '../components/usePageStyle.js';
 import useToast from '../components/useToast.js';
 import TopNav from '../components/TopNav.jsx';
 import {
-  boxFit, drawContain, drawCover, drawDot, fly, loadImage, makeWork, maskBBox, newCanvas, pointer,
+  boxFit, drawContain, drawDot, fly, loadImage, makeWork, maskBBox, newCanvas,
 } from '../studio/canvas.js';
+import { attachZoom, drawView, fullView, toCanvas, zoomAt } from '../studio/zoom.js';
 import MaskEditor from '../studio/MaskEditor.jsx';
 import { listResults, updateResult } from '../api/results.js';
-import { extractGarment, getJob, getResult, requestCompose, uploadImage } from '../api/studio.js';
+import { extractGarment, getJob, getResult, getResultSource, listRecentImages, requestCompose, uploadImage } from '../api/studio.js';
 import { formatKoreanDate } from '../utils/date.js';
 import { baseModels, fullBodyModels, thumbOf, topsOnly, topsWorn } from '../data/generatedAssets.js';
 
@@ -85,7 +86,18 @@ const drawCutoutThumb = (ctx, { canvas, bbox }) => {
   ctx.clearRect(0, 0, 480, 300);
   drawContain(ctx, canvas, bbox.x, bbox.y, bbox.w, bbox.h, 480, 300);
 };
-const drawHistThumb = (ctx, canvas) => drawCover(ctx, canvas, 0, 0, canvas.width, canvas.height, 400, 300);
+// 다듬은 윤곽(mask, 칠한 곳만 불투명)으로 상의를 오려 낸다. 영역이 비면 null
+const cutoutFrom = (work, mask) => {
+  const bbox = maskBBox(mask);
+  if (!bbox) return null;
+  const cut = newCanvas(mask.width, mask.height);
+  const cx = cut.getContext('2d');
+  cx.drawImage(work, 0, 0);
+  cx.globalCompositeOperation = 'destination-in';
+  cx.drawImage(mask, 0, 0);
+  return { canvas: cut, bbox };
+};
+const drawHistThumb = (ctx, canvas) => { ctx.clearRect(0, 0, 400, 300); drawContain(ctx, canvas, 0, 0, canvas.width, canvas.height, 400, 300); };
 
 // 서버가 준 흑백 윤곽 PNG(상의 흰색)를 화면용 윤곽(상의 부분만 불투명한 흰색, 나머지 투명)으로 바꾼다. 크기는 작업용 사본(w, h)에 맞춘다
 const maskFromUrl = async (url, w, h) => {
@@ -143,15 +155,19 @@ export default function Studio() {
   const [slots, setSlots] = useState({ 1: null, 2: null, 3: null });
   const [pick, setPick] = useState({ 1: { src: null, fromSample: false, confirm: false }, 2: { src: null, fromSample: false, confirm: false } });
   const [dragover, setDragover] = useState({ 1: false, 2: false });
-  const [c3ui, setC3ui] = useState({ total: 0, neg: 0, pos: 0, canUndo: false });
-  const [c4ui, setC4ui] = useState({ neg: 0, pos: 0, canUndo: false });
+  // ready: 지금 점 그대로 다듬어 둔 영역이 있음 (작업 기록에서 불러오면 점 없이도 '확인'으로 다듬기를 연다)
+  const [c3ui, setC3ui] = useState({ total: 0, neg: 0, pos: 0, canUndo: false, ready: false });
+  const [c4ui, setC4ui] = useState({ neg: 0, pos: 0, canUndo: false, ready: false });
   const [editor, setEditor] = useState(null); // 다듬기 팝업: { kind: 'extract' | 'area', image, mask }
   const [sampleBrowser, setSampleBrowser] = useState(null); // 예시 더보기 창: 1 상의 사진 / 2 인물 사진
+  const [recent, setRecent] = useState({ 1: [], 2: [] }); // 최근 24시간 동안 직접 올린 사진 (명세 3-2), 더보기 창 맨 위에 보여 준다
+  const [confirmReset, setConfirmReset] = useState(false); // '초기화' 확인 창
+  const [zoom, setZoom] = useState({ 3: 1, 4: 1 }); // 3·4단계 점 찍기 화면 확대 배율 (studio/zoom.js)
   const [settingsOpen, setSettingsOpen] = useState(false); // 합성 설정 팝업
   const [opts, setOpts] = useState({ refine: false, shape: false }); // Reference Mask Refine, Enable Shape Control
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(null); // 합성 진행 상황 (서버 작업 정보: status, progress, queue_position)
-  const [result, setResult] = useState(null); // { entry: { canvas } 또는 { src }, fromHistory, id(결과 번호) }
+  const [result, setResult] = useState(null); // { entry: { canvas } 또는 { src }, fromHistory, id(결과 번호), restored(1~4단계가 이 결과의 재료로 채워짐) }
   const [saved, setSaved] = useState(false);
   const [history, setHistory] = useState([]); // 합성한 결과 전체 (서버 목록 + 이번에 합성한 결과 isNew), 항목마다 saved
   const [activeHist, setActiveHist] = useState(null);
@@ -164,6 +180,7 @@ export default function Studio() {
   const stepRef = useRef(0);
   const navigate = useNavigate();
   const navigating = useRef(false);
+  const restoreTok = useRef(0); // 작업 기록 불러오기: 마지막으로 누른 것만 반영
 
   const c3Ref = useRef(null);
   const c4Ref = useRef(null);
@@ -218,10 +235,13 @@ export default function Studio() {
     const key = n === 1 ? 'obj' : 'bg';
     const changed = !data.current[key] || data.current[key].src !== src;
     // 서버에 사진을 올려 둔다 (명세 3-1). 화면은 기다리지 않고 넘어가고, 추출·합성 때 이 결과(사진 번호)를 쓴다
+    // 최근 사용한 사진은 이미 서버에 있으므로 다시 올리지 않고 그 사진 번호를 쓴다 (명세 3-2)
+    const known = recent[n].find((r) => r.url === src);
     const upload = changed || !data.current[key].upload
-      ? uploadImage(src, n === 1 ? 'garment' : 'person')
+      ? (known ? Promise.resolve(known) : uploadImage(src, n === 1 ? 'garment' : 'person', pick[n].fromSample))
       : data.current[key].upload;
     upload.catch((e) => showToast(`사진을 서버에 올리지 못했습니다: ${e.message}`));
+    if (changed && !known && !pick[n].fromSample) upload.then(() => loadRecent(n), () => {});
     data.current[key] = { img, src, upload };
     if (changed) {
       if (n === 1) {
@@ -246,13 +266,98 @@ export default function Studio() {
     if (cur) showPreview(step, cur.src, SAMPLES[step].includes(cur.src));
   }, [step, enterTick]);
 
-  // 예시 더보기 창은 Esc로도 닫는다
+  // 최근 사용한 사진 목록 (명세 3-2). 못 받아도 예시 사진·업로드로 진행할 수 있어서 오류는 알리지 않는다
+  const loadRecent = useCallback((n) => {
+    listRecentImages(n === 1 ? 'garment' : 'person')
+      .then((items) => setRecent((r) => ({ ...r, [n]: items })))
+      .catch(() => {});
+  }, []);
+  useEffect(() => { loadRecent(1); loadRecent(2); }, [loadRecent]);
+
+  const openBrowser = (n) => {
+    loadRecent(n); // 사진 주소의 열쇠가 만료되지 않게 열 때마다 새로 받는다
+    setSampleBrowser(n);
+  };
+
+  // 예시 더보기 창, 초기화 확인 창은 Esc로도 닫는다 (바깥을 눌러서는 닫히지 않음)
   useEffect(() => {
-    if (!sampleBrowser) return undefined;
-    const onKey = (e) => { if (e.key === 'Escape') setSampleBrowser(null); };
+    if (!sampleBrowser && !confirmReset) return undefined;
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return;
+      setSampleBrowser(null);
+      setConfirmReset(false);
+    };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [sampleBrowser]);
+  }, [sampleBrowser, confirmReset]);
+
+  /* ---------- 3·4단계 확대 보기 (studio/zoom.js) ---------- */
+  const zoomRefs = { 3: { s: s3, canvas: c3Ref }, 4: { s: s4, canvas: c4Ref } };
+  const latest = useRef({}); // 최신 그리기·점 찍기 함수 (아래 3·4단계 코드 뒤에서 채운다)
+
+  const setView = (n, v) => {
+    zoomRefs[n].s.current.view = v;
+    setZoom((z) => (z[n] === v.z ? z : { ...z, [n]: v.z }));
+  };
+  // ＋/－ 버튼은 화면 가운데를 기준으로, "전체"는 원래 크기로
+  const zoomBy = (n, factor) => {
+    setView(n, zoomAt(zoomRefs[n].s.current.view || fullView(), 0.5, 0.5, factor));
+    latest.current[n].render();
+  };
+  const zoomFit = (n) => {
+    setView(n, fullView());
+    latest.current[n].render();
+  };
+
+  // 휠·끌기·두 손가락·누르기를 캔버스에 붙인다 (캔버스는 숨겨져 있어도 늘 있어서 한 번만)
+  useEffect(() => {
+    const offs = [3, 4].map((n) => attachZoom(zoomRefs[n].canvas.current, {
+      getView: () => zoomRefs[n].s.current.view || fullView(),
+      setView: (v) => setView(n, v),
+      redraw: () => latest.current[n].render(),
+      onTap: (p, neg) => latest.current[n].tap(p, neg),
+    }));
+    return () => offs.forEach((off) => off());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const zoomTools = (n) => (
+    <div className="sg-zoom" role="group" aria-label="사진 확대">
+      <button type="button" aria-label="확대" onClick={() => zoomBy(n, 1.5)}>＋</button>
+      <span>{Math.round(zoom[n] * 100)}%</span>
+      <button type="button" aria-label="축소" disabled={zoom[n] <= 1} onClick={() => zoomBy(n, 1 / 1.5)}>－</button>
+      <button type="button" disabled={zoom[n] <= 1} onClick={() => zoomFit(n)}>전체</button>
+    </div>
+  );
+
+  /* ---------- 초기화 ---------- */
+  // 고른 사진, 찍은 점, 지정한 영역, 보고 있던 결과를 지우고 시작 화면으로 돌아간다 (내 작업 기록, 합성 설정은 그대로)
+  const resetAll = async () => {
+    setConfirmReset(false);
+    restoreTok.current += 1; // 불러오던 작업 기록은 버린다
+    data.current = { obj: null, bg: null, cutout: null, result: null };
+    s3.current = { src: null, w: 0, h: 0, work: null, pts: [], hist: [], dw: 0, dh: 0 };
+    s4.current = { src: null, w: 0, h: 0, work: null, pts: [], hist: [], dw: 0, dh: 0 };
+    setDone({ 1: false, 2: false, 3: false, 4: false });
+    setSlots({ 1: null, 2: null, 3: null });
+    setPick({ 1: { src: null, fromSample: false, confirm: false }, 2: { src: null, fromSample: false, confirm: false } });
+    setC3ui({ total: 0, neg: 0, pos: 0, canUndo: false, ready: false });
+    setC4ui({ neg: 0, pos: 0, canUndo: false, ready: false });
+    setZoom({ 3: 1, 4: 1 });
+    setEditor(null);
+    setResult(null);
+    setSaved(false);
+    setActiveHist(null);
+    setProgress(null);
+    await go(0);
+  };
+
+  // 지울 것이 있으면 먼저 묻는다
+  const askReset = () => {
+    const anything = pick[1].src || pick[2].src || Object.values(done).some(Boolean) || result;
+    if (anything) setConfirmReset(true);
+    else go(0);
+  };
 
   // 사진을 칸 밖에 놓쳐도 브라우저가 그 사진을 열어 버리지 않게 막는다
   useEffect(() => {
@@ -265,12 +370,17 @@ export default function Studio() {
   /* ---------- 3단계: 점 찍기로 객체 추출 ---------- */
   const render3 = () => {
     const s = s3.current;
+    if (!s.work) return;
+    const v = s.view || fullView(); // 확대한 부분만 보여 준다
     const ctx = c3Ref.current.getContext('2d');
     ctx.clearRect(0, 0, s.dw, s.dh);
-    ctx.drawImage(s.work, 0, 0, s.dw, s.dh);
-    s.pts.forEach((p) => drawDot(ctx, p.x * s.dw, p.y * s.dh, p.neg ? '#e11d48' : '#16171b'));
+    drawView(ctx, s.work, s.w, s.h, s.dw, s.dh, v);
+    s.pts.forEach((p) => {
+      const c = toCanvas(v, p, s.dw, s.dh);
+      drawDot(ctx, c.x, c.y, p.neg ? '#e11d48' : '#16171b');
+    });
     const pos = s.pts.filter((p) => !p.neg).length;
-    const next = { total: s.pts.length, neg: s.pts.length - pos, pos, canUndo: s.hist.length > 0 };
+    const next = { total: s.pts.length, neg: s.pts.length - pos, pos, canUndo: s.hist.length > 0, ready: !!s.edited && s.editedKey === JSON.stringify(s.pts) };
     setC3ui((prev) => (sameUi(prev, next) ? prev : next));
   };
 
@@ -280,7 +390,8 @@ export default function Studio() {
     const s = s3.current;
     if (s.src !== obj.src) {
       const w = makeWork(obj.img);
-      Object.assign(s, { src: obj.src, work: w.work, w: w.w, h: w.h, pts: [], hist: [], edited: null, editedKey: null });
+      Object.assign(s, { src: obj.src, work: w.work, w: w.w, h: w.h, pts: [], hist: [], edited: null, editedKey: null, view: fullView() });
+      setZoom((z) => ({ ...z, 3: 1 }));
     }
     const d = boxFit(c3Ref.current, s.w, s.h);
     s.dw = d.w; s.dh = d.h;
@@ -295,14 +406,15 @@ export default function Studio() {
     if (s.hist.length > 50) s.hist.shift();
   };
 
-  const onDown3 = (e) => {
+  // 누르기(끌지 않음): 점 찍기, 찍힌 점을 누르면 지우기. p: 사진 위치(x, y)와 캔버스 위치(px, py), neg: 오른쪽 버튼
+  const tap3 = (p, neg) => {
     const s = s3.current;
     if (!s.work) return;
-    const p = pointer(e, c3Ref.current);
-    const hit = s.pts.findIndex((q) => Math.hypot(q.x * s.dw - p.px, q.y * s.dh - p.py) < 11);
+    const v = s.view || fullView();
+    const hit = s.pts.findIndex((q) => { const c = toCanvas(v, q, s.dw, s.dh); return Math.hypot(c.x - p.px, c.y - p.py) < 11; });
     pushHist3();
     if (hit >= 0) s.pts.splice(hit, 1);
-    else s.pts.push({ x: p.x, y: p.y, neg: e.button === 2 });
+    else s.pts.push({ x: p.x, y: p.y, neg });
     render3();
   };
 
@@ -325,9 +437,10 @@ export default function Studio() {
   // 점을 바꾸지 않았으면 서버에 다시 묻지 않고, 지난번에 다듬은 영역(없으면 지난 SAM2 결과)에서 이어서 한다.
   const confirm3 = async () => {
     const s = s3.current;
-    if (!s.work || !s.pts.some((p) => !p.neg) || s.extracting) return;
+    if (!s.work || s.extracting) return;
     const key = JSON.stringify(s.pts);
     if (s.edited && s.editedKey === key) { setEditor({ kind: 'extract', image: s.work, mask: s.edited }); return; }
+    if (!s.pts.some((p) => !p.neg)) return;
     if (s.samMask && s.samKey === key) { setEditor({ kind: 'extract', image: s.work, mask: s.samMask }); return; }
 
     s.extracting = true;
@@ -356,12 +469,7 @@ export default function Studio() {
     s.edited.getContext('2d').drawImage(mask, 0, 0);
     s.editedKey = JSON.stringify(s.pts);
     setEditor(null);
-    const cut = newCanvas(s.w, s.h);
-    const cx = cut.getContext('2d');
-    cx.drawImage(s.work, 0, 0);
-    cx.globalCompositeOperation = 'destination-in';
-    cx.drawImage(s.edited, 0, 0);
-    const cutout = { canvas: cut, bbox: bb };
+    const cutout = cutoutFrom(s.work, s.edited);
     data.current.cutout = cutout;
     setDone((d) => ({ ...d, 3: true, 4: false }));
     await fly(c3Ref.current, slotRef[3].current, () => setSlots((sl) => ({ ...sl, 3: cutout })));
@@ -371,12 +479,17 @@ export default function Studio() {
   /* ---------- 4단계: 합성 영역 지정 (3단계와 같이 점 → SAM2 → 팝업에서 브러시와 지우개) ---------- */
   const render4 = () => {
     const s = s4.current;
+    if (!s.work) return;
+    const v = s.view || fullView();
     const ctx = c4Ref.current.getContext('2d');
     ctx.clearRect(0, 0, s.dw, s.dh);
-    ctx.drawImage(s.work, 0, 0, s.dw, s.dh);
-    s.pts.forEach((p) => drawDot(ctx, p.x * s.dw, p.y * s.dh, p.neg ? '#e11d48' : '#16171b'));
+    drawView(ctx, s.work, s.w, s.h, s.dw, s.dh, v);
+    s.pts.forEach((p) => {
+      const c = toCanvas(v, p, s.dw, s.dh);
+      drawDot(ctx, c.x, c.y, p.neg ? '#e11d48' : '#16171b');
+    });
     const pos = s.pts.filter((p) => !p.neg).length;
-    const next = { neg: s.pts.length - pos, pos, canUndo: s.hist.length > 0 };
+    const next = { neg: s.pts.length - pos, pos, canUndo: s.hist.length > 0, ready: !!s.edited && s.editedKey === JSON.stringify(s.pts) };
     setC4ui((prev) => (sameUi(prev, next) ? prev : next));
   };
 
@@ -386,7 +499,8 @@ export default function Studio() {
     const s = s4.current;
     if (s.src !== bg.src) {
       const w = makeWork(bg.img);
-      Object.assign(s, { src: bg.src, work: w.work, w: w.w, h: w.h, pts: [], hist: [], samMask: null, samKey: null, edited: null, editedKey: null });
+      Object.assign(s, { src: bg.src, work: w.work, w: w.w, h: w.h, pts: [], hist: [], samMask: null, samKey: null, edited: null, editedKey: null, view: fullView() });
+      setZoom((z) => ({ ...z, 4: 1 }));
     }
     const d = boxFit(c4Ref.current, s.w, s.h);
     s.dw = d.w; s.dh = d.h;
@@ -401,14 +515,14 @@ export default function Studio() {
     if (s.hist.length > 50) s.hist.shift();
   };
 
-  const onDown4 = (e) => {
+  const tap4 = (p, neg) => {
     const s = s4.current;
     if (!s.work) return;
-    const p = pointer(e, c4Ref.current);
-    const hit = s.pts.findIndex((q) => Math.hypot(q.x * s.dw - p.px, q.y * s.dh - p.py) < 11);
+    const v = s.view || fullView();
+    const hit = s.pts.findIndex((q) => { const c = toCanvas(v, q, s.dw, s.dh); return Math.hypot(c.x - p.px, c.y - p.py) < 11; });
     pushHist4();
     if (hit >= 0) s.pts.splice(hit, 1);
-    else s.pts.push({ x: p.x, y: p.y, neg: e.button === 2 });
+    else s.pts.push({ x: p.x, y: p.y, neg });
     render4();
   };
 
@@ -432,9 +546,10 @@ export default function Studio() {
   // 점을 바꾸지 않았으면 서버에 다시 묻지 않고, 지난번에 다듬은 영역(없으면 지난 SAM2 결과)에서 이어서 한다.
   const confirm4 = async () => {
     const s = s4.current;
-    if (!s.work || !s.pts.some((p) => !p.neg) || s.extracting || !data.current.cutout) return;
+    if (!s.work || s.extracting || !data.current.cutout) return;
     const key = JSON.stringify(s.pts);
     if (s.edited && s.editedKey === key) { setEditor({ kind: 'area', image: s.work, mask: s.edited }); return; }
+    if (!s.pts.some((p) => !p.neg)) return;
     if (s.samMask && s.samKey === key) { setEditor({ kind: 'area', image: s.work, mask: s.samMask }); return; }
 
     s.extracting = true;
@@ -464,8 +579,8 @@ export default function Studio() {
     setSettingsOpen(true);
   };
 
-  const showResult = async (entry, fromHistory, id) => {
-    setResult({ entry, fromHistory, id });
+  const showResult = async (entry, fromHistory, id, restored = false) => {
+    setResult({ entry, fromHistory, id, restored });
     await go('result');
   };
 
@@ -480,7 +595,7 @@ export default function Studio() {
   };
 
   // 합성 설정 팝업의 "합성 시작": 서버에 합성을 요청하고(명세 5-1), 2초마다 진행을 확인한 뒤(5-2) 결과를 받는다(5-3).
-  // 고른 설정(opts)은 아직 서버가 쓰지 않아 보내지 않는다.
+  // 3단계에서 다듬은 상의 윤곽과 고른 설정(opts)을 함께 보낸다.
   const startCompose = async () => {
     if (!s4.current.edited || !data.current.cutout) return;
     const ext = data.current.extraction;
@@ -491,7 +606,8 @@ export default function Studio() {
     try {
       const { image_id: personId } = await data.current.bg.upload;
       const area = await areaMaskBlob(s4.current.edited);
-      const job = await requestCompose(ext.extraction_id, personId, area);
+      const garmentMask = s3.current.edited ? await areaMaskBlob(s3.current.edited) : null;
+      const job = await requestCompose(ext.extraction_id, personId, area, { garmentMask, refine: opts.refine, shapeControl: opts.shape });
       const resultId = await waitForJob(job.job_id, setProgress);
       data.current.resultId = resultId; // "저장" 때 서버에 알릴 결과 번호
       const res = await getResult(resultId);
@@ -551,12 +667,46 @@ export default function Studio() {
     showToast('사진첩에 저장했습니다');
   };
 
-  const redo = () => { go(result && result.fromHistory ? 1 : 4); };
+  // 재합성: 1~4단계가 채워져 있으면 4단계로, 재료를 못 불러온 기록이면 1단계부터
+  const redo = () => { go(result && result.fromHistory && !result.restored ? 1 : 4); };
+
+  // 내 작업 기록에서 연 결과의 재료(상의·인물 사진, 상의 윤곽, 입힐 영역, 합성 설정)로 1~4단계를 채운다 (명세 외, GET /results/{id}/source).
+  // 하던 작업은 이 결과의 재료로 바뀐다. 재료를 받지 못하면(예: 지워진 파일) 결과만 보여 준다
+  const restoreFrom = async (resultId) => {
+    const tok = ++restoreTok.current;
+    try {
+      const src = await getResultSource(resultId);
+      const [gImg, pImg] = await Promise.all([loadImage(src.garment.url), loadImage(src.person.url)]);
+      const w3 = makeWork(gImg);
+      const w4 = makeWork(pImg);
+      const [gMask, aMask] = await Promise.all([maskFromUrl(src.garment_mask_url, w3.w, w3.h), maskFromUrl(src.area_mask_url, w4.w, w4.h)]);
+      const cutout = cutoutFrom(w3.work, gMask);
+      if (tok !== restoreTok.current || !cutout) return;
+      const obj = { img: gImg, src: src.garment.url, upload: Promise.resolve(src.garment) };
+      const bg = { img: pImg, src: src.person.url, upload: Promise.resolve(src.person) };
+      data.current = { ...data.current, obj, bg, cutout, extraction: { extraction_id: src.extraction_id }, resultId };
+      // 찍었던 점은 남지 않으므로 '점 없음' 상태에 다듬은 영역을 붙여 둔다 (3·4단계 '확인'으로 바로 다듬기를 연다)
+      s3.current = { src: obj.src, work: w3.work, w: w3.w, h: w3.h, pts: [], hist: [], dw: 0, dh: 0, view: fullView(), edited: gMask, editedKey: '[]' };
+      s4.current = { src: bg.src, work: w4.work, w: w4.w, h: w4.h, pts: [], hist: [], dw: 0, dh: 0, view: fullView(), edited: aMask, editedKey: '[]' };
+      setZoom({ 3: 1, 4: 1 });
+      setC3ui({ total: 0, neg: 0, pos: 0, canUndo: false, ready: true });
+      setC4ui({ neg: 0, pos: 0, canUndo: false, ready: true });
+      setPick({ 1: { src: obj.src, fromSample: false, confirm: false }, 2: { src: bg.src, fromSample: false, confirm: false } });
+      setSlots({ 1: obj.src, 2: bg.src, 3: cutout });
+      setDone({ 1: true, 2: true, 3: true, 4: true });
+      setOpts({ refine: src.refine, shape: src.shape_control });
+      setResult((r) => (r && r.id === resultId ? { ...r, restored: true } : r));
+    } catch {
+      // 재료가 없으면 결과만 보여 준다
+    }
+  };
 
   const openHistory = (item) => {
     setActiveHist(item.id);
     setSaved(!!item.saved);
-    showResult(item.entry, true, item.id);
+    const current = item.id === data.current.resultId; // 지금 1~4단계가 이미 이 결과의 재료
+    showResult(item.entry, true, item.id, current);
+    if (!current) restoreFrom(item.id);
   };
 
   // 3, 4단계에 들어오거나 창 크기가 바뀌면 캔버스를 칸에 다시 맞춘다
@@ -618,6 +768,8 @@ export default function Studio() {
     );
   };
 
+  latest.current = { 3: { render: render3, tap: tap3 }, 4: { render: render4, tap: tap4 } }; // 확대 보기가 쓰는 최신 함수
+
   const viewClass = (name) => 'sg-view' + (leaving && viewName === name ? ' leaving' : '');
 
   const renderPick = (n) => {
@@ -636,9 +788,9 @@ export default function Studio() {
               ))}
               <button
                 type="button"
-                className={'sg-sample sg-sample-more' + (p.fromSample && !FEATURED[n].includes(p.src) ? ' selected' : '')}
-                aria-label={`예시 ${SAMPLES[n].length}장 모두 보기`}
-                onClick={() => setSampleBrowser(n)}
+                className={'sg-sample sg-sample-more' + ((p.fromSample && !FEATURED[n].includes(p.src)) || (!p.fromSample && recent[n].some((r) => r.url === p.src)) ? ' selected' : '')}
+                aria-label={`최근 사용한 사진 ${recent[n].length}장, 예시 ${SAMPLES[n].length}장 모두 보기`}
+                onClick={() => openBrowser(n)}
               >
                 더보기
               </button>
@@ -715,7 +867,10 @@ export default function Studio() {
         {/* 가운데: 단계별 안내 */}
         <main className="sg-main">
           <div className="sg-bar">
-            <button type="button" className="sg-nav-btn" disabled={!canPrev} onClick={() => { if (canPrev) go(step - 1); }}>← 이전</button>
+            <div className="sg-bar-side">
+              <button type="button" className="sg-nav-btn sg-reset-btn" disabled={step === 0 || busy} onClick={askReset}>초기화</button>
+              <button type="button" className="sg-nav-btn" disabled={!canPrev} onClick={() => { if (canPrev) go(step - 1); }}>← 이전</button>
+            </div>
             <ol className="sg-stepper">
               {STEPS.map((s) => (
                 <li key={s.n} className={(s.n === step ? 'current' : '') + (done[s.n] && s.n !== step ? ' done' : '')}>
@@ -749,17 +904,18 @@ export default function Studio() {
               <h2 className="sg-title">3. 상의 영역 지정</h2>
               <div className="sg-help">
                 <b>사용 방법</b>
-                <p><em>상의</em>를 왼쪽 클릭하여 선택합니다.<br />제외할 부분은 오른쪽 클릭합니다.</p>
+                <p><em>상의</em>를 왼쪽 클릭하여 선택합니다.<br />제외할 부분은 오른쪽 클릭합니다.<br />마우스 휠로 확대하고, 끌어서 이동합니다.</p>
               </div>
               <div className="sg-canvas-box">
-                <canvas ref={c3Ref} className="sg-canvas" hidden={!done[1]} onMouseDown={onDown3} onContextMenu={(e) => e.preventDefault()} />
+                <canvas ref={c3Ref} className="sg-canvas" hidden={!done[1]} />
+                {done[1] && zoomTools(3)}
                 <p className="sg-canvas-empty" hidden={done[1]}>1단계에서 상의 사진을 먼저 선택해야 합니다.</p>
               </div>
               <div className="sg-actions">
                 <span className="sg-chip">포함 {c3ui.pos}개 · 제외 {c3ui.neg}개</span>
                 <button type="button" className="sg-ghost" disabled={!done[1] || !c3ui.canUndo} onClick={undo3}>실행 취소</button>
                 <button type="button" className="sg-ghost" onClick={reset3}>전체 삭제</button>
-                <button type="button" className="sg-confirm" disabled={!done[1] || c3ui.pos === 0} onClick={confirm3}>확인</button>
+                <button type="button" className="sg-confirm" disabled={!done[1] || (c3ui.pos === 0 && !c3ui.ready)} onClick={confirm3}>확인</button>
               </div>
             </section>
 
@@ -768,17 +924,18 @@ export default function Studio() {
               <h2 className="sg-title">4. 합성 영역 지정</h2>
               <div className="sg-help">
                 <b>사용 방법</b>
-                <p>인물이 입고 있는 <em>상의</em>를 왼쪽 클릭하여 선택합니다.<br />제외할 부분은 오른쪽 클릭합니다.</p>
+                <p>인물이 입고 있는 <em>상의</em>를 왼쪽 클릭하여 선택합니다.<br />제외할 부분은 오른쪽 클릭합니다.<br />마우스 휠로 확대하고, 끌어서 이동합니다.</p>
               </div>
               <div className="sg-canvas-box">
-                <canvas ref={c4Ref} className="sg-canvas" hidden={!done[2]} onMouseDown={onDown4} onContextMenu={(e) => e.preventDefault()} />
+                <canvas ref={c4Ref} className="sg-canvas" hidden={!done[2]} />
+                {done[2] && zoomTools(4)}
                 <p className="sg-canvas-empty" hidden={done[2]}>2단계에서 인물 사진을 먼저 선택해야 합니다.</p>
               </div>
               <div className="sg-actions">
                 <span className="sg-chip">포함 {c4ui.pos}개 · 제외 {c4ui.neg}개</span>
                 <button type="button" className="sg-ghost" disabled={!done[2] || !c4ui.canUndo} onClick={undo4}>실행 취소</button>
                 <button type="button" className="sg-ghost" onClick={reset4}>전체 삭제</button>
-                <button type="button" className="sg-confirm" disabled={!done[2] || c4ui.pos === 0} onClick={confirm4}>확인</button>
+                <button type="button" className="sg-confirm" disabled={!done[2] || (c4ui.pos === 0 && !c4ui.ready)} onClick={confirm4}>확인</button>
               </div>
             </section>
 
@@ -791,7 +948,7 @@ export default function Studio() {
               <div className="sg-actions sg-actions-center">
                 <button type="button" className="sg-confirm" disabled={saved} onClick={save}>{saved ? '저장 완료' : '저장'}</button>
                 {saved && <button type="button" className="sg-confirm" onClick={() => navigate('/mypage')}>마이페이지로 이동</button>}
-                <button type="button" className="sg-ghost" onClick={redo}>{fromHistory ? '신규 합성' : '재합성'}</button>
+                <button type="button" className="sg-ghost" onClick={redo}>{fromHistory && !result.restored ? '신규 합성' : '재합성'}</button>
               </div>
             </section>
           </div>
@@ -847,7 +1004,6 @@ export default function Studio() {
           help="빠진 부분은 브러시로 칠하고, 잘못 잡힌 부분은 지우개로 지웁니다."
           image={editor.image}
           mask={editor.mask}
-          tint="rgba(125, 26, 36, 0.5)"
           cancelLabel="점 재지정"
           doneLabel="다음 단계"
           onCancel={closeEditor}
@@ -861,7 +1017,6 @@ export default function Studio() {
           help="빠진 부분은 브러시로 칠하고, 잘못 잡힌 부분은 지우개로 지웁니다."
           image={editor.image}
           mask={editor.mask}
-          tint="rgba(31, 81, 56, 0.55)"
           cancelLabel="점 재지정"
           doneLabel="다음"
           onCancel={closeEditor}
@@ -869,32 +1024,61 @@ export default function Studio() {
         />
       )}
 
-      {/* 1, 2단계 예시 더보기: 묶음별로 전체 예시를 보여 주고, 고르면 큰 화면에 띄운 뒤 닫는다 */}
+      {/* 1, 2단계 더보기: 맨 위에 최근 사용한 사진(직접 올린 사진, 24시간 보관), 그 아래 기본 예시를 묶음별로.
+          고르면 큰 화면에 띄운 뒤 닫는다 */}
       {sampleBrowser && (
-        <div className="sg-modal" role="dialog" aria-modal="true" aria-label="예시 사진">
+        <div className="sg-modal" role="dialog" aria-modal="true" aria-label="사진 고르기">
           <div className="sg-modal-box sg-modal-wide sg-sample-browser">
             <div className="sg-modal-head">
-              <h3>{sampleBrowser === 1 ? '상의 사진 예시' : '인물 사진 예시'}</h3>
+              <h3>{sampleBrowser === 1 ? '상의 사진 선택' : '인물 사진 선택'}</h3>
               <button type="button" className="sg-modal-close" aria-label="닫기" onClick={() => setSampleBrowser(null)}>×</button>
             </div>
             <div className="sg-sample-scroll">
-              {SAMPLE_GROUPS[sampleBrowser].map((g) => (
-                <section key={g.label} className="sg-sample-group">
-                  <h4>{g.label}<span>{g.items.length}장</span></h4>
+              {[
+                ...(recent[sampleBrowser].length ? [{
+                  label: '최근 사용한 사진', note: '24시간 동안 보관', own: true,
+                  items: recent[sampleBrowser].map((r) => ({ src: r.url, thumb: r.thumb_url })),
+                }] : []),
+                ...SAMPLE_GROUPS[sampleBrowser].map((g) => ({
+                  label: g.label, own: false, items: g.items.map((src) => ({ src, thumb: thumbOf(src) })),
+                })),
+              ].map((g) => (
+                <section key={g.label} className={'sg-sample-group' + (g.own ? ' sg-sample-recent' : '')}>
+                  <h4>{g.label}<span>{g.items.length}장{g.note ? ` · ${g.note}` : ''}</span></h4>
                   <div className="sg-sample-grid">
-                    {g.items.map((src) => (
+                    {g.items.map((it) => (
                       <button
-                        key={src}
+                        key={it.src}
                         type="button"
-                        className={'sg-sample-tile' + (pick[sampleBrowser].fromSample && pick[sampleBrowser].src === src ? ' selected' : '')}
-                        onClick={() => { showPreview(sampleBrowser, src, true); setSampleBrowser(null); }}
+                        className={'sg-sample-tile' + (pick[sampleBrowser].src === it.src && pick[sampleBrowser].fromSample === !g.own ? ' selected' : '')}
+                        onClick={() => { showPreview(sampleBrowser, it.src, !g.own); setSampleBrowser(null); }}
                       >
-                        <img src={thumbOf(src)} alt="" loading="lazy" decoding="async" />
+                        <img src={it.thumb} alt="" loading="lazy" decoding="async" />
                       </button>
                     ))}
                   </div>
                 </section>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 초기화 확인 창 */}
+      {confirmReset && (
+        <div className="sg-modal" role="dialog" aria-modal="true" aria-labelledby="reset-title">
+          <div className="sg-modal-box sg-modal-narrow">
+            <div className="sg-modal-head">
+              <h3 id="reset-title">초기화하시겠습니까?</h3>
+              <button type="button" className="sg-modal-close" aria-label="닫기" onClick={() => setConfirmReset(false)}>×</button>
+            </div>
+            <p className="sg-modal-text">
+              고른 사진과 지정한 영역이 모두 지워지고 시작 화면으로 돌아갑니다.<br />
+              합성한 결과는 내 작업 기록에 그대로 남습니다.
+            </p>
+            <div className="sg-actions sg-actions-center">
+              <button type="button" className="sg-ghost" onClick={() => setConfirmReset(false)}>취소</button>
+              <button type="button" className="sg-confirm" onClick={resetAll}>초기화</button>
             </div>
           </div>
         </div>
@@ -912,14 +1096,14 @@ export default function Studio() {
               <input type="checkbox" checked={opts.refine} onChange={(e) => setOpts((o) => ({ ...o, refine: e.target.checked }))} />
               <span>
                 <b>상의 경계 보정<small>Reference Mask Refine</small></b>
-                <span>지정한 상의 영역의 경계를 한 번 더 정리합니다.</span>
+                <span>지정한 상의 영역의 가장자리를 상의 윤곽에 맞게 정리합니다.</span>
               </span>
             </label>
             <label className="sg-check">
               <input type="checkbox" checked={opts.shape} onChange={(e) => setOpts((o) => ({ ...o, shape: e.target.checked }))} />
               <span>
-                <b>영역 모양 반영<small>Enable Shape Control</small></b>
-                <span>지정한 합성 영역의 모양에 맞춰 상의를 입힙니다. 선택하지 않으면 영역을 둘러싼 사각형 범위 안에서 형태를 자동으로 맞춥니다.</span>
+                <b>영역 모양 유지<small>Enable Shape Control</small></b>
+                <span>지정한 합성 영역 안에서만 합성합니다.<br />영역보다 큰 상의는 일부가 잘릴 수 있습니다.</span>
               </span>
             </label>
             <div className="sg-actions">

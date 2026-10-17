@@ -1,7 +1,8 @@
 /* 다듬기 팝업: 점 찍기로 잡은 영역을 브러시(추가)와 지우개(삭제)로 손본다. 3단계(상의 추출)와 4단계(합성 영역)가 같이 쓴다.
-   image: 작업용 사진 캔버스, mask: 시작할 영역(흰색 캔버스). 원본은 건드리지 않고 사본을 고쳐서 onDone으로 돌려준다. */
+   image: 작업용 사진 캔버스, mask: 시작할 영역(흰색 캔버스). 원본은 건드리지 않고 사본을 고쳐서 onDone으로 돌려준다.
+   영역은 포토샵 선택 영역처럼 보여 준다: 안쪽은 움직이는 검정·흰색 빗금, 가장자리는 움직이는 흑백 점선 (canvas.js paintSelection). */
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { boxFit, newCanvas, paintTint, pointer } from './canvas.js';
+import { boxFit, buildSelection, newCanvas, paintSelection, pointer } from './canvas.js';
 
 const MAX_HISTORY = 20;
 
@@ -12,9 +13,11 @@ function hasPaint(mask) {
   return false;
 }
 
-export default function MaskEditor({ title, help, image, mask, tint, cancelLabel, doneLabel, onCancel, onDone }) {
+export default function MaskEditor({ title, help, image, mask, cancelLabel, doneLabel, onCancel, onDone }) {
   const canvasRef = useRef(null);
-  const ed = useRef({ mask: null, w: 0, h: 0, dw: 0, dh: 0, hist: [] });
+  const ed = useRef({ mask: null, sel: null, w: 0, h: 0, dw: 0, dh: 0, hist: [] });
+  const phase = useRef(0); // 무늬가 움직인 거리 (px)
+  const renderRef = useRef(null);
   const toolRef = useRef('brush');
   const sizeRef = useRef(40);
   const painting = useRef(false);
@@ -27,10 +30,19 @@ export default function MaskEditor({ title, help, image, mask, tint, cancelLabel
 
   const render = () => {
     const s = ed.current;
+    if (!canvasRef.current || !s.sel) return;
     const ctx = canvasRef.current.getContext('2d');
     ctx.clearRect(0, 0, s.dw, s.dh);
     ctx.drawImage(image, 0, 0, s.dw, s.dh);
-    paintTint(ctx, s.mask, s.dw, s.dh, tint);
+    paintSelection(ctx, s.sel, phase.current);
+  };
+  renderRef.current = render;
+
+  // 영역이 바뀌었을 때(칠하기, 지우기, 실행 취소, 크기 변경) 표시용 모양을 다시 만든다
+  const rebuild = () => {
+    const s = ed.current;
+    s.sel = buildSelection(s.mask, s.dw, s.dh, s.sel);
+    render();
   };
 
   const fitCanvas = () => {
@@ -38,8 +50,25 @@ export default function MaskEditor({ title, help, image, mask, tint, cancelLabel
     const d = boxFit(canvasRef.current, s.w, s.h);
     s.dw = d.w; s.dh = d.h;
     canvasRef.current.width = d.w; canvasRef.current.height = d.h;
-    render();
+    rebuild();
   };
+
+  // 무늬를 움직인다 (초당 약 30번). 움직임 줄이기 설정이면 멈춘 무늬로 둔다
+  useEffect(() => {
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined;
+    let id;
+    let lastDraw = 0;
+    const tick = (now) => {
+      if (now - lastDraw > 33) {
+        lastDraw = now;
+        phase.current = now / 60;
+        renderRef.current();
+      }
+      id = requestAnimationFrame(tick);
+    };
+    id = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(id);
+  }, []);
 
   // 팝업이 열릴 때 받은 영역을 복사해서 시작한다
   useLayoutEffect(() => {
@@ -105,7 +134,7 @@ export default function MaskEditor({ title, help, image, mask, tint, cancelLabel
     painting.current = true;
     last.current = p;
     stroke(p, p);
-    render();
+    rebuild();
   };
   const onMove = (e) => {
     moveRing(e);
@@ -113,7 +142,7 @@ export default function MaskEditor({ title, help, image, mask, tint, cancelLabel
     const p = pointer(e, canvasRef.current);
     stroke(last.current, p);
     last.current = p;
-    render();
+    rebuild();
   };
   const endPaint = () => {
     if (!painting.current) return;
@@ -130,7 +159,7 @@ export default function MaskEditor({ title, help, image, mask, tint, cancelLabel
     ctx.drawImage(snap, 0, 0);
     setCanUndo(s.hist.length > 0);
     setEmpty(!hasPaint(s.mask));
-    render();
+    rebuild();
   };
 
   const chooseTool = (t) => { toolRef.current = t; setTool(t); };

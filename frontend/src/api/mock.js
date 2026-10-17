@@ -55,7 +55,7 @@ const SAMPLE_RESULTS = [
 }));
 
 // images, extractions, jobs: 합성하기에서 올린 사진·추출·합성 작업. 사진은 브라우저 안 주소(blob:)로만 들고 있는다
-const db = { results: SAMPLE_RESULTS, images: {}, extractions: {}, jobs: {} };
+const db = { results: SAMPLE_RESULTS, images: {}, extractions: {}, jobs: {}, recent: [] }; // recent: 직접 올린 사진 (최근 사용한 사진)
 
 const listItem = (r) => ({
   result_id: r.result_id, thumb_url: r.thumb_url, image_url: r.image_url, created_at: r.created_at, saved: r.saved, favorite: r.favorite,
@@ -163,6 +163,13 @@ const routes = {
     return r ? ok(r) : fail(404, 'NOT_FOUND', '결과를 찾을 수 없습니다');
   },
 
+  // 예시 결과에는 재료가 없어서 404 (화면은 결과만 보여 준다)
+  'GET /results/{id}/source': (body, params) => {
+    const r = db.results.find((x) => x.result_id === params.id);
+    if (!r) return fail(404, 'RESULT_NOT_FOUND', '결과를 찾을 수 없습니다.');
+    return r.source ? ok({ result_id: r.result_id, ...r.source }) : fail(404, 'SOURCE_NOT_FOUND', '이 결과의 재료를 찾을 수 없습니다.');
+  },
+
   'PATCH /results/{id}': (body, params) => {
     const r = db.results.find((x) => x.result_id === params.id);
     if (!r) return fail(404, 'NOT_FOUND', '결과를 찾을 수 없습니다');
@@ -181,7 +188,16 @@ const routes = {
     const image = { image_id: newId('img'), url: URL.createObjectURL(file), width: bmp.width, height: bmp.height };
     bmp.close();
     db.images[image.image_id] = image;
+    if (body.get('from_sample') !== '1') {
+      db.recent.unshift({ ...image, kind, thumb_url: image.url, created_at: new Date().toISOString() });
+    }
     return ok(image);
+  },
+
+  // 명세 3-2. 가짜 서버는 같은 파일 묶기·24시간 정리는 하지 않는다 (새로고침하면 비워짐)
+  'GET /images/recent': (body, params, query) => {
+    if (query.kind !== 'garment' && query.kind !== 'person') return fail(400, 'INVALID_KIND', 'kind는 garment 또는 person이어야 합니다.');
+    return ok({ items: db.recent.filter((r) => r.kind === query.kind).slice(0, 12) });
   },
 
   // 명세 4-1. SAM2 대신 찍은 점을 감싸는 타원을 상의 영역으로 돌려준다. cutout_url은 화면이 쓰지 않아 원본 사진 주소를 넣는다
@@ -204,7 +220,14 @@ const routes = {
     if (!ext) return fail(404, 'EXTRACTION_NOT_FOUND', '추출 결과를 찾을 수 없습니다. 다시 추출해 주세요.');
     const person = db.images[body.get('person_image_id')];
     if (!person) return fail(404, 'IMAGE_NOT_FOUND', '사진을 찾을 수 없습니다. 다시 올려 주세요.');
-    const job = { job_id: newId('job'), start: Date.now(), garment_image_id: ext.image_id, person, result_id: null };
+    const garmentMask = body.get('garment_mask');
+    const source = { // 작업 기록에서 1~4단계를 채울 재료 (GET /results/{id}/source)
+      garment: db.images[ext.image_id], person, extraction_id: ext.extraction_id,
+      garment_mask_url: garmentMask ? URL.createObjectURL(garmentMask) : ext.mask_url,
+      area_mask_url: URL.createObjectURL(body.get('area_mask')),
+      refine: body.get('refine') === '1', shape_control: body.get('shape_control') === '1',
+    };
+    const job = { job_id: newId('job'), start: Date.now(), garment_image_id: ext.image_id, person, source, result_id: null };
     db.jobs[job.job_id] = job;
     return ok({ job_id: job.job_id, status: 'queued', queue_position: 1 });
   },
@@ -217,7 +240,7 @@ const routes = {
     if (progress >= 1 && !job.result_id) {
       const r = {
         result_id: newId('res'), image_url: job.person.url, thumb_url: job.person.url, created_at: nowKst(), saved: false, favorite: false,
-        garment_image_id: job.garment_image_id, person_image_id: job.person.image_id,
+        garment_image_id: job.garment_image_id, person_image_id: job.person.image_id, source: job.source,
       };
       db.results.unshift(r);
       job.result_id = r.result_id;
