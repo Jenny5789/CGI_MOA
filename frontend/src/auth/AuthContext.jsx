@@ -1,6 +1,7 @@
 /* 로그인 상태와 로그인 팝업, 회원가입 팝업(SignupModal.jsx).
    로그인 요청은 src/api/auth.js가 보낸다. 서버가 없는 지금은 가짜 서버가 아이디 test / 비밀번호 test 로만 로그인시킨다.
-   로그인하면 받은 토큰을 이 브라우저에 저장하고, 토큰이 있으면 로그인된 상태로 본다. */
+   로그인하면 받은 토큰을 이 브라우저에 저장하고, 토큰이 있으면 로그인된 상태로 시작한다.
+   화면을 열 때 서버에 토큰이 아직 유효한지 확인한다 (만료·무효면 로그아웃 상태로, 10/18). */
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import useToast from '../components/useToast.js';
@@ -58,6 +59,13 @@ export function AuthProvider({ children }) {
     window.addEventListener(UNAUTHORIZED_EVENT, onExpired);
     return () => window.removeEventListener(UNAUTHORIZED_EVENT, onExpired);
   }, [location.pathname]);
+
+  // 화면을 열 때 저장된 토큰이 아직 유효한지 서버에 확인 (10/18). 만료됐거나 서버에 기록이 없으면 로그아웃 상태로
+  useEffect(() => {
+    let alive = true;
+    authApi.checkLogin().then((ok) => { if (alive && !ok) setLoggedIn(false); });
+    return () => { alive = false; };
+  }, []);
 
   const login = async (username, pw) => {
     const next = modal.next;
