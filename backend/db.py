@@ -10,7 +10,7 @@ import os
 from datetime import datetime, timezone
 
 from dotenv import load_dotenv
-from sqlalchemy import DateTime, ForeignKey, Integer, String, create_engine, inspect, select, text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, create_engine, inspect, select, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
 from backend.config import ROOT
@@ -39,6 +39,24 @@ class User(Base):
     email: Mapped[str | None] = mapped_column(String(255), nullable=True)  # 회원가입 필수 (10/17), 예전 회원은 비어 있을 수 있음
     phone: Mapped[str | None] = mapped_column(String(20), nullable=True)  # 선택, "010-1234-5678" 형식으로 저장
     created_at: Mapped[datetime] = mapped_column(DateTime)  # UTC
+
+
+class UploadedImage(Base):
+    """올린 사진 기록 (명세 3-1, 3-2, 10/17). 합성하기 "최근 사용한 사진" 목록용.
+    사진 파일은 지금처럼 storage/images에 두고, 여기엔 목록에 필요한 정보만. RECENT_IMAGE_KEEP_HOURS가 지난 기록은
+    목록을 볼 때 지운다 (파일은 그대로, 추출·합성·결과에 계속 쓰일 수 있어서)"""
+    __tablename__ = "images"
+
+    image_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(10))  # garment 상의 사진 / person 인물 사진
+    filename: Mapped[str] = mapped_column(String(64))
+    thumb: Mapped[str | None] = mapped_column(String(64), nullable=True)  # 작은 사진 파일 이름 (긴 변 240px)
+    width: Mapped[int] = mapped_column(Integer)
+    height: Mapped[int] = mapped_column(Integer)
+    content_hash: Mapped[str] = mapped_column(String(64))  # 올린 파일의 SHA-256. 같은 파일은 목록에 한 번만
+    from_sample: Mapped[bool] = mapped_column(Boolean, default=False)  # 예시 사진에서 고른 것 (최근 목록에서 뺌)
+    created_at: Mapped[datetime] = mapped_column(DateTime, index=True)  # UTC
 
 
 class AuthSession(Base):

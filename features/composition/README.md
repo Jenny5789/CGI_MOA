@@ -23,10 +23,13 @@ result = compose(ref_rgb, ref_mask, tar_rgb, tar_mask, seed=1234, on_progress=fn
 | `seed` | `int` | - | 같은 값이면 같은 결과 (생략 시 무작위) |
 | `on_progress` | 함수 | - | 진행률(0~1)을 받는 함수, 스텝마다 호출 |
 | `steps` | `int` | - | 스텝 수 (기본 50, 줄이면 빨라지나 품질 변화) |
+| `shape_control` | `bool` | - | 참이면 칠한 모양 그대로 다시 그림 (기본 거짓: 칠한 영역을 감싼 사각형) |
+| `refine` | `bool` | - | 참이면 상의 영역 가장자리를 보정 모델(iseg, CPU)로 다듬은 뒤 합성 (기본 거짓) |
 
 - 반환: `np.uint8` (H, W, 3) RGB, 인물 이미지와 같은 크기
 - `ref_mask`: 상의 영역 추출 모듈(`extract_object`) 결과를 그대로 사용
-- `tar_mask`: 영역을 감싸는 사각형만 사용 (칠한 모양은 결과에 영향 적음)
+- `tar_mask`: 기본은 영역을 감싸는 사각형만 사용, `shape_control=True`면 칠한 모양 그대로 (AnyDoor 웹 데모 Enable Shape Control과 같음, 2026-10-17)
+- `refine`: AnyDoor 웹 데모 Reference Mask Refine과 같음. 긴 변 1024px로 줄여 계산 (1024px 상의 사진 약 1.6초)
 - `warmup()`: 모델 로딩 + 2스텝 시험 합성 (백엔드 시작 시 자동 실행)
 - 모델은 첫 호출 시 1회 로딩 후 재사용
 - 계산 방식: float16, save_memory (화질 차이 없음, 2026-10-11 확인)

@@ -23,13 +23,13 @@ register_error_handlers(app)  # 오류를 명세 형식 { error: { code, message
 
 @app.get("/api/health")
 def health():
-    """서버가 켜져 있는지 확인용."""
-    return {"status": "ok"}
+    """서버가 켜져 있는지 확인용. warmup: AnyDoor 예열 상태 (off / running / done / failed, 화면의 "합성 준비 중" 안내용)"""
+    return {"status": "ok", "warmup": compose.warmup_state()}
 
 
 # 기능별 주소
 app.include_router(auth.router)      # 명세 2-1~2-4 로그인, 회원가입, 내 정보, 로그아웃 (MySQL)
-app.include_router(images.router)    # 명세 3-1 사진 올리기
+app.include_router(images.router)    # 명세 3-1 사진 올리기, 3-2 최근 사용한 사진
 app.include_router(files.router)     # 명세 7장 파일 보기
 app.include_router(extract.router)   # 명세 4-1 상의 추출
 app.include_router(compose.router)   # 명세 5-1~5-2 합성 요청, 진행 확인
