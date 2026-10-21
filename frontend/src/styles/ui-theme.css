@@ -1,0 +1,141 @@
+/* MOA 공통 테마: 초록 계열 색, 모서리, 굵기.
+   각 화면 CSS(topnav, auth-modal, studio-guide, app-shell) 위에 덮어쓴다 (main.jsx에서 마지막에 불러옴).
+   글씨 크기는 바꾸지 않는다: 크기는 각 화면 CSS가 정한다. */
+:root {
+  --moa-ink: #252d28;
+  --moa-green: #344f3d;
+  --moa-green-dark: #243d2c;
+  --moa-paper: #f8f7f3;
+  --moa-line: #e1e3d9;
+  color-scheme: light;
+}
+
+button, a, input, select { -webkit-tap-highlight-color: transparent; }
+button:focus-visible, a:focus-visible, select:focus-visible { outline: 2px solid #53724b; outline-offset: 4px; }
+
+/* ---------- 상단 메뉴 ---------- */
+.topnav {
+  background: rgba(248, 247, 243, .94);
+  backdrop-filter: blur(18px);
+  border-bottom: 1px solid var(--moa-line);
+}
+.topnav-row1 {
+  max-width: 1540px;
+  height: 80px;
+  margin: auto;
+  padding: 0 clamp(24px, 5vw, 80px);
+}
+.topnav-left { gap: 56px; }
+.topnav .brand-name { color: var(--moa-green); font-size: 28px; font-weight: 700; letter-spacing: -.06em; }
+.topnav .nav { gap: 18px; }
+.topnav .nav-item {
+  padding: 27px 6px 25px;
+  border-bottom-width: 2px;
+  color: #5f6a58;
+  font-weight: 500;
+}
+.topnav .nav-item:hover, .topnav .nav-item.active { color: var(--moa-green); }
+.topnav .nav-item.active { font-weight: 700; border-color: var(--moa-green); }
+.topnav .topnav-auth { gap: 16px; }
+.topnav .auth-btn {
+  height: 40px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: #5f6a58;
+  font-weight: 600;
+}
+.topnav .auth-btn:hover { background: transparent; color: var(--moa-green-dark); }
+.topnav .auth-btn-primary { padding: 0 20px; border: 1px solid #bdc6b4; border-radius: 4px; color: var(--moa-green); }
+.topnav .auth-btn-primary:hover { background: #eaf0e2; opacity: 1; }
+
+/* ---------- 로그인, 회원가입 창 ---------- */
+.auth-modal { background: rgba(36, 48, 39, .27); backdrop-filter: blur(8px); }
+.auth-modal-box {
+  padding: 48px 40px 36px;
+  border: 1px solid #e0e3d8;
+  border-radius: 12px;
+  background: #fffefa;
+  box-shadow: 0 30px 100px rgba(36, 48, 39, .19);
+}
+.auth-modal-title { color: var(--moa-green); font-weight: 700; letter-spacing: -.04em; }
+.auth-modal-sub { margin-top: 10px; color: #6a7165; line-height: 1.7; }
+.auth-field span { color: #4f5c49; font-weight: 600; }
+.auth-field input { height: 48px; border-color: #dfe3d6; border-radius: 5px; background: #f8f9f4; }
+.auth-field input:focus { border-color: #53724b; box-shadow: 0 0 0 3px rgba(83, 114, 75, .06); }
+.auth-submit { height: 50px; margin-top: 10px; border-radius: 5px; background: var(--moa-green); font-weight: 600; }
+.auth-toast { border-radius: 6px; background: var(--moa-green); }
+
+/* ---------- 합성하기 ---------- */
+:root:has(.sg-shell) {
+  --ink: #252d28;
+  --paper: #f8f7f3;
+  --soft: #f8f9f4;
+  --paper-soft: #fffefa;
+  --white: #fffefa;
+  --border: #e1e3d9;
+  --muted: #6a7165;
+  --accent: #344f3d;
+}
+.sg-shell .sg-left, .sg-shell .sg-right { padding-top: 24px; background: #fcfcf8; }
+.sg-shell .sg-side-title { color: var(--moa-green); font-weight: 700; letter-spacing: -.03em; }
+.sg-shell .sg-stage { background: #f2f3eb; }
+.sg-shell .sg-eyebrow { margin-bottom: 20px; letter-spacing: .12em; font-weight: 600; }
+.sg-shell .sg-hero-title { font-weight: 600; letter-spacing: -.045em; line-height: 1.4; }
+.sg-shell .sg-hero-desc { margin-bottom: 32px; color: #5b6257; line-height: 1.8; }
+.sg-shell .sg-intro-steps b { width: 26px; height: 26px; border-radius: 50%; background: #e2e9d9; color: var(--moa-green); }
+.sg-shell .sg-big-btn { padding: 18px 48px; border-radius: 5px; background: var(--moa-green); font-weight: 600; letter-spacing: 0; }
+.sg-shell .sg-big-btn:hover { background: var(--moa-green-dark); box-shadow: 0 8px 20px rgba(52, 79, 61, .08); }
+.sg-shell .sg-nav-btn { border: 1px solid #cbd2c2; border-radius: 4px; color: #4a5c43; font-weight: 600; }
+.sg-shell .sg-stepper li span { border-radius: 50%; }
+.sg-shell .sg-stepper li.current { font-weight: 700; }
+.sg-shell .sg-stepper li.current span { border-color: var(--moa-green); background: var(--moa-green); }
+.sg-shell .sg-hist-date { padding-bottom: 6px; color: #6a7165; font-weight: 500; }
+.sg-shell .sg-title { font-weight: 700; letter-spacing: -.04em; }
+.sg-shell .sg-upload-btn, .sg-shell .sg-confirm {
+  border-color: var(--moa-green);
+  border-radius: 5px;
+  background: var(--moa-green);
+  color: #fffefa;
+  box-shadow: none;
+  font-weight: 600;
+}
+.sg-shell .sg-slot, .sg-shell .sg-hist-item { border-radius: 5px; }
+.sg-shell .sg-sample, .sg-shell .sg-hist-thumb { overflow: hidden; border-radius: 4px; }
+.sg-shell .sg-slot-name { font-weight: 600; }
+.sg-modal-box { border-radius: 10px; box-shadow: 0 28px 80px rgba(36, 48, 39, .15); }
+.sg-modal-box .sg-modal-head h3 { font-weight: 700; letter-spacing: -.03em; }
+
+/* ---------- 마이페이지 ---------- */
+.as-shell { gap: 32px; padding-top: 38px; }
+.as-shell .as-side-list { gap: 5px; padding: 0; border: none; background: transparent; }
+.as-shell .as-side-item { padding: 13px 16px; border-radius: 5px; color: #5f6a58; font-weight: 500; }
+.as-shell .as-side-item.active { background: #e7ecdf; color: var(--moa-green); font-weight: 700; }
+.as-shell .as-panel { border: 1px solid #e1e3d9; border-radius: 8px; background: #fffefa; box-shadow: 0 5px 25px rgba(52, 79, 61, .02); }
+.as-shell .as-album-head h3 { color: var(--moa-green); font-size: 26px; font-weight: 700; letter-spacing: -.045em; }
+.as-shell .as-album-head p { color: #6a7165; line-height: 1.8; }
+.as-shell .as-tab.active { border-bottom-color: var(--moa-green); color: var(--moa-green); }
+.as-shell .as-card { overflow: hidden; border-radius: 5px; }
+.as-shell .as-profile-avatar { border-radius: 50%; background: #e7ecdf; }
+.as-shell .as-profile-name { color: var(--moa-green); font-weight: 700; }
+.as-shell .as-select, .as-shell .as-date { border-radius: 4px; }
+.as-shell .as-save-btn { border-radius: 4px; background: var(--moa-green); }
+
+/* ---------- 좁은 화면 ---------- */
+@media (max-width: 850px) {
+  .topnav-row1 { padding: 0 24px; }
+  .topnav-left { gap: 28px; }
+  .topnav .nav { gap: 12px; }
+  .topnav .topnav-auth { gap: 12px; }
+}
+@media (max-width: 520px) {
+  .topnav-row1 { flex-wrap: wrap; gap: 0; height: auto; min-height: 72px; padding: 14px 20px 0; }
+  .topnav-left { display: contents; }
+  .topnav .brand { order: 1; margin-bottom: 10px; }
+  .topnav .brand-name { font-size: 26px; }
+  .topnav .topnav-auth { order: 2; margin-left: auto; margin-bottom: 10px; }
+  .topnav .nav { order: 3; justify-content: flex-start; gap: 24px; width: 100%; }
+  .topnav .nav-item { padding: 12px 1px; }
+  .auth-modal-box { padding: 40px 26px 30px; }
+  .as-shell { padding-top: 24px; }
+}
