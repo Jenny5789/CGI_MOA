@@ -4,8 +4,9 @@
    어느 서버에 보낼지 (.env.local의 VITE_API_MODE)
    - mock  (기본): 모두 가짜 서버(mock.js)가 대답
    - mixed       : 실제 서버(backend/)에 있는 기능만 실제 서버로, 나머지는 가짜 서버로
-                   실제 서버에 있는 것: 로그인·회원가입·내 정보·로그아웃, 사진 올리기, 상의 추출, 합성 요청·진행 확인,
-                   결과·사진첩 목록·저장/좋아요 (REAL_ROUTES). 실제 서버 시험 회원: test / test1234
+                   실제 서버에 있는 것: 로그인·회원가입·아이디 중복확인·내 정보·로그아웃, 사진 올리기·최근 사진, 상의 추출,
+                   합성 요청·진행 확인, 결과·결과 재료·사진첩 목록·저장/좋아요 (REAL_ROUTES, 지금은 전부).
+                   실제 서버 시험 회원: test / test1234
    - real        : 모두 실제 서버로
    예전 설정 VITE_USE_MOCK=false 는 real 과 같다. */
 import { mockRequest } from './mock.js';
@@ -20,6 +21,8 @@ const REAL_ROUTES = [
   /^POST \/auth\/(login|register|logout|extend)$/, // 로그인, 회원가입, 로그아웃, 시간 연장 (2-1, 2-2, 2-4, 추가)
   /^GET \/auth\/check-username(\?.*)?$/,       // 아이디 중복확인 (2-6)
   /^GET \/me$/,                               // 내 정보 (2-3)
+  /^PATCH \/me(\/email|\/password)?$/,        // 프로필·이메일·비밀번호 변경 (2-7, 2-9, 2-10)
+  /^(POST|DELETE) \/me\/avatar$/,             // 프로필 사진 (2-8)
   /^POST \/images$/,
   /^GET \/images\/recent(\?.*)?$/, // 최근 사용한 사진 (3-2)
   /^POST \/extract$/,

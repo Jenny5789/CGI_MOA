@@ -9,8 +9,11 @@
    - 3단계: 점만 찍어 둔다. "확인"을 누르면 서버 SAM2로 실제 윤곽을 받아 다듬기 팝업을 연다(4-1)
    - 4단계: 3단계와 같이 인물 사진에 점을 찍고 "확인"을 누르면 SAM2로 지금 입은 상의 영역을 받아 다듬기 팝업을 연다(4-1).
      "합성 시작"에서 서버 AnyDoor 합성 요청 → 2초마다 진행 확인 → 결과(5-1~5-3)
+   - 합성 요청에는 3단계에서 다듬은 상의 윤곽(garment_mask)과 합성 설정 두 개(refine, shape_control)를 함께 보낸다
    - 결과 "저장": 서버에 저장 표시(6-2)
-   아직 서버에 안 가는 것: 다듬기 팝업에서 고친 상의 윤곽(서버는 SAM2 윤곽으로 합성), 합성 설정 체크 두 개(opts) */
+   - 1·2단계 "더보기" 창 맨 위: 최근 24시간 동안 올린 사진(3-2)
+   - 내 작업 기록을 누르면 그 결과의 재료로 1~4단계를 채운다(GET /results/{id}/source, 명세 6-4)
+   그 밖에: 상단 "초기화", 3·4단계 휠 확대(studio/zoom.js) */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import studioCss from '../styles/studio-guide.css?inline';
@@ -25,6 +28,8 @@ import MaskEditor from '../studio/MaskEditor.jsx';
 import { listResults, updateResult } from '../api/results.js';
 import { extractGarment, getJob, getResult, getResultSource, listRecentImages, requestCompose, uploadImage } from '../api/studio.js';
 import { formatKoreanDate } from '../utils/date.js';
+import { notifyComposeDone } from '../utils/notify.js';
+import { readComposeDefaults } from '../utils/composeDefaults.js';
 import { baseModels, fullBodyModels, thumbOf, topsOnly, topsWorn } from '../data/generatedAssets.js';
 
 // 이 화면은 body 아래가 세로로 꽉 차는 구조라서 React가 끼워 넣은 #root 칸도 같은 모양으로 맞춘다
@@ -164,7 +169,7 @@ export default function Studio() {
   const [confirmReset, setConfirmReset] = useState(false); // '초기화' 확인 창
   const [zoom, setZoom] = useState({ 3: 1, 4: 1 }); // 3·4단계 점 찍기 화면 확대 배율 (studio/zoom.js)
   const [settingsOpen, setSettingsOpen] = useState(false); // 합성 설정 팝업
-  const [opts, setOpts] = useState({ refine: false, shape: false }); // Reference Mask Refine, Enable Shape Control
+  const [opts, setOpts] = useState(readComposeDefaults); // Reference Mask Refine, Enable Shape Control. 처음 값은 마이페이지 합성 기본 설정
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(null); // 합성 진행 상황 (서버 작업 정보: status, progress, queue_position)
   const [result, setResult] = useState(null); // { entry: { canvas } 또는 { src }, fromHistory, id(결과 번호), restored(1~4단계가 이 결과의 재료로 채워짐) }
@@ -623,6 +628,7 @@ export default function Studio() {
       ]);
       setActiveHist(resultId);
       setDone((d) => ({ ...d, 4: true }));
+      notifyComposeDone(); // 다른 탭에 있으면 브라우저 알림 (마이페이지 알림 설정)
       await showResult({ canvas: out }, false, resultId);
     } catch (e) {
       showToast(`합성하지 못했습니다: ${e.message}`);

@@ -2,7 +2,7 @@
 
 - 접속 정보: backend/.env 의 DATABASE_URL (각자 컴퓨터의 MySQL, GitHub에 올리지 않음). 만드는 법: docs/database.md
 - 서버가 켜질 때 init_db()가 표가 없으면 만들고, 시험용 회원 test / test1234 를 넣는다
-- 예전에 만든 표에 새 칸이 없으면 추가한다 (_add_missing_columns, 10/17 회원가입 전화번호 phone)
+- 예전에 만든 표에 새 칸이 없으면 추가한다 (_add_missing_columns, 10/17 회원가입 전화번호 phone, 10/20 소개 글 bio·프로필 사진 avatar)
 - DB에 접속하지 못해도 서버는 켜진다 (추출·합성은 DB를 안 씀). 그때 로그인 관련 주소만 503
 """
 import logging
@@ -38,6 +38,8 @@ class User(Base):
     name: Mapped[str] = mapped_column(String(100))
     email: Mapped[str | None] = mapped_column(String(255), nullable=True)  # 회원가입 필수 (10/17), 예전 회원은 비어 있을 수 있음
     phone: Mapped[str | None] = mapped_column(String(20), nullable=True)  # 선택, "010-1234-5678" 형식으로 저장
+    bio: Mapped[str | None] = mapped_column(String(100), nullable=True)  # 마이페이지 소개 글 (10/20)
+    avatar: Mapped[str | None] = mapped_column(String(64), nullable=True)  # 프로필 사진 파일 이름 avt_xxx.jpg (10/20)
     created_at: Mapped[datetime] = mapped_column(DateTime)  # UTC
 
 
@@ -107,10 +109,12 @@ def init_db():
 def _add_missing_columns(engine):
     """create_all은 이미 있는 표를 고치지 않으므로, 나중에 생긴 칸은 여기서 추가한다 (데이터는 그대로)"""
     cols = {c["name"] for c in inspect(engine).get_columns("users")}
-    if "phone" not in cols:
-        with engine.begin() as conn:
-            conn.execute(text("ALTER TABLE users ADD COLUMN phone VARCHAR(20) NULL"))
-        log.info("users 표에 phone(전화번호) 칸을 추가했습니다")
+    added = {"phone": "VARCHAR(20)", "bio": "VARCHAR(100)", "avatar": "VARCHAR(64)"}  # 10/17 전화번호, 10/20 소개 글·프로필 사진
+    for name, kind in added.items():
+        if name not in cols:
+            with engine.begin() as conn:
+                conn.execute(text(f"ALTER TABLE users ADD COLUMN {name} {kind} NULL"))
+            log.info("users 표에 %s 칸을 추가했습니다", name)
 
 
 def get_db():
