@@ -325,7 +325,7 @@ button { font-family: var(--sans); }
 /* ---------- My Page ---------- */
 .as-mypage-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
+  grid-template-columns: 300px minmax(0, 1fr); /* 내 정보: 왼쪽 프로필 카드·계정 설정, 오른쪽 고른 항목 */
   gap: 20px;
   align-items: start;
 }
@@ -488,3 +488,4 @@ button { font-family: var(--sans); }
 /* 오른쪽 프로필·계정 설정 한 상자, 10/21 */
 .as-side-account { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
 .as-side-account h3 { font-size: 15px; margin-bottom: 8px; }
+.as-contact { margin: 0 0 12px; font-size: 14px; font-weight: 700; color: var(--ink); }
