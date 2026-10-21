@@ -27,6 +27,7 @@
     run_inference.py에는 없는 기능이라 웹 데모 process_pairs의 같은 줄을 불러올 때 끼워 넣는다 (_patch_shape_control)
   - refine (Reference Mask Refine): AnyDoor에 들어 있는 작은 보정 모델(iseg/coarse_mask_refine.pth, CPU)로
     옷 윤곽 가장자리를 다듬은 뒤 합성 (refine_ref_mask)
+- 크롭 영역 기록 (2026-10-21): 합성마다 AnyDoor가 다시 그린 정사각형 위치를 last_crop_box에 보관 → 박스 선 보정(seam.py)에 사용
 """
 import os
 import sys
@@ -98,6 +99,7 @@ class AnyDoorComposer:
         self.crop_ratio = crop_ratio
         self._ns = None
         self._progress = None  # 합성 중에만 설정되는 진행률 알림 함수
+        self.last_crop_box = None  # 가장 최근 합성의 크롭 영역 (위, 아래, 왼쪽, 오른쪽), 박스 선 보정용
 
     def _load(self):
         if self._ns is not None:
@@ -164,6 +166,16 @@ class AnyDoorComposer:
             return sample(*args, **kwargs)
 
         sampler.sample = sample_with_progress
+
+        # 크롭 영역 기록 (박스 선 보정용): process_pairs가 돌려주는 다시 그린 정사각형 위치를 보관 (AnyDoor 코드 수정 없음)
+        process_pairs = ns["process_pairs"]
+
+        def process_pairs_record(*args, **kwargs):
+            item = process_pairs(*args, **kwargs)
+            self.last_crop_box = tuple(int(v) for v in item["tar_box_yyxx_crop"])  # (위, 아래, 왼쪽, 오른쪽)
+            return item
+
+        ns["process_pairs"] = process_pairs_record
         ns["_MOA_SHAPE_CONTROL"] = False
         self._ns = ns
         return ns
@@ -260,3 +272,8 @@ def compose(ref_rgb, ref_mask, tar_rgb, tar_mask, seed=None, on_progress=None, s
 def warmup(steps=2):
     """모듈 단위 예열. 기본 composer의 모델을 불러오고 짧은 합성을 한 번 돌린다."""
     _get_default().warmup(steps=steps)
+
+
+def last_crop_box():
+    """기본 composer의 가장 최근 합성 크롭 영역 (위, 아래, 왼쪽, 오른쪽). 합성 전이면 None"""
+    return _get_default().last_crop_box
