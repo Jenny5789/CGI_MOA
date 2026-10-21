@@ -1,6 +1,10 @@
 /* 마이페이지 고객센터: 자주 묻는 질문과 문의 방법.
-   답의 숫자는 서버 설정과 같게 둔다 (backend/config.py 10MB·24시간, backend/auth.py 로그인 3시간). */
-const REPO_ISSUES = 'https://github.com/Jenny5789/CGI_MOA/issues';
+   답의 숫자는 서버 설정과 같게 둔다 (backend/config.py 10MB·24시간, backend/auth.py 로그인 3시간).
+   문의는 이메일 보내기 링크. 주소는 발송되지 않는 예시용 도메인 example.com, 실제 운영 시 팀 주소로 교체 */
+const CONTACT_EMAIL = 'teamcgi_moa@example.com';
+const MAIL_SUBJECT = '[MOA 문의] ';
+const MAIL_BODY = '문의 내용:\n\n발생 화면:\n발생 시각:\n화면 사진이 있으면 첨부해 주십시오.\n';
+const MAIL_LINK = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(MAIL_SUBJECT)}&body=${encodeURIComponent(MAIL_BODY)}`;
 
 const FAQ = [
   ['어떤 사진을 올릴 수 있나요?',
@@ -35,8 +39,9 @@ export default function Support() {
       </section>
       <section className="as-panel as-set">
         <h3>문의하기</h3>
-        <p className="as-set-desc">오류 제보와 기능 제안은 GitHub 이슈로 받습니다. 화면 사진과 발생 시각을 함께 남겨 주시면 빠르게 확인합니다.</p>
-        <a className="as-btn" href={REPO_ISSUES} target="_blank" rel="noreferrer">GitHub 이슈 남기기</a>
+        <p className="as-set-desc">오류 제보와 기능 제안은 이메일로 받습니다. 화면 사진과 발생 시각을 함께 보내 주시면 빠르게 확인합니다.</p>
+        <p className="as-contact">{CONTACT_EMAIL}</p>
+        <a className="as-btn" href={MAIL_LINK}>이메일로 문의하기</a>
       </section>
     </>
   );
