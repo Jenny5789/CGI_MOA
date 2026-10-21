@@ -8,7 +8,7 @@ const fileName = (item, type) => {
 
 export async function downloadResult(item) {
   const res = await fetch(item.image_url);
-  if (!res.ok) throw new Error('사진을 받지 못했습니다. 마이페이지를 새로고침한 뒤 다시 시도해 주십시오');
+  if (!res.ok) throw new Error('사진을 받지 못했습니다. 마이페이지를 새로고침한 뒤 다시 시도하면 됩니다.');
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
