@@ -9,6 +9,15 @@
 - 모델 파일(16.8GB)은 본체 RAM에서 열고 모델 가중치(약 9.2GB)만 GPU로 옮긴다 (load_on_cpu).
   원래 코드는 파일 전체를 GPU에서 열어 10GB를 넘기고, 모자란 만큼 본체 메모리를 빌려 써서 느려졌다.
   (2026-10-13 측정: 같은 사진·seed로 1장 115초 → 60초, 결과 그림은 완전히 같음)
+- 부품 단위 GPU 적재 (2026-10-21, _ONDEMAND_LOAD, _shift_out_first):
+  - save_memory 동작: 부품을 두 묶음으로 나눠 사용 중인 묶음만 GPU에 적재.
+    노이즈 제거 단계는 U-Net·ControlNet, 그 전후 단계는 VAE·DINOv2
+  - 기존 문제 1: 모델 적재 시 model.cuda()로 네 부품 전체를 GPU에 일괄 적재
+  - 기존 문제 2: 묶음 교체 시 새 묶음 적재 후 기존 묶음 해제. 교체 시점마다 네 부품 동시 상주
+  - 결과: VRAM 10GB 용량 초과, 공유 GPU 메모리 2.7~3.2GB 사용으로 합성 지연
+  - 변경: 큰 부품 네 개를 CPU에 둔 상태로 시작, 묶음 교체 시 기존 묶음 해제 후 새 묶음 적재. 가중치·연산 방식 동일
+  - 측정: 같은 사진·seed, 서버와 같은 순서인 예열 → SAM2 추출 → 합성 2회.
+    합성 41.1·36.9초 → 23.6·20.7초, 공유 GPU 메모리 최대 3,199MB → 224MB, 결과 이미지 픽셀 단위 동일
 - 모델은 처음 호출할 때 한 번만 불러오고 이후 재사용한다 (체크포인트 16.8GB라 시간이 걸림).
 - warmup(): 짧은 합성을 한 번 미리 돌려 GPU 첫 실행 준비를 끝내 둔다 (서버 켤 때 사용).
 - 합성 설정 (화면 "합성 설정" 팝업, 2026-10-17, AnyDoor 웹 데모 run_gradio_demo.py와 같은 동작):
@@ -45,6 +54,38 @@ def _patch_shape_control(src):
     return src.replace(_BOX_LINE, _BOX_LINE + shape, 1)
 
 
+# run_inference.py에서 불러온 모델 전체를 GPU로 옮기는 줄
+_CUDA_LINE = "model = model.cuda()\n"
+# 대체 코드: 큰 부품 네 개는 CPU에 유지, 나머지 소형 값만 GPU로 이동. 모델 device가 GPU로 설정되어 샘플러는 GPU에서 실행.
+# 큰 부품은 합성 시 save_memory의 low_vram_shift가 필요한 묶음만 적재
+_ONDEMAND_LOAD = """_moa_big = {n: getattr(model, n) for n in ('model', 'control_model', 'first_stage_model', 'cond_stage_model')}
+for _n in _moa_big:
+    setattr(model, _n, torch.nn.Identity())
+model = model.cuda()
+for _n, _m in _moa_big.items():
+    setattr(model, _n, _m)
+"""
+
+
+def _shift_out_first(self, is_diffusing):
+    """AnyDoor cldm.py low_vram_shift와 같은 묶음 교체. 미사용 묶음의 CPU 이동을 먼저 수행한 뒤 사용 묶음을 GPU에 적재.
+    원래 순서인 적재 후 해제는 교체 시점에 네 부품이 동시에 GPU에 상주해 VRAM 10GB 초과"""
+    import torch
+
+    if is_diffusing:
+        self.first_stage_model = self.first_stage_model.cpu()
+        self.cond_stage_model = self.cond_stage_model.cpu()
+        torch.cuda.empty_cache()
+        self.model = self.model.cuda()
+        self.control_model = self.control_model.cuda()
+    else:
+        self.model = self.model.cpu()
+        self.control_model = self.control_model.cpu()
+        torch.cuda.empty_cache()
+        self.first_stage_model = self.first_stage_model.cuda()
+        self.cond_stage_model = self.cond_stage_model.cuda()
+
+
 class AnyDoorComposer:
     def __init__(self, anydoor_dir=ANYDOOR_DIR, save_memory=True, fp16=True, load_on_cpu=True):
         self.anydoor_dir = Path(anydoor_dir).resolve()
@@ -69,6 +110,11 @@ class AnyDoorComposer:
             if "location='cuda'" not in src:
                 raise RuntimeError("run_inference.py에서 location='cuda'를 찾지 못했습니다. AnyDoor 코드가 바뀌었는지 확인하세요.")
             src = src.replace("location='cuda'", "location='cpu'", 1)
+        if self.save_memory and self.load_on_cpu:
+            # 큰 부품 CPU 유지 상태로 시작. 부품 단위 GPU 적재, 맨 위 설명 참고
+            if _CUDA_LINE not in src:
+                raise RuntimeError("run_inference.py에서 model = model.cuda()를 찾지 못했습니다. AnyDoor 코드가 바뀌었는지 확인하세요.")
+            src = src.replace(_CUDA_LINE, _ONDEMAND_LOAD, 1)
         # 스텝 수: run_inference.py 안의 고정값 50을 호출마다 바꿀 수 있는 값으로 (AnyDoor 파일은 그대로)
         if "ddim_steps = 50" not in src:
             raise RuntimeError("run_inference.py에서 ddim_steps = 50을 찾지 못했습니다. AnyDoor 코드가 바뀌었는지 확인하세요.")
@@ -84,6 +130,11 @@ class AnyDoorComposer:
             exec(compile(src, str(self.anydoor_dir / "run_inference.py"), "exec"), ns)
         finally:
             os.chdir(prev_cwd)
+
+        if self.save_memory and self.load_on_cpu:
+            # 묶음 교체 순서 변경: 해제 후 적재. AnyDoor 원본 파일 수정 없이 이 모델에만 적용
+            import types
+            ns["model"].low_vram_shift = types.MethodType(_shift_out_first, ns["model"])
 
         if self.fp16:
             # autocast에서는 복원 이미지가 float16으로 나오는데 AnyDoor의 crop_back(cv2.resize)이 처리하지 못한다.
