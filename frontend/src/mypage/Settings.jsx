@@ -1,17 +1,17 @@
 /* 마이페이지 설정 화면 두 가지.
    - AccountPanel: 내 정보의 '계정 설정'에서 고른 항목 하나 (프로필 수정, 이메일 변경, 비밀번호 변경, 명세 2-7~2-10).
-     서버가 돌려준 내 정보로 왼쪽 프로필 카드도 바로 바뀌도록 onMe로 넘긴다.
+     서버가 돌려준 내 정보로 상단 메뉴 프로필도 바로 바뀌도록 onMe로 넘긴다.
    - ServiceSettings: 왼쪽 '설정'. 계정과 관계없는 이 브라우저의 설정 (알림, 합성 기본 설정) */
 import { useEffect, useRef, useState } from 'react';
 import { changeEmail, changePassword, resetAvatar, updateProfile, uploadAvatar } from '../api/me.js';
 import { PASSWORD_HINT, PHONE_HINT, normalizeEmail, normalizePhone, passwordOk } from '../auth/signupRules.js';
 import { disableNotify, enableNotify, notifyEnabled, notifySupported } from '../utils/notify.js';
 import { readComposeDefaults, saveComposeDefaults } from '../utils/composeDefaults.js';
+import { DEFAULT_BIO } from '../utils/profile.js';
 
 const NAME_MAX = 20; // 서버 backend/routers/auth.py NAME_MAX와 같게
 const BIO_MAX = 60;
 const MAX_UPLOAD = 10 * 1024 * 1024;
-export const DEFAULT_BIO = '어울리는 상의를 미리 입어 보는 MOA 사용자입니다.'; // 소개 글이 비어 있을 때 프로필 카드와 입력 칸 예시 글씨
 
 function Section({ id, title, desc, children }) {
   return (

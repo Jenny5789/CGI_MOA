@@ -6,7 +6,6 @@ import useToast from '../components/useToast.js';
 import TopNav from '../components/TopNav.jsx';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { listResults, updateResult } from '../api/results.js';
-import { getMe } from '../api/me.js';
 import { formatKoreanDate } from '../utils/date.js';
 import { AccountPanel, ServiceSettings } from '../mypage/Settings.jsx';
 import Support from '../mypage/Support.jsx';
@@ -36,14 +35,13 @@ const VIEWS = {
 
 export default function MyPage() {
   usePageStyle(appShellCss, 'MOA — 마이페이지');
-  const { loggedIn } = useAuth();
+  const { loggedIn, me, setMe } = useAuth();
   const [items, setItems] = useState([]);
   const [counts, setCounts] = useState({});
   const [status, setStatus] = useState('loading'); // loading / ready / error
   const [errorMsg, setErrorMsg] = useState('');
   const [reload, setReload] = useState(0); // 저장/좋아요 뒤 목록을 다시 받을 때 올린다
   const [pending, setPending] = useState(() => new Set()); // 서버 응답을 기다리는 결과 (버튼 두 번 누름 방지)
-  const [me, setMe] = useState(null);
   const [view, setView] = useState('all');
   const [date, setDate] = useState('');
   const [sort, setSort] = useState('new');
@@ -83,13 +81,6 @@ export default function MyPage() {
       });
     return () => { ignore = true; };
   }, [loggedIn, view, date, sort, reload]);
-
-  useEffect(() => {
-    if (!loggedIn) return undefined;
-    let ignore = false;
-    getMe().then((data) => { if (!ignore) setMe(data); }).catch(() => { /* 프로필은 못 받아도 사진첩은 쓸 수 있게 둔다 */ });
-    return () => { ignore = true; };
-  }, [loggedIn]);
 
   const patch = async (id, change, doneMsg) => {
     if (pending.has(id)) return;
@@ -173,7 +164,7 @@ export default function MyPage() {
                 {list.map((it) => (
                   <div className="as-card" key={it.result_id}>
                     <div className="as-thumb">
-                      <img src={it.thumb_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <img className="as-thumb-img" src={it.thumb_url} alt="" onClick={() => setViewing(it)} />
                       <button type="button" className={'as-heart' + (it.favorite ? ' liked' : '')} onClick={() => toggleFav(it.result_id)}>{it.favorite ? '♥' : '♡'}</button>
                     </div>
                     <div className="as-card-foot">

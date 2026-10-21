@@ -8,6 +8,22 @@
   margin-left: auto;
 }
 
+/* 로그인 중 로그아웃 옆 프로필: 사진, 굵은 이름, 소개 글 한 줄 */
+.topnav-profile { display: flex; align-items: center; gap: 10px; margin-right: 6px; }
+.topnav-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #e3e6e8;
+  border: 1px solid #d9dcdf;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.topnav-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.topnav-profile-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; line-height: 1.25; }
+.topnav-profile-text strong { font-size: 14px; font-weight: 800; color: #16171b; }
+.topnav-profile-text span { max-width: 240px; font-size: 12px; color: #6b6e75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
 .auth-btn {
   display: inline-flex;
   align-items: center;
@@ -211,7 +227,12 @@
 
 .auth-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+@media (max-width: 900px) {
+  .topnav-profile-text span { max-width: 140px; }
+}
+
 @media (max-width: 640px) {
+  .topnav-profile-text { display: none; }
   .auth-btn { height: 38px; padding: 0 16px; font-size: 14px; }
   .auth-modal-box { padding: 40px 24px 28px; }
 }
