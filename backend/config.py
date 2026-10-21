@@ -9,9 +9,12 @@ IMAGES_DIR = STORAGE_DIR / "images"            # 올린 사진 (img_...)
 EXTRACTIONS_DIR = STORAGE_DIR / "extractions"  # 추출 결과 (ext_...)
 JOBS_DIR = STORAGE_DIR / "jobs"                # 합성 작업 기록, 입힐 영역 (job_...)
 RESULTS_DIR = STORAGE_DIR / "results"          # 합성 결과 (res_...)
+AVATARS_DIR = STORAGE_DIR / "avatars"          # 프로필 사진 (avt_...)
 
 # /api/files 로 보여 줄 파일: 이름 앞부분으로 폴더를 고른다
-FILE_DIRS = {"img": IMAGES_DIR, "ext": EXTRACTIONS_DIR, "res": RESULTS_DIR, "job": JOBS_DIR}  # job: 입힐 영역·다듬은 윤곽 (작업 기록 불러오기)
+FILE_DIRS = {"img": IMAGES_DIR, "ext": EXTRACTIONS_DIR, "res": RESULTS_DIR, "job": JOBS_DIR,  # job: 입힐 영역·다듬은 윤곽 (작업 기록 불러오기)
+             "avt": AVATARS_DIR}
+AVATAR_SIDE = 256  # 프로필 사진은 가운데를 정사각형으로 잘라 이 크기로 저장
 
 # 명세 3-1: 10MB 이하, jpg/png
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024

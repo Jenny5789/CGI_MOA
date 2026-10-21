@@ -106,7 +106,9 @@ async function fakeMask(image, points, box) {
 }
 
 // 회원 (회원가입한 사람은 새로고침 전까지만 남는다). 가짜 서버는 토큰 하나(DEMO_TOKEN)를 모두에게 준다
-const users = [{ id: 1, username: DEMO_ID, password: DEMO_PW, name: 'MOA User', email: 'moa.user@example.com' }];
+const users = [{ id: 1, username: DEMO_ID, password: DEMO_PW, name: 'MOA User', email: 'moa.user@example.com', phone: null, bio: '',
+  avatar_url: '/assets/gallery/girl_sitting.jpg' }];
+const meOf = (u) => ({ id: u.id, username: u.username, name: u.name, email: u.email, phone: u.phone || null, bio: u.bio || '', avatar_url: u.avatar_url || null });
 
 const routes = {
   'POST /auth/login': (body) => {
@@ -139,7 +141,52 @@ const routes = {
   'POST /auth/logout': () => ok({}),
   'POST /auth/extend': () => ok({ expires_at: expiresAt() }),
 
-  'GET /me': () => ok({ id: 1, username: DEMO_ID, name: 'MOA User', email: 'moa.user@example.com', avatar_url: '/assets/gallery/girl_sitting.jpg' }),
+  'GET /me': () => ok(meOf(users[0])),
+  // 명세 2-7~2-10. 실제 서버와 같은 규칙과 오류 코드. 가짜 서버는 모두 첫 회원(test)으로 본다
+  'PATCH /me': (body) => {
+    const u = users[0];
+    if (body.name !== undefined) {
+      const name = body.name.trim();
+      if (!name || name.length > 20) return fail(400, 'INVALID_NAME', '이름은 1~20자로 입력해 주세요.');
+      u.name = name;
+    }
+    if (body.phone !== undefined) {
+      const phone = body.phone.trim() ? normalizePhone(body.phone) : '';
+      if (phone === null) return fail(400, 'INVALID_PHONE', '휴대폰 번호를 010-1234-5678 형식으로 입력해 주세요.');
+      u.phone = phone || null;
+    }
+    if (body.bio !== undefined) {
+      if (body.bio.trim().length > 60) return fail(400, 'INVALID_BIO', '소개 글은 60자 이하로 입력해 주세요.');
+      u.bio = body.bio.trim();
+    }
+    return ok(meOf(u));
+  },
+  'POST /me/avatar': (body) => {
+    const file = body && body.get && body.get('file');
+    if (!file || !/^image\/(jpeg|png)$/.test(file.type)) return fail(400, 'INVALID_IMAGE', 'jpg 또는 png 사진만 올릴 수 있습니다.');
+    if (file.size > 10 * 1024 * 1024) return fail(400, 'IMAGE_TOO_LARGE', '사진은 10MB 이하만 올릴 수 있습니다.');
+    users[0].avatar_url = URL.createObjectURL(file);
+    return ok(meOf(users[0]));
+  },
+  'DELETE /me/avatar': () => { users[0].avatar_url = null; return ok(meOf(users[0])); },
+  'PATCH /me/email': (body) => {
+    const u = users[0];
+    if (body.password !== u.password) return fail(400, 'WRONG_PASSWORD', '비밀번호가 올바르지 않습니다.');
+    const email = normalizeEmail(body.email);
+    if (!email) return fail(400, 'INVALID_EMAIL', '올바른 이메일 주소를 입력해 주세요.');
+    if (email === u.email) return fail(400, 'SAME_EMAIL', '지금 쓰는 이메일과 같습니다.');
+    if (users.some((x) => x.email === email)) return fail(409, 'DUPLICATE_EMAIL', '이미 가입된 이메일입니다.');
+    u.email = email;
+    return ok(meOf(u));
+  },
+  'PATCH /me/password': (body) => {
+    const u = users[0];
+    if (body.current_password !== u.password) return fail(400, 'WRONG_PASSWORD', '지금 비밀번호가 올바르지 않습니다.');
+    if (!passwordOk(body.new_password)) return fail(400, 'INVALID_PASSWORD', '비밀번호는 8자 이상이고 숫자를 포함해야 합니다.');
+    if (body.new_password === u.password) return fail(400, 'SAME_PASSWORD', '지금 비밀번호와 다른 비밀번호를 입력해 주세요.');
+    u.password = body.new_password;
+    return ok({});
+  },
 
   // 명세 6-1. created_at이 한국 시간(+09:00)으로 적혀 있어서 앞 10글자가 곧 한국 날짜다
   'GET /results': (body, params, query) => {

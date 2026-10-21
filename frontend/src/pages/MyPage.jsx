@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import appShellCss from '../styles/app-shell.css?inline';
 import usePageStyle from '../components/usePageStyle.js';
 import useToast from '../components/useToast.js';
@@ -7,6 +8,24 @@ import { useAuth } from '../auth/AuthContext.jsx';
 import { listResults, updateResult } from '../api/results.js';
 import { getMe } from '../api/me.js';
 import { formatKoreanDate } from '../utils/date.js';
+import { AccountPanel, ServiceSettings } from '../mypage/Settings.jsx';
+import Support from '../mypage/Support.jsx';
+import { PhotoMenu, PhotoViewer } from '../mypage/PhotoTools.jsx';
+import { downloadResult } from '../utils/download.js';
+
+// 주소 뒤 # 표시로 가운데 화면을 고른다
+// - 없음·#album: 내 정보와 사진첩
+// - #account-profile|email|password: 오른쪽 '계정 설정'에서 고른 항목 하나
+// - #settings: 왼쪽 '설정' (알림, 합성 기본 설정), #support: 고객센터
+const ACCOUNT_ITEMS = [['profile', '프로필 수정'], ['email', '이메일 변경'], ['password', '비밀번호 변경']];
+const readHash = (hash) => {
+  const account = ACCOUNT_ITEMS.find(([key]) => hash === `#account-${key}`);
+  if (account) return { view: 'account', item: account[0], focus: null };
+  if (hash === '#settings') return { view: 'settings', focus: null };
+  if (hash === '#support') return { view: 'support', focus: null };
+  return { view: 'info', focus: hash === '#album' ? 'album' : null };
+};
+const DEFAULT_BIO = '어울리는 상의를 미리 입어 보세요.';
 
 // 사진첩은 서버의 결과 목록(명세 6-1)을 보여 준다. 탭, 날짜, 정렬을 바꿀 때마다 서버에 다시 묻는다.
 // 사진첩에는 저장한 결과만 나온다. 저장하지 않은 결과는 합성하기 화면의 '내 작업 기록'에서 보고 저장할 수 있다 (24시간 뒤 삭제).
@@ -29,9 +48,28 @@ export default function MyPage() {
   const [view, setView] = useState('all');
   const [date, setDate] = useState('');
   const [sort, setSort] = useState('new');
-  const [toast, showToast] = useToast();
+  const [toast, showToast] = useToast(2400);
+  const [viewing, setViewing] = useState(null); // 크게 보기 중인 결과
+  const { hash } = useLocation();
+  const page = readHash(hash);
 
-  const soon = (e) => { e.preventDefault(); showToast('준비 중입니다'); };
+  // 메뉴를 고르면 해당 칸으로 스크롤
+  useEffect(() => {
+    if (page.focus) {
+      const el = document.getElementById(page.focus);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      window.scrollTo({ top: 0 });
+    }
+  }, [page.view, page.item, page.focus]);
+
+  const download = async (it) => {
+    try {
+      await downloadResult(it);
+    } catch (e) {
+      showToast(e.message);
+    }
+  };
 
   useEffect(() => {
     if (!loggedIn) return undefined;
@@ -96,16 +134,21 @@ export default function MyPage() {
       <div className="as-shell">
         <aside className="as-sidebar">
           <div className="as-side-list">
-            <a className="as-side-item active" href="/mypage">내 정보</a>
-            <a className="as-side-item" href="#album">사진첩</a>
-            <a className="as-side-item" href="#" onClick={soon}>설정</a>
-            <a className="as-side-item" href="#" onClick={soon}>고객센터</a>
+            <a className={'as-side-item' + (page.view === 'info' && !page.focus ? ' active' : '')} href="#">내 정보</a>
+            <a className={'as-side-item' + (page.focus === 'album' ? ' active' : '')} href="#album">사진첩</a>
+            <a className={'as-side-item' + (page.view === 'settings' ? ' active' : '')} href="#settings">설정</a>
+            <a className={'as-side-item' + (page.view === 'support' ? ' active' : '')} href="#support">고객센터</a>
           </div>
         </aside>
 
         <div className="as-mypage-grid">
           <main>
-            <section className="as-panel as-album" id="album">
+            {page.view === 'account' && (loggedIn
+              ? <AccountPanel item={page.item} me={me} onMe={setMe} showToast={showToast} />
+              : <p className="as-empty">로그인하면 계정 정보를 바꿀 수 있습니다.</p>)}
+            {page.view === 'settings' && <ServiceSettings showToast={showToast} />}
+            {page.view === 'support' && <Support />}
+            <section className="as-panel as-album" id="album" hidden={page.view !== 'info'}>
               <div className="as-album-head">
                 <div>
                   <h3>사진첩</h3>
@@ -142,7 +185,7 @@ export default function MyPage() {
                     <div className="as-card-foot">
                       <span>{formatKoreanDate(it.created_at)}</span>
                       {it.saved
-                        ? <span className="more">⋯</span>
+                        ? <PhotoMenu item={it} onView={setViewing} onDownload={download} />
                         : <button type="button" className="as-save-btn" disabled={pending.has(it.result_id)} onClick={() => save(it.result_id)}>저장</button>}
                     </div>
                   </div>
@@ -152,19 +195,22 @@ export default function MyPage() {
             </section>
           </main>
 
-          <aside className="as-mypage-side">
-            <div className="as-panel as-profile-card">
+          {/* 오른쪽: 프로필과 계정 설정을 한 상자로 */}
+          <aside className="as-mypage-side as-panel">
+            <div className="as-profile-card">
               <div className="as-profile-avatar">{loggedIn && me && me.avatar_url && <img src={me.avatar_url} alt="" />}</div>
               <div className="as-profile-name">{loggedIn && me ? me.name : ''}</div>
               <div className="as-profile-email">{loggedIn && me ? me.email : ''}</div>
-              <p className="as-profile-bio">일상의 모든 것을,<br />새로운 배경으로 만들어보세요.</p>
+              <p className="as-profile-bio">{loggedIn && me && me.bio ? me.bio : DEFAULT_BIO}</p>
             </div>
 
-            <div className="as-panel">
-              <h3 style={{ fontSize: 15, marginBottom: 8 }}>계정 설정</h3>
+            <div className="as-side-account">
+              <h3>계정 설정</h3>
               <ul className="as-settings-list">
-                {['프로필 수정', '이메일 변경', '비밀번호 변경', '알림 설정'].map((t) => (
-                  <li key={t} onClick={soon}>{t} <span>›</span></li>
+                {ACCOUNT_ITEMS.map(([key, t]) => (
+                  <li key={key} className={page.view === 'account' && page.item === key ? 'active' : ''}>
+                    <a href={`#account-${key}`}>{t} <span>›</span></a>
+                  </li>
                 ))}
               </ul>
               <button className="as-logout-btn" hidden={!loggedIn} onClick={logout}>⎋ 로그아웃</button>
@@ -173,6 +219,7 @@ export default function MyPage() {
         </div>
       </div>
 
+      {viewing && <PhotoViewer item={viewing} onClose={() => setViewing(null)} onDownload={download} />}
       <div className={'toast' + (toast.show ? ' show' : '')}>{toast.msg}</div>
     </>
   );

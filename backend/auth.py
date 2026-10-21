@@ -101,6 +101,12 @@ def revoke_token(db: Session, token: str):
     db.commit()
 
 
+def revoke_other_tokens(db: Session, user: User, keep_token: str):
+    """비밀번호를 바꾼 뒤: 지금 쓰는 토큰만 남기고 이 회원의 다른 로그인을 모두 끊는다"""
+    db.execute(delete(AuthSession).where(AuthSession.user_id == user.id, AuthSession.token_hash != _token_hash(keep_token)))
+    db.commit()
+
+
 def bearer_token(request: Request) -> str | None:
     """요청 머리 Authorization: Bearer <토큰> 에서 토큰만 꺼낸다"""
     value = request.headers.get("Authorization", "")
