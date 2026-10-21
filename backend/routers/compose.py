@@ -27,7 +27,7 @@ from fastapi import APIRouter, Depends, File, Form, UploadFile
 from PIL import Image, UnidentifiedImageError
 
 from backend.auth import current_user
-from backend.config import EXTRACTIONS_DIR, IMAGES_DIR, JOBS_DIR, MAX_UPLOAD_BYTES, RESTORE_ORIGINAL, RESULTS_DIR
+from backend.config import EXTRACTIONS_DIR, IMAGES_DIR, JOBS_DIR, MAX_UPLOAD_BYTES, RESTORE_ORIGINAL, RESULTS_DIR, SEAM_FIX
 from backend.db import User
 from backend.errors import ApiError
 from backend.gpu import GPU_LOCK, release_cached_memory
@@ -151,10 +151,17 @@ def _run(job_id):
         _update(job_id, progress=round(min(p, 1.0), 3))
 
     garment_found = None
+    crop_box = None
     with GPU_LOCK:
         try:
             result = compose(ref, ref_mask, tar, tar_mask, seed=job["seed"], on_progress=on_progress,
                              shape_control=job.get("shape_control", False), refine=job.get("refine", False))
+            if SEAM_FIX:
+                # 박스 선 보정: 다시 그린 정사각형을 붙인 테두리의 밝기·색 차이를 원본에 맞춤 (features/composition/seam.py)
+                from features.composition import fix_seam, last_crop_box
+
+                crop_box = last_crop_box()
+                result = fix_seam(tar, result, crop_box)
             if RESTORE_ORIGINAL:
                 # 원본 복원 후처리: 얼굴·머리·배경은 원본, 새 상의(SAM2로 찾음)는 어깨 끝까지 유지
                 from features.composition import find_garment, restore_original
@@ -187,6 +194,8 @@ def _run(job_id):
         "job_id": job_id,
         "extraction_id": job["extraction_id"],
         "seed": job["seed"],
+        "seam_fix": SEAM_FIX,  # 박스 선 보정 적용 여부
+        "crop_box": list(crop_box) if crop_box else None,  # 박스 선 보정에 쓴 크롭 영역 (위, 아래, 왼쪽, 오른쪽), None = 보정 안 됨
         "restore_original": RESTORE_ORIGINAL,  # 원본 복원 후처리 적용 여부
         "garment_found": garment_found,       # 새 상의 찾기 성공 여부 (실패 시 상단 경계만으로 복원, 미적용 시 None)
     }

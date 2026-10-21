@@ -53,12 +53,28 @@ final = restore_original(tar_rgb, result, tar_mask, garment)   # RGB uint8, 인�
 - `find_garment`: 착용 영역을 감싼 박스를 프롬프트로 SAM2 실행, 착용 영역 대비 0.3~2배 밖이면 `None` (상단 경계만으로 복원)
 - 서버: `backend/routers/compose.py`가 합성 직후 적용
 
+### 박스 선 보정 (`seam.py`)
+
+```python
+from features.composition import compose, fix_seam, last_crop_box
+
+result = compose(ref_rgb, ref_mask, tar_rgb, tar_mask)
+result = fix_seam(tar_rgb, result, last_crop_box())   # RGB uint8, 인물 이미지와 같은 크기
+```
+
+- 문제: AnyDoor가 다시 그린 정사각형(크롭 영역)을 원본에 붙인 테두리가 선으로 보임 (다시 그린 부분의 배경 밝기·색이 원본과 조금 다름)
+- 방법: 테두리의 "원본 - 합성 결과" 색 차이 중 튀는 값(원본과 내용이 다른 곳)은 빼고, 그 차이만큼 네모 안쪽을 부드럽게 보정
+- `last_crop_box()`: 가장 최근 합성의 크롭 영역 (위, 아래, 왼쪽, 오른쪽), `compose` 직후 호출
+- 효과 (100장 시험, 2026-10-21): 박스 선 세기(테두리 안팎 밝기 차이) 평균 2.49 → 0.57
+- 서버: `backend/routers/compose.py`가 합성 직후, 원본 복원 전에 적용
+
 ## 3. 환경 변수
 
 | 이름 | 용도 | 기본값 |
 |---|---|---|
 | `ANYDOOR_DIR` | AnyDoor 폴더 위치 | `Desktop\AnyDoor` |
 | `MOA_RESTORE_ORIGINAL` | 서버의 원본 복원 후처리 켜기(1)·끄기(0) | `1` |
+| `MOA_SEAM_FIX` | 서버의 박스 선 보정 켜기(1)·끄기(0) | `1` |
 
 ## 4. 필요 파일
 
