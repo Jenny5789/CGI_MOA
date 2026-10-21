@@ -99,10 +99,14 @@ function ProfileForm({ me, onMe, showToast }) {
     <form onSubmit={submit}>
       <div className="as-set-avatar">
         <div className="as-profile-avatar">{me && me.avatar_url && <img src={me.avatar_url} alt="" />}</div>
-        <div className="as-set-avatar-tools">
-          <button type="button" className="as-btn" disabled={busy} onClick={() => fileRef.current && fileRef.current.click()}>사진 변경</button>
-          <button type="button" className="as-btn ghost" disabled={busy || !me || !me.avatar_url} onClick={clearAvatar}>기본 프로필</button>
-          <input ref={fileRef} type="file" accept="image/jpeg,image/png" hidden onChange={pickAvatar} />
+        <div className="as-set-avatar-info">
+          <div className="as-profile-name">{me ? me.name : ''}</div>
+          <div className="as-profile-email">{me ? me.email : ''}</div>
+          <div className="as-set-avatar-tools">
+            <button type="button" className="as-btn" disabled={busy} onClick={() => fileRef.current && fileRef.current.click()}>사진 변경</button>
+            <button type="button" className="as-btn ghost" disabled={busy || !me || !me.avatar_url} onClick={clearAvatar}>기본 프로필</button>
+            <input ref={fileRef} type="file" accept="image/jpeg,image/png" hidden onChange={pickAvatar} />
+          </div>
         </div>
       </div>
       <div className="as-set-grid">
@@ -246,26 +250,27 @@ function ComposeDefaultsForm({ showToast }) {
   ));
 }
 
-// item: 'profile' / 'email' / 'password' (MyPage의 주소 #account-..., 기본 profile)
-export function AccountPanel({ item, me, onMe, showToast }) {
+// 내 정보 상자: 상단 탭 items로 항목을 고른다. item: 'profile' / 'email' / 'password' (MyPage의 주소 #account-..., 기본 profile)
+export function AccountPanel({ items, item, me, onMe, showToast }) {
+  let desc = '';
+  let body = <ProfileForm me={me} onMe={onMe} showToast={showToast} />;
   if (item === 'email') {
-    return (
-      <Section id="account" title="이메일 변경" desc="로그인 확인과 안내에 쓰는 이메일입니다.">
-        <EmailForm me={me} onMe={onMe} showToast={showToast} />
-      </Section>
-    );
-  }
-  if (item === 'password') {
-    return (
-      <Section id="account" title="비밀번호 변경" desc="변경하면 이 기기만 로그인 상태를 유지하고 다른 기기는 로그아웃됩니다.">
-        <PasswordForm showToast={showToast} />
-      </Section>
-    );
+    desc = '로그인 확인과 안내에 쓰는 이메일입니다.';
+    body = <EmailForm me={me} onMe={onMe} showToast={showToast} />;
+  } else if (item === 'password') {
+    desc = '변경하면 이 기기만 로그인 상태를 유지하고 다른 기기는 로그아웃됩니다.';
+    body = <PasswordForm showToast={showToast} />;
   }
   return (
-    <Section id="account" title="프로필 수정">
-      <ProfileForm me={me} onMe={onMe} showToast={showToast} />
-    </Section>
+    <section className="as-panel as-set" id="account">
+      <nav className="as-tabs as-account-tabs">
+        {items.map(([key, t]) => (
+          <a key={key} className={'as-tab' + (item === key ? ' active' : '')} href={`#account-${key}`}>{t}</a>
+        ))}
+      </nav>
+      {desc && <p className="as-set-desc">{desc}</p>}
+      {body}
+    </section>
   );
 }
 
