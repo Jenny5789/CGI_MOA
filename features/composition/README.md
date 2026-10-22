@@ -97,7 +97,7 @@ result = fix_seam(tar_rgb, result, last_crop_box())   # RGB uint8, 인물 이미
 | 공유 GPU 메모리 최대 사용량 | 3,199MB | 218MB |
 
 - 비교 조건: 서버 종료 상태, 같은 입력과 seed, 상의 경계 보정 적용, 예열 → SAM2 추출 → 합성 2회
-- 비교 표 전체: [README.md 6. 합성 속도 개선](../../README.md#부품-단위-gpu-적재--2026-10-21)
+- 비교 표 전체: [README.md 6. 합성 속도 개선](../../README.md#구성-요소별-gpu-순차-적재--2026-10-21)
 
 ## 6. 단위 테스트
 

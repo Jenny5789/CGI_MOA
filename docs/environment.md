@@ -94,7 +94,7 @@ git -C checkpoints\AnyDoor checkout 44ca2b2
 
 - 위치: 저장소 `checkpoints\AnyDoor`. `checkpoints/`는 `.gitignore` 등록 폴더
 - 커밋 `44ca2b2` 고정: 합성 모듈이 `run_inference.py`의 정해진 코드 줄을 바꿔 실행하므로 다른 커밋은 실행 오류 가능
-- 서버·점검 실행 시 환경 변수 `ANYDOOR_DIR`로 이 폴더 지정: 3장, [README.md 11-1](../README.md#11-1-백엔드)
+- 서버·점검 실행 시 환경 변수 `ANYDOOR_DIR`로 이 폴더 지정: 3장, [README.md 10-1](../README.md#10-1-백엔드)
 
 ### 9. AI 모델 파일 받기
 
@@ -142,7 +142,7 @@ CGI\Scripts\python.exe scripts\check_env.py
 - `[NG]` 항목은 해당 설치 순서 재수행
 - 실행 시 출력되는 `A matching Triton is not available` 경고는 무시
 - 점검 제외 항목: AnyDoor·DINOv2 가중치 파일, 10단계 설정 수정, MySQL 접속
-  - AnyDoor 확인: 서버 실행 후 `/api/health`의 `warmup` 값 `done`, [README.md 11-1](../README.md#11-1-백엔드)
+  - AnyDoor 확인: 서버 실행 후 `/api/health`의 `warmup` 값 `done`, [README.md 10-1](../README.md#10-1-백엔드)
   - MySQL 확인: [database.md](database.md) 2-4
 
 ## 4. 가상환경 사용 규칙
