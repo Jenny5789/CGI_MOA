@@ -6,6 +6,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { useLocation, useNavigate } from 'react-router-dom';
 import useToast from '../components/useToast.js';
 import * as authApi from '../api/auth.js';
+import { getMe } from '../api/me.js';
 import SignupModal from './SignupModal.jsx';
 import { getToken, UNAUTHORIZED_EVENT } from '../api/client.js';
 
@@ -22,6 +23,7 @@ export const useAuth = () => useContext(AuthContext);
 
 export function AuthProvider({ children }) {
   const [loggedIn, setLoggedIn] = useState(() => !!getToken());
+  const [me, setMe] = useState(null); // 내 정보(명세 2-3). 상단 메뉴 프로필과 마이페이지가 함께 쓴다
   const [modal, setModal] = useState({ open: false, sub: WELCOME, next: null });
   const [signup, setSignup] = useState({ open: false, next: null }); // next: 가입 뒤 갈 화면 (로그인 창에서 넘어온 경우)
   const [toast, showToast] = useToast(2000);
@@ -67,6 +69,14 @@ export function AuthProvider({ children }) {
     return () => { alive = false; };
   }, []);
 
+  // 로그인 상태가 되면 내 정보를 받고, 로그아웃하면 비운다
+  useEffect(() => {
+    if (!loggedIn) { setMe(null); return undefined; }
+    let alive = true;
+    getMe().then((data) => { if (alive) setMe(data); }).catch(() => { /* 못 받아도 화면은 그대로 쓸 수 있게 둔다 */ });
+    return () => { alive = false; };
+  }, [loggedIn]);
+
   const login = async (username, pw) => {
     const next = modal.next;
     try {
@@ -99,7 +109,7 @@ export function AuthProvider({ children }) {
     showToast('로그아웃되었습니다');
   };
 
-  const value = { loggedIn, openLogin, openSignup, login, logout, showToast };
+  const value = { loggedIn, me, setMe, openLogin, openSignup, login, logout, showToast };
 
   return (
     <AuthContext.Provider value={value}>

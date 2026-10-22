@@ -6,15 +6,14 @@ import useToast from '../components/useToast.js';
 import TopNav from '../components/TopNav.jsx';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { listResults, updateResult } from '../api/results.js';
-import { getMe } from '../api/me.js';
 import { formatKoreanDate } from '../utils/date.js';
-import { AccountPanel, DEFAULT_BIO, ServiceSettings } from '../mypage/Settings.jsx';
+import { AccountPanel, ServiceSettings } from '../mypage/Settings.jsx';
 import Support from '../mypage/Support.jsx';
 import { PhotoMenu, PhotoViewer } from '../mypage/PhotoTools.jsx';
 import { downloadResult } from '../utils/download.js';
 
 // 주소 뒤 # 표시로 가운데 화면을 고른다
-// - 없음·#account-profile|email|password: 내 정보. 왼쪽 프로필 카드·계정 설정, 오른쪽 고른 항목 (기본 프로필 수정)
+// - 없음·#account-profile|email|password: 내 정보. 상자 상단 탭으로 항목 선택, 기본 프로필 수정
 // - #album: 사진첩, #settings: 설정 (알림, 합성 기본 설정), #support: 고객센터
 const ACCOUNT_ITEMS = [['profile', '프로필 수정'], ['email', '이메일 변경'], ['password', '비밀번호 변경']];
 const readHash = (hash) => {
@@ -36,14 +35,13 @@ const VIEWS = {
 
 export default function MyPage() {
   usePageStyle(appShellCss, 'MOA — 마이페이지');
-  const { loggedIn, logout } = useAuth();
+  const { loggedIn, me, setMe } = useAuth();
   const [items, setItems] = useState([]);
   const [counts, setCounts] = useState({});
   const [status, setStatus] = useState('loading'); // loading / ready / error
   const [errorMsg, setErrorMsg] = useState('');
   const [reload, setReload] = useState(0); // 저장/좋아요 뒤 목록을 다시 받을 때 올린다
   const [pending, setPending] = useState(() => new Set()); // 서버 응답을 기다리는 결과 (버튼 두 번 누름 방지)
-  const [me, setMe] = useState(null);
   const [view, setView] = useState('all');
   const [date, setDate] = useState('');
   const [sort, setSort] = useState('new');
@@ -83,13 +81,6 @@ export default function MyPage() {
       });
     return () => { ignore = true; };
   }, [loggedIn, view, date, sort, reload]);
-
-  useEffect(() => {
-    if (!loggedIn) return undefined;
-    let ignore = false;
-    getMe().then((data) => { if (!ignore) setMe(data); }).catch(() => { /* 프로필은 못 받아도 사진첩은 쓸 수 있게 둔다 */ });
-    return () => { ignore = true; };
-  }, [loggedIn]);
 
   const patch = async (id, change, doneMsg) => {
     if (pending.has(id)) return;
@@ -136,31 +127,10 @@ export default function MyPage() {
         </aside>
 
         <main className="as-mypage-main">
-            {/* 내 정보: 왼쪽 프로필 카드와 계정 설정, 오른쪽 고른 항목 */}
-            {page.view === 'info' && (loggedIn ? (
-              <div className="as-mypage-grid">
-                <aside className="as-mypage-side as-panel">
-                  <div className="as-profile-card">
-                    <div className="as-profile-avatar">{me && me.avatar_url && <img src={me.avatar_url} alt="" />}</div>
-                    <div className="as-profile-name">{me ? me.name : ''}</div>
-                    <div className="as-profile-email">{me ? me.email : ''}</div>
-                    <p className="as-profile-bio">{me && me.bio ? me.bio : DEFAULT_BIO}</p>
-                  </div>
-                  <div className="as-side-account">
-                    <h3>계정 설정</h3>
-                    <ul className="as-settings-list">
-                      {ACCOUNT_ITEMS.map(([key, t]) => (
-                        <li key={key} className={page.item === key ? 'active' : ''}>
-                          <a href={`#account-${key}`}>{t} <span>›</span></a>
-                        </li>
-                      ))}
-                    </ul>
-                    <button type="button" className="as-logout-btn" onClick={logout}>로그아웃</button>
-                  </div>
-                </aside>
-                <AccountPanel item={page.item} me={me} onMe={setMe} showToast={showToast} />
-              </div>
-            ) : <p className="as-empty">로그인하면 내 정보를 확인할 수 있습니다.</p>)}
+            {/* 내 정보: 상자 하나에 프로필과 계정 설정 탭 */}
+            {page.view === 'info' && (loggedIn
+              ? <AccountPanel items={ACCOUNT_ITEMS} item={page.item} me={me} onMe={setMe} showToast={showToast} />
+              : <p className="as-empty">로그인하면 내 정보를 확인할 수 있습니다.</p>)}
             {page.view === 'settings' && <ServiceSettings showToast={showToast} />}
             {page.view === 'support' && <Support />}
             <section className="as-panel as-album" id="album" hidden={page.view !== 'album'}>
@@ -194,7 +164,7 @@ export default function MyPage() {
                 {list.map((it) => (
                   <div className="as-card" key={it.result_id}>
                     <div className="as-thumb">
-                      <img src={it.thumb_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <img className="as-thumb-img" src={it.thumb_url} alt="" onClick={() => setViewing(it)} />
                       <button type="button" className={'as-heart' + (it.favorite ? ' liked' : '')} onClick={() => toggleFav(it.result_id)}>{it.favorite ? '♥' : '♡'}</button>
                     </div>
                     <div className="as-card-foot">

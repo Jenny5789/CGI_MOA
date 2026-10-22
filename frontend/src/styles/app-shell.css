@@ -253,6 +253,7 @@ button { font-family: var(--sans); }
 .as-tab:hover { color: var(--ink); }
 .as-tab.active { color: var(--ink); font-weight: 700; border-bottom-color: var(--ink); }
 .as-tab .count { margin-left: 4px; font-size: 12px; font-weight: 500; opacity: .7; }
+.as-account-tabs .as-tab { text-decoration: none; }
 
 /* 최근 작업 카드의 저장 버튼 */
 .as-save-btn {
@@ -293,6 +294,7 @@ button { font-family: var(--sans); }
   background: #fdfdfd;
   border-bottom: 1px solid var(--border);
 }
+.as-thumb-img { width: 100%; height: 100%; object-fit: cover; display: block; cursor: zoom-in; } /* 누르면 크게 보기 */
 
 .as-heart {
   position: absolute;
@@ -325,7 +327,7 @@ button { font-family: var(--sans); }
 /* ---------- My Page ---------- */
 .as-mypage-grid {
   display: grid;
-  grid-template-columns: 300px minmax(0, 1fr); /* 내 정보: 왼쪽 프로필 카드·계정 설정, 오른쪽 고른 항목 */
+  grid-template-columns: minmax(0, 1fr) 300px;
   gap: 20px;
   align-items: start;
 }
@@ -448,6 +450,7 @@ button { font-family: var(--sans); }
 .as-btn.ghost { background: var(--paper-soft); color: var(--ink); border-color: var(--border); }
 .as-set-avatar { display: flex; align-items: center; gap: 20px; margin-bottom: 20px; }
 .as-set-avatar .as-profile-avatar { width: 88px; height: 88px; }
+.as-set-avatar-info .as-profile-email { margin: 2px 0 12px; }
 .as-set-avatar-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .as-set-avatar-tools .as-field-hint { flex-basis: 100%; }
 .as-set-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
