@@ -132,7 +132,7 @@ Backend ↔ MySQL · storage/ · GPU
 ### 상의 영역 추출 · SAM2
 
 - 상의 사진에 **포함 점**은 왼쪽 클릭, **제외 점**은 오른쪽 클릭으로 찍으면 SAM2가 상의 영역을 분할
-- 추출 결과를 **다듬기 창**에서 브러시·지우개로 수정, 휠 확대·끌기 이동으로 경계 정밀 보정
+- 추출 결과를 **다듬기 창**에서 영역 추가·영역 제거 도구로 수정, 휠 확대·끌기 이동으로 경계 정밀 보정
 - 설명: [features/object_extraction/README.md](features/object_extraction/README.md)
 
 ### 착용 합성 · AnyDoor
@@ -234,7 +234,7 @@ AnyDoor 공식 설정 그대로는 RTX 3080 10GB에서 사진 한 장, 50스텝 
 | 마이페이지 설정 API · 10/20 | 정상·오류 22개 사례 모두 기대 응답. 형식 오류 400, 중복 이메일 409, 비밀번호 변경 후 타 기기 토큰 401 |
 | 마이페이지 화면 · 10/22 | 내 정보·사진첩·계정 설정 화면 전환, 크게 보기, 다운로드, 휴대폰 폭 375px 가로 스크롤 없음 |
 
-- IoU: 정답 영역과 추출 영역이 겹치는 비율, 1에 가까울수록 정확
+- IoU: 정답 영역과 추출 영역의 교집합 ÷ 합집합, 1에 가까울수록 정확
 - 확인 환경: Windows 11, RTX 3080 10GB. 착용 합성은 2026-10-21, SAM2 정확도는 2026-10-17 측정
 
 ---
@@ -266,7 +266,7 @@ AnyDoor 공식 설정 그대로는 RTX 3080 10GB에서 사진 한 장, 50스텝 
 
 - 로그인 시간 연장 안내 창, 서버·요청 함수는 준비됨
 - 사진첩 결과 삭제: 명세 6-3 미정. 현재는 미저장 결과만 24시간 후 자동 삭제
-- 휴대폰의 다듬기 창 브러시와 제외 점 지정
+- 휴대폰의 다듬기 창 영역 추가와 제외 점 지정
 - mock 모드 `VITE_API_MODE=mock`에는 사진 올리기·추출·합성·진행 확인 주소가 없어 합성하기 3단계에서 멈춤. 합성까지 보려면 `mixed`로 실제 서버 사용
 
 ---
@@ -309,29 +309,51 @@ Python 3.10 기본 pip 23.0.1이 torch 다운로드 주소의 `typing_extensions
 
 ## 11. 실행 방법
 
+- 최초 설치: [environment.md](docs/environment.md) 2장 → [database.md](docs/database.md) 2장
+- 실행 셸: PowerShell, 서버마다 창 하나
+
+| 구성 | 포트 | 절 |
+|---|---|---|
+| 백엔드 FastAPI | 8000 | 11-1 |
+| 프론트엔드 개발 서버 | 5180 | 11-2 |
+| 외부 접속 Cloudflare 터널 | 5180 연결 | 11-3 |
+
 ### 11-1. 백엔드
 
 - 준비 사항
-  - Python 가상환경 `CGI`: [environment.md](docs/environment.md)
+  - Python 가상환경 `CGI`, SAM2·AnyDoor 코드와 모델 파일: [environment.md](docs/environment.md) 2장
   - MySQL: [database.md](docs/database.md)
-  - GPU, 모델 가중치 파일: 저장소 미포함, AI 기능·서버 담당에게 요청
+  - NVIDIA GPU
 - 실행 순서: 저장소 최상위 디렉터리
-  1. AnyDoor 폴더가 `Desktop\AnyDoor`가 아니면 `$env:ANYDOOR_DIR="AnyDoor 폴더 경로"`
+  1. `$env:ANYDOOR_DIR = "$PWD\checkpoints\AnyDoor"`: AnyDoor 폴더 지정, 새 창마다 1회
   2. `CGI\Scripts\python.exe -m uvicorn backend.main:app --port 8000`: 서버 실행, 모델 로딩과 예열 약 2분
-  3. http://localhost:8000/api/health 접속: `{"status":"ok"}`이면 정상
+  3. http://localhost:8000/api/health 접속: `status`가 `ok`이면 서버 실행, `warmup`이 `done`이면 합성 준비 완료
 - API 테스트 페이지: http://localhost:8000/docs
   - 자물쇠 표시가 있는 로그인 필요 API: `POST /api/auth/login` 응답의 `token`을 Authorize 버튼에 입력 후 실행
 - 환경 변수: [backend/README.md](backend/README.md) 3. 환경 변수
 
 ### 11-2. 프론트엔드
 
-- 준비 사항: Node.js, 11-1 백엔드 실행
-- 실행 순서
+- 준비 사항: Node.js 24, 11-1 백엔드 실행
+- 실행 순서: 저장소 최상위 디렉터리
   1. `cd frontend`: 디렉터리 이동
   2. `npm install`: 의존 패키지 설치, 최초 1회
-  3. `frontend/.env.example`을 `frontend/.env.local`로 복사 후 `VITE_API_MODE=mixed`: 백엔드 연결 설정, 최초 1회. 생략하면 모의 데이터로 동작
-  4. `npm run dev`: 개발 서버 실행
-  5. http://localhost:5173 접속 → 테스트 계정 `test` / `test1234` 로그인
+  3. `Copy-Item .env.example .env.local` 후 `.env.local`의 `VITE_API_MODE`를 `mixed`로 변경: 백엔드 연결 설정, 최초 1회. 생략하면 모의 데이터로 동작
+  4. `npm run dev -- --port 5180 --strictPort`: 개발 서버 실행
+  5. http://localhost:5180 접속 → 테스트 계정 `test` / `test1234` 로그인
+- `--strictPort`: 5180번 사용 중이면 다른 포트로 옮기지 않고 종료, 11-3 터널 주소와 불일치 방지
+
+### 11-3. 외부 접속 · Cloudflare 터널
+
+- 용도: 휴대폰·외부 PC 시연, 계정 없이 임시 주소 발급
+- 준비 사항: 11-1 백엔드, 11-2 프론트엔드 실행
+- 실행 순서
+  1. `winget install --id Cloudflare.cloudflared`: 설치, 최초 1회. 설치 후 새 PowerShell 창 사용
+  2. `cloudflared tunnel --no-autoupdate --url http://localhost:5180`: 터널 실행
+  3. 실행 로그의 `https://….trycloudflare.com` 주소 접속
+- 백엔드 요청: 프론트엔드 개발 서버가 `/api`를 8000번으로 전달, 터널 하나로 전체 기능 사용
+- 접속 허용: `frontend/vite.config.js`의 `allowedHosts`에 `.trycloudflare.com` 등록
+- 주소 유지: 터널 창 종료 시 만료, 실행마다 새 주소
 
 ---
 
