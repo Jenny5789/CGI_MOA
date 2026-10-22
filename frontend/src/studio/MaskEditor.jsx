@@ -1,4 +1,4 @@
-/* 다듬기 팝업: 점 찍기로 잡은 영역을 브러시(추가)와 지우개(삭제)로 손본다. 3단계(상의 추출)와 4단계(합성 영역)가 같이 쓴다.
+/* 다듬기 팝업: 점 찍기로 잡은 영역을 영역 추가와 영역 제거로 손본다. 3단계(상의 추출)와 4단계(합성 영역)가 같이 쓴다.
    image: 작업용 사진 캔버스, mask: 시작할 영역(흰색 캔버스). 원본은 건드리지 않고 사본을 고쳐서 onDone으로 돌려준다.
    영역은 포토샵 선택 영역처럼 보여 준다: 안쪽은 움직이는 검정·흰색 빗금, 가장자리는 움직이는 흑백 점선 (canvas.js paintSelection).
    확대 보기, 10/21: zoom.js와 같은 보기 상태 사용. 휠·＋/－ 버튼으로 확대, 스페이스바를 누른 채 끌거나 오른쪽·가운데 버튼으로 끌면 이동.
@@ -239,12 +239,19 @@ export default function MaskEditor({ title, help, image, mask, cancelLabel, done
           <h3>{title}</h3>
           <button type="button" className="sg-modal-close" aria-label="닫기" onClick={onCancel}>×</button>
         </div>
-        <div className="sg-help"><b>사용 방법</b><p>{help}</p></div>
+        {/* 도구: 상단 가운데, 아이콘과 하는 일 이름으로 표시 */}
         <div className="sg-tools">
-          <button type="button" className={'sg-tool' + (tool === 'brush' ? ' active' : '')} onClick={() => chooseTool('brush')}>브러시</button>
-          <button type="button" className={'sg-tool' + (tool === 'eraser' ? ' active' : '')} onClick={() => chooseTool('eraser')}>지우개</button>
+          <button type="button" className={'sg-tool' + (tool === 'brush' ? ' active' : '')} onClick={() => chooseTool('brush')}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l4.5-1 9.8-9.8a2.1 2.1 0 0 0-3-3L5.5 16 4 20z" /><path d="M18 15v6M15 18h6" /></svg>
+            영역 추가
+          </button>
+          <button type="button" className={'sg-tool' + (tool === 'eraser' ? ' active' : '')} onClick={() => chooseTool('eraser')}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 4.5l4 4-9 9H6.5l-3-3 12-10z" /><path d="M9 20h11M8.5 10.5l5 5" /></svg>
+            영역 제거
+          </button>
           <label className="sg-size">크기 <input type="range" min="10" max="90" value={size} onChange={(e) => changeSize(Number(e.target.value))} /></label>
         </div>
+        <div className="sg-help"><b>사용 방법</b><p>{help}</p></div>
         <div className="sg-canvas-box" onMouseLeave={() => setRing(null)}>
           <div className="sg-zoom" role="group" aria-label="사진 확대">
             <button type="button" aria-label="확대" onClick={() => zoomBy(1.5)}>＋</button>

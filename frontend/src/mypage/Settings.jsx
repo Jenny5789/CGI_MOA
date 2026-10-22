@@ -280,7 +280,7 @@ export function ServiceSettings({ showToast }) {
       <Section id="set-notify" title="알림 설정" desc="이 브라우저에서 받을 알림입니다. 기기마다 따로 설정합니다.">
         <NotifyForm showToast={showToast} />
       </Section>
-      <Section id="set-compose" title="합성 기본 설정" desc="합성 설정 창에 처음부터 선택해 둘 항목입니다. 합성할 때마다 바꿀 수 있습니다.">
+      <Section id="set-compose" title="합성 기본 설정" desc="합성 시 기본으로 선택되는 항목입니다. 합성마다 변경할 수 있습니다.">
         <ComposeDefaultsForm showToast={showToast} />
       </Section>
     </>

@@ -1,7 +1,7 @@
 /* 합성하기: 단계별 안내 화면
    1 상의 사진 고르기 -> 2 인물 사진 고르기
-   -> 3 점 찍어 상의 추출 -> 확인 -> 다듬기 팝업(브러시, 지우개) -> 완료
-   -> 4 점 찍어 입힐 영역 추출 -> 확인 -> 다듬기 팝업(브러시, 지우개) -> 다음 -> 합성 설정 팝업(체크 두 개) -> 합성 시작
+   -> 3 점 찍어 상의 추출 -> 확인 -> 다듬기 팝업(영역 추가, 영역 제거) -> 완료
+   -> 4 점 찍어 입힐 영역 추출 -> 확인 -> 다듬기 팝업(영역 추가, 영역 제거) -> 다음 -> 합성 설정 팝업(체크 두 개) -> 합성 시작
    -> 결과, 저장
    오른쪽 "내 작업 기록"은 저장 여부와 관계없이 합성한 결과 전체(명세 6-1)를 보여 준다. 저장하지 않은 결과는 24시간 뒤 서버에서 삭제된다.
    서버 연결 (src/api/studio.js)
@@ -63,7 +63,7 @@ const PICK_TEXT = {
   2: { title: '2. 인물 사진 선택', helpTitle: '권장 사진', help: <>상의를 입힐 <em>인물</em>의 사진을 선택합니다.<br />상반신이 잘 보이는 사진을 권장합니다.</> },
 };
 
-// 버튼 상태가 그대로면 화면을 다시 그리지 않는다 (브러시로 칠하는 동안 매번 다시 그리는 것을 막음)
+// 버튼 상태가 그대로면 화면을 다시 그리지 않는다 (영역 추가로 칠하는 동안 매번 다시 그리는 것을 막음)
 const sameUi = (a, b) => Object.keys(b).every((k) => a[k] === b[k]);
 
 const PANEL_KEYS ={ left: 'moa_panel_left', right: 'moa_panel_right' };
@@ -481,7 +481,7 @@ export default function Studio() {
     go(4);
   };
 
-  /* ---------- 4단계: 합성 영역 지정 (3단계와 같이 점 → SAM2 → 팝업에서 브러시와 지우개) ---------- */
+  /* ---------- 4단계: 합성 영역 지정 (3단계와 같이 점 → SAM2 → 팝업에서 영역 추가와 영역 제거) ---------- */
   const render4 = () => {
     const s = s4.current;
     if (!s.work) return;
@@ -1007,7 +1007,7 @@ export default function Studio() {
         <MaskEditor
           key={editor.kind}
           title="상의 영역 수정"
-          help="빠진 부분은 브러시로 칠하고, 잘못 잡힌 부분은 지우개로 지웁니다."
+          help="빠진 부분은 영역 추가로 칠하고, 잘못 잡힌 부분은 영역 제거로 지웁니다."
           image={editor.image}
           mask={editor.mask}
           cancelLabel="점 재지정"
@@ -1020,7 +1020,7 @@ export default function Studio() {
         <MaskEditor
           key={editor.kind}
           title="합성 영역 수정"
-          help="빠진 부분은 브러시로 칠하고, 잘못 잡힌 부분은 지우개로 지웁니다."
+          help="빠진 부분은 영역 추가로 칠하고, 잘못 잡힌 부분은 영역 제거로 지웁니다."
           image={editor.image}
           mask={editor.mask}
           cancelLabel="점 재지정"
