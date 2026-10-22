@@ -588,10 +588,13 @@ body { display: flex; flex-direction: column; overflow: hidden; }
   color: var(--muted);
 }
 
-.sg-tools { flex: none; display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.sg-tools { flex: none; display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 12px; }
 .sg-tool {
-  height: 40px;
-  padding: 0 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 20px;
   border: 1.5px solid var(--border);
   background: var(--white);
   color: var(--muted);
@@ -601,8 +604,9 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 }
 .sg-tool:hover { border-color: #b9b5a8; }
 .sg-tool.active { border-color: var(--ink); background: var(--ink); color: #fff; }
+.sg-tool svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .sg-size {
-  margin-left: auto;
+  margin-left: 14px;
   display: flex;
   align-items: center;
   gap: 8px;
