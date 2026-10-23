@@ -25,16 +25,16 @@
 |---|---|---|
 | `winget`을 찾을 수 없다는 오류 | Windows 앱 설치 관리자 미설치 | Microsoft Store에서 `앱 설치 관리자` 설치, 또는 아래 설치 파일 사용 |
 | `git`, `node`, `npm`을 찾을 수 없다는 오류 | 설치 전에 열어 둔 창 사용 | 창을 닫고 새로 열기 |
-| 시작 메뉴에 Anaconda PowerShell Prompt 없음 | 바로가기 미생성 | 일반 PowerShell에서 `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` 실행 후 `Y`, 이어서 `conda init powershell` 실행 후 창을 새로 열기 |
-| `conda`를 찾을 수 없다는 오류 | 일반 PowerShell에서 conda 실행 | Anaconda PowerShell Prompt 사용, 또는 위 행의 `conda init powershell` |
+| 시작 메뉴에 Anaconda Prompt 없음 | 바로가기 미생성 | 일반 PowerShell에서 `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` 실행 후 `Y`, 이어서 `conda init powershell` 실행 후 창을 새로 열기 |
+| `conda`를 찾을 수 없다는 오류 | 일반 PowerShell에서 conda 실행 | Anaconda Prompt 사용, 또는 위 행의 `conda init powershell` |
 | `ModuleNotFoundError` | `(CGI)` 환경이 아닌 상태에서 실행 | `conda activate CGI` 후 재실행 |
 | `npm` 실행 시 `이 시스템에서 스크립트를 실행할 수 없으므로` 오류 | PowerShell 스크립트 실행 정책 제한 | `npm` 대신 `npm.cmd` 사용, 또는 `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` 실행 후 `Y` |
 | `torch.cuda.is_available()` 결과 `False` | GPU 미지원 PyTorch 설치, 또는 드라이버 미설치 | `nvidia-smi`로 드라이버 확인 후 PyTorch 설치 줄 재실행 |
 | PyTorch 설치 중 `typing_extensions` 관련 실패 | pip 구버전 | pip 업그레이드 줄 실행 후 재실행 |
 | `No space left on device` | 디스크 여유 공간 부족 | 여유 공간 확보 후 재실행 |
-| 서버 예열 중 `epoch=1-step=8687.ckpt` 또는 `dinov2_vitg14_pretrain.pth` 경로 오류 | 가중치 파일 위치·이름 불일치, 또는 설정 파일 미수정 | 3장 모델 파일 확인 |
+| 서버 예열 중 `epoch=1-step=8687.ckpt` 또는 `dinov2_vitg14_pretrain.pth` 경로 오류 | 가중치 파일 위치·이름 불일치 | 3장 모델 파일 확인 |
 | AnyDoor 폴더를 찾지 못하는 오류 | 환경 변수 `ANYDOOR_DIR` 미설정 또는 경로 불일치 | `conda env config vars set ANYDOOR_DIR=저장소경로\checkpoints\AnyDoor -n CGI` 실행 후 `conda activate CGI` |
-| 백엔드 로그 `DATABASE_URL이 없습니다` | `backend\.env` 미작성 | README 설치 6의 접속 설정 파일 명령 실행 |
+| 백엔드 로그 `DATABASE_URL이 없습니다` | `backend\.env` 미작성 | README 설치 6 실행 |
 | 백엔드 로그 `DB에 연결하지 못했습니다` | SQLite: `storage` 폴더 없음. MySQL: 계정·비밀번호·서비스 문제 | SQLite는 README 설치 6 재실행. MySQL은 [database.md 4. 오류별 조치](database.md#4-오류별-조치) |
 
 - winget 대신 설치 파일을 쓰는 경우 받는 곳: Git https://git-scm.com/downloads/win , Anaconda https://www.anaconda.com/download/success , Node.js 24 https://nodejs.org/ko/download
@@ -48,8 +48,8 @@
 | 파일 | 저장 위치 | 바이트 수 |
 |---|---|---|
 | `sam2.1_hiera_base_plus.pt` | `checkpoints\sam2\` | 323,606,802 |
-| `epoch=1-step=8687.ckpt` | `checkpoints\AnyDoor\checkpoints\` | 16,836,620,171 |
-| `dinov2_vitg14_pretrain.pth` | `checkpoints\AnyDoor\checkpoints\` | 4,546,108,579 |
+| `epoch=1-step=8687.ckpt` | `checkpoints\AnyDoor\path\` | 16,836,620,171 |
+| `dinov2_vitg14_pretrain.pth` | `checkpoints\AnyDoor\path\` | 4,546,108,579 |
 
 ### 3-2. 출처와 브라우저 다운로드
 
@@ -62,18 +62,9 @@
 
 ### 3-3. AnyDoor 설정 파일
 
-| 파일 | 줄 | 변경 전 | 변경 후 |
-|---|---|---|---|
-| `checkpoints\AnyDoor\configs\inference.yaml` | 1행 | `pretrained_model: path/epoch=1-step=8687.ckpt` | `pretrained_model: ./checkpoints/epoch=1-step=8687.ckpt` |
-| `checkpoints\AnyDoor\configs\anydoor.yaml` | 83행 | `weight: path/dinov2_vitg14_pretrain.pth` | `weight: checkpoints/dinov2_vitg14_pretrain.pth` |
-
-- 확인 명령: 결과가 표의 변경 후 값과 같으면 정상
-
-```powershell
-Select-String "pretrained_model" checkpoints\AnyDoor\configs\inference.yaml
-Select-String "dinov2_vitg14_pretrain" checkpoints\AnyDoor\configs\anydoor.yaml
-```
-
+- AnyDoor 공식 설정 파일의 가중치 경로는 AnyDoor 폴더 기준 `path/epoch=1-step=8687.ckpt`, `path/dinov2_vitg14_pretrain.pth`
+- README 설치 5는 가중치를 `checkpoints\AnyDoor\path\`에 받아 설정 파일을 수정하지 않음
+- 다른 위치에 가중치를 둔 경우 `configs\inference.yaml` 1행 `pretrained_model`, `configs\anydoor.yaml` 83행 `weight`를 그 위치로 변경
 - `configs\demo.yaml`: AnyDoor 데모 화면 전용, 수정 불필요
 - AnyDoor 저장소의 `environment.yaml`, `requirements.txt`는 사용하지 않음. 필요한 패키지는 README 설치 4에서 설치
 

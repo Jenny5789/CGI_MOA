@@ -304,9 +304,9 @@ winget install -e --id OpenJS.NodeJS.LTS --version 24.22.1
 
 ### 설치 3. 저장소 받기와 conda 환경 구축
 
-시작 메뉴에서 **Anaconda PowerShell Prompt**를 실행합니다. 이후 모든 명령은 이 창에서 실행합니다.
+시작 메뉴에서 **Anaconda Prompt**를 실행합니다. 설치 3부터 프론트엔드 실행까지 모든 명령은 Anaconda Prompt에 그대로 붙여 넣어 실행합니다.
 
-```powershell
+```bat
 cd C:\
 git clone https://github.com/Jenny5789/CGI_MOA.git
 cd CGI_MOA
@@ -330,7 +330,7 @@ conda activate CGI
 | `requirements.txt` | AnyDoor 실행, FastAPI 서버, 데이터베이스 접속 패키지 |
 | xformers | 어텐션 연산 최적화, 합성 속도 향상·GPU 메모리 절감 |
 
-```powershell
+```bat
 python -m pip install --upgrade pip
 python -m pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu121
 python -m pip install "git+https://github.com/facebookresearch/sam2.git@2b90b9f5ceec907a1c18123530e92e794ad901a4"
@@ -347,42 +347,41 @@ python -c "import torch; print(torch.cuda.is_available())"
 
 | 파일 | 모델 | 용도 | 크기 |
 |---|---|---|---|
-| AnyDoor 코드 | AnyDoor 공식 저장소 | 착용 합성 모델 코드 | - |
+| AnyDoor 코드 | AnyDoor 공식 저장소, 커밋 `44ca2b2` | 착용 합성 모델 코드 | - |
 | `sam2.1_hiera_base_plus.pt` | SAM 2.1 Base+ | 상의 영역 분할 가중치 | 약 309MB |
 | `epoch=1-step=8687.ckpt` | AnyDoor | 착용 합성 가중치 | 약 16.8GB |
 | `dinov2_vitg14_pretrain.pth` | DINOv2 ViT-g/14 | AnyDoor 내부 상의 이미지 특징 추출 가중치 | 약 4.5GB |
 
-```powershell
+```bat
 git clone https://github.com/ali-vilab/AnyDoor checkpoints\AnyDoor
 git -C checkpoints\AnyDoor checkout 44ca2b2
-New-Item -ItemType Directory -Force checkpoints\sam2, checkpoints\AnyDoor\checkpoints
+mkdir checkpoints\sam2
+mkdir checkpoints\AnyDoor\path
 curl.exe -L -o checkpoints\sam2\sam2.1_hiera_base_plus.pt https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_base_plus.pt
-curl.exe -L -o "checkpoints\AnyDoor\checkpoints\epoch=1-step=8687.ckpt" "https://huggingface.co/spaces/xichenhku/AnyDoor/resolve/main/epoch%3D1-step%3D8687.ckpt"
-curl.exe -L -o checkpoints\AnyDoor\checkpoints\dinov2_vitg14_pretrain.pth https://dl.fbaipublicfiles.com/dinov2/dinov2_vitg14/dinov2_vitg14_pretrain.pth
-(Get-Content checkpoints\AnyDoor\configs\inference.yaml) -replace 'path/epoch=1-step=8687.ckpt', './checkpoints/epoch=1-step=8687.ckpt' | Set-Content checkpoints\AnyDoor\configs\inference.yaml
-(Get-Content checkpoints\AnyDoor\configs\anydoor.yaml) -replace 'path/dinov2_vitg14_pretrain.pth', 'checkpoints/dinov2_vitg14_pretrain.pth' | Set-Content checkpoints\AnyDoor\configs\anydoor.yaml
+curl.exe -L -o "checkpoints\AnyDoor\path\epoch=1-step=8687.ckpt" "https://huggingface.co/spaces/xichenhku/AnyDoor/resolve/main/epoch=1-step=8687.ckpt"
+curl.exe -L -o checkpoints\AnyDoor\path\dinov2_vitg14_pretrain.pth https://dl.fbaipublicfiles.com/dinov2/dinov2_vitg14/dinov2_vitg14_pretrain.pth
 ```
 
 - `checkout 44ca2b2`: MOA 합성 모듈이 AnyDoor `run_inference.py`의 특정 코드 줄을 바꿔 실행하므로 같은 버전으로 고정. `detached HEAD` 안내는 정상
-- 마지막 2줄: AnyDoor 설정 파일의 `path/...` 자리표시 경로를 받은 가중치 위치로 변경
-- 가중치 다운로드가 중단된 경우 해당 `curl.exe` 줄만 다시 실행. 파일 크기 확인과 다른 받는 곳: [모델 파일 확인](docs/environment.md#3-모델-파일-확인)
+- `path` 폴더: AnyDoor 공식 설정 파일이 가리키는 가중치 위치. 이 위치에 받으면 설정 파일 수정 불필요
+- 다운로드가 중단된 경우 해당 `curl.exe` 줄만 다시 실행. 파일 크기 확인과 다른 받는 곳: [모델 파일 확인](docs/environment.md#3-모델-파일-확인)
 
 ### 설치 6. 접속 설정 파일
 
-```powershell
-New-Item -ItemType Directory -Force storage
-Set-Content -Encoding ascii backend\.env "DATABASE_URL=sqlite:///storage/moa_trial.db"
-Set-Content -Encoding ascii frontend\.env.local "VITE_API_MODE=mixed","VITE_API_TARGET=http://localhost:8000"
+```bat
+mkdir storage
+copy backend\.env.sqlite.example backend\.env
+copy frontend\.env.mixed.example frontend\.env.local
 ```
 
-- `backend\.env`: 회원 데이터를 SQLite 파일 `storage\moa_trial.db`에 저장. 백엔드 첫 실행 시 파일과 테스트 계정 `test` / `test1234` 자동 생성
+- `backend\.env`: 회원 데이터를 SQLite 파일 `storage\moa_trial.db`에 저장, MySQL 설치 불필요. 백엔드 첫 실행 시 파일과 테스트 계정 `test` / `test1234` 자동 생성
 - `frontend\.env.local`: 웹 화면이 로그인·추출·합성 요청을 localhost:8000 백엔드로 전송
 - 두 파일과 `storage/`는 `.gitignore` 등록 대상
-- 팀 공용 MySQL을 쓰는 경우 첫 두 줄 대신 [MySQL 데이터베이스 구축](docs/database.md) 진행
+- 팀 공용 MySQL을 쓰는 경우 이 단계 대신 [MySQL 데이터베이스 구축](docs/database.md) 진행
 
 ### 설치 7. 설치 확인
 
-```powershell
+```bat
 python scripts\check_env.py
 ```
 
@@ -392,9 +391,9 @@ python scripts\check_env.py
 
 ### 백엔드 실행
 
-Anaconda PowerShell Prompt에서 실행합니다.
+Anaconda Prompt에서 실행합니다.
 
-```powershell
+```bat
 cd C:\CGI_MOA
 conda activate CGI
 python -m uvicorn backend.main:app --port 8000
@@ -407,9 +406,9 @@ python -m uvicorn backend.main:app --port 8000
 
 ### 프론트엔드 실행
 
-백엔드 창은 그대로 두고, Anaconda PowerShell Prompt를 하나 더 열어 실행합니다.
+백엔드 창은 그대로 두고, Anaconda Prompt를 하나 더 열어 실행합니다.
 
-```powershell
+```bat
 cd C:\CGI_MOA\frontend
 npm install
 npm run dev -- --port 5180 --strictPort
@@ -429,12 +428,12 @@ npm run dev -- --port 5180 --strictPort
 - 용도: 휴대폰·외부 PC 시연, 계정 없이 임시 주소 발급. localhost 실행만으로는 불필요
 - 준비 사항: 백엔드·프론트엔드 실행
 
-```powershell
+```bat
 winget install --id Cloudflare.cloudflared
 cloudflared tunnel --no-autoupdate --url http://localhost:5180
 ```
 
-- 첫 줄은 최초 1회, 설치 후 새 PowerShell 창에서 두 번째 줄 실행
+- 첫 줄은 최초 1회, 설치 후 Anaconda Prompt를 새로 열어 두 번째 줄 실행
 - 실행 로그의 `https://….trycloudflare.com` 주소로 접속
 - 백엔드 요청: 프론트엔드 개발 서버가 `/api`를 8000번으로 전달, 터널 하나로 전체 기능 사용
 - 접속 허용: `frontend/vite.config.js`의 `allowedHosts`에 `.trycloudflare.com` 등록
