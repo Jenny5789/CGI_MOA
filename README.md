@@ -316,7 +316,8 @@ conda activate CGI
 
 - 저장소 위치: `C:\CGI_MOA`. 다른 위치를 쓰는 경우 경로에 한글·공백이 없는 폴더 권장
 - conda 환경 `CGI`: MOA 전용 Python 3.10 실행 공간. PC의 다른 Python과 패키지 버전이 섞이지 않도록 격리
-- `conda activate CGI` 후 명령 줄 앞 표시가 `(CGI)`로 바뀌면 정상. 창을 새로 열 때마다 `cd C:\CGI_MOA`, `conda activate CGI` 1회 실행
+- `conda activate CGI` 후 명령 줄 앞 표시가 `(CGI)`로 바뀌면 정상.
+- 창을 새로 열 때마다 `cd C:\CGI_MOA`, `conda activate CGI` 1회 실행
 
 ### 설치 4. Python 패키지
 
