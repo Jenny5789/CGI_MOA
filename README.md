@@ -271,7 +271,20 @@ AnyDoor 공식 설정 기준 RTX 3080 10GB에서 50스텝 합성 1건에 11~15�
 
 ## 9. 실행 방법
 
-- 최초 설치: [개발 환경 설치 순서](docs/environment.md#2-설치-순서) → [MySQL 구축 순서](docs/database.md#2-구축-순서)
+### 최초 설치
+
+새 PC에서는 아래 순서로 설치한 뒤 실행합니다. 단계별 받는 곳, 설치 화면 선택 항목, 설치 확인 방법은 [개발 환경 구축 문서](docs/environment.md)에 정리되어 있습니다.
+
+| 순서 | 설치 대상 | 용도 | 안내 |
+|---|---|---|---|
+| 1 | NVIDIA 드라이버, Git, Python 3.10, Node.js 24, MySQL 8.0 | GPU 사용, 코드 받기, AI·서버 실행, 웹 화면 실행, 회원 데이터 저장 | [3. 기본 프로그램 설치](docs/environment.md#3-기본-프로그램-설치) |
+| 2 | MOA 저장소, Python 가상환경 `CGI`, PyTorch·SAM2·AnyDoor 실행 패키지 | 소스 코드, AI 모델 실행 라이브러리 | [4. 저장소 받기와 Python 패키지 설치](docs/environment.md#4-저장소-받기와-python-패키지-설치) |
+| 3 | AnyDoor 코드, 모델 가중치 파일 3개 약 21.7GB | 상의 영역 분할·착용 합성 모델 | [5. AI 모델 준비](docs/environment.md#5-ai-모델-준비) |
+| 4 | 데이터베이스 `cgi`, 접속 설정 파일 `backend\.env` | 로그인·회원가입 | [MySQL 데이터베이스 구축](docs/database.md#2-구축-순서) |
+| 5 | 점검 스크립트 | 설치 상태 확인 | [7. 설치 확인](docs/environment.md#7-설치-확인) |
+
+### 실행 구성
+
 - 실행 셸: PowerShell, 서버마다 창 하나
 
 | 구성 | 포트 |

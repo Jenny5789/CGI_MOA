@@ -42,7 +42,7 @@ mask = extract_object(image_rgb, points=[(x1, y1)], neg_points=[(x2, y2)], box=(
 | `SAM2_CONFIG` | 모델 설정 파일 | `configs/sam2.1/sam2.1_hiera_b+.yaml` |
 | `SAM2_DEVICE` | 실행 장치 | 자동 (GPU 우선) |
 
-- 모델 가중치 파일 준비: [environment.md 2. 설치 순서](../../docs/environment.md#2-설치-순서) 9단계
+- 모델 가중치 파일 준비: [environment.md 5-2. 모델 가중치 파일 받기](../../docs/environment.md#5-2-모델-가중치-파일-받기)
 
 ## 4. 단위 테스트
 

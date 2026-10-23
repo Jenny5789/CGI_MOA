@@ -20,7 +20,7 @@ CGI\Scripts\python.exe scripts\check_env.py
 ```
 
 - 점검: Python·패키지 버전, GPU, AnyDoor 폴더, SAM2 모델 가중치, `backend/.env`
-- 판정 기준: [environment.md 3. 설치 확인](../docs/environment.md#3-설치-확인)
+- 판정 기준: [environment.md 7-1. 점검 스크립트 실행](../docs/environment.md#7-1-점검-스크립트-실행)
 
 ## 3. test_object_extraction.py (상의 영역 추출)
 

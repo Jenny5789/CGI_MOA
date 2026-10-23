@@ -44,7 +44,7 @@ GRANT ALL PRIVILEGES ON cgi.* TO 'cgi_app'@'localhost';
 
 ### 2-3. 접속 설정 파일 생성
 
-1. PowerShell에서 저장소 최상위 디렉터리 `CGI_MOA`로 이동. [environment.md](environment.md) 2장 1단계에서 받은 위치
+1. PowerShell에서 저장소 최상위 디렉터리 `CGI_MOA`로 이동. [environment.md 4-1. 저장소 받기](environment.md#4-1-저장소-받기)에서 받은 위치
 
 ```powershell
 cd CGI_MOA
