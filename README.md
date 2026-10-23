@@ -271,11 +271,10 @@ AnyDoor 공식 설정 기준 RTX 3080 10GB에서 50스텝 합성 1건에 11~15�
 
 ## 9. 설치 및 실행
 
-새 Windows PC 기준 설치 순서입니다. 코드 블록의 명령을 위에서부터 차례로 붙여 넣어 실행하면 설치가 끝납니다. 오류가 나면 [설치 오류별 조치](docs/environment.md#2-설치-오류별-조치)를 참고합니다.
-
 - 필요 조건: Windows 64비트, NVIDIA GPU, 모델 파일 약 21.7GB를 저장할 디스크 여유 공간
 - 검증 환경: RTX 3080 10GB, 메모리 32GB, Windows 11
 - 회원 데이터 저장: 기본은 MySQL 설치가 필요 없는 SQLite 체험판. 팀 공용 MySQL 구성은 [MySQL 데이터베이스 구축](docs/database.md)
+- 오류 조치: [설치 오류별 조치](docs/environment.md#2-설치-오류별-조치)
 
 ### 설치 1. NVIDIA 그래픽 드라이버
 
@@ -287,11 +286,11 @@ AnyDoor 공식 설정 기준 RTX 3080 10GB에서 50스텝 합성 1건에 11~15�
 
 | 프로그램 | 용도 |
 |---|---|
-| Git | MOA 저장소·AnyDoor 코드 받기, SAM2 패키지 설치 |
+| Git | MOA Repository·AnyDoor 코드 받기, SAM2 패키지 설치 |
 | Anaconda | Python 3.10 전용 conda 환경 생성. Anaconda나 Miniconda가 이미 있으면 해당 줄 생략 |
 | Node.js 24 | React 웹 화면 개발 서버 실행 |
 
-Windows PowerShell에서 실행합니다. winget은 Windows 10·11에 기본 포함된 프로그램 설치 명령입니다.
+- 실행 창: Windows PowerShell
 
 ```powershell
 winget install -e --id Git.Git
@@ -302,23 +301,21 @@ winget install -e --id OpenJS.NodeJS.LTS --version 24.22.1
 - 원본 사용 약관 동의를 묻는 경우 `Y` 입력
 - 설치 후 열려 있는 PowerShell 창을 모두 닫기. 새 창에서 설치한 명령 인식
 
-### 설치 3. 저장소 받기와 conda 환경 구축
+### 설치 3. Repository와 conda 환경
 
-시작 메뉴에서 **Anaconda Prompt**를 실행합니다. 설치 3부터 프론트엔드 실행까지 모든 명령은 Anaconda Prompt에 그대로 붙여 넣어 실행합니다.
+- 실행 창: Anaconda Prompt, 설치 3부터 프론트엔드 실행까지 동일
 
 ```bat
 cd C:\
 git clone https://github.com/Jenny5789/CGI_MOA.git
 cd CGI_MOA
 conda create -n CGI python=3.10 -c conda-forge --override-channels -y
-conda env config vars set ANYDOOR_DIR=C:\CGI_MOA\checkpoints\AnyDoor -n CGI
 conda activate CGI
 ```
 
-- 저장소 위치: `C:\CGI_MOA`. 다른 위치를 쓰는 경우 경로에 한글·공백이 없는 폴더 권장
+- Repository 위치: `C:\CGI_MOA`. 다른 위치를 쓰는 경우 경로에 한글·공백이 없는 폴더 권장
 - conda 환경 `CGI`: MOA 전용 Python 3.10 실행 공간. PC의 다른 Python과 패키지 버전이 섞이지 않도록 격리
-- `conda env config vars set`: 서버가 AnyDoor 폴더를 찾는 환경 변수 `ANYDOOR_DIR`을 conda 환경에 저장, 이후 활성화할 때마다 자동 적용. 다른 위치에 받은 경우 경로를 그 위치로 변경
-- `conda activate CGI` 후 명령 줄 앞 표시가 `(CGI)`로 바뀌면 정상.
+- `conda activate CGI` 후 명령 줄 앞 표시가 `(CGI)`로 바뀌면 정상
 - 창을 새로 열 때마다 `cd C:\CGI_MOA`, `conda activate CGI` 1회 실행
 
 ### 설치 4. Python 패키지
@@ -332,6 +329,7 @@ conda activate CGI
 
 ```bat
 python -m pip install --upgrade pip
+python -m pip install "setuptools<81"
 python -m pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu121
 python -m pip install "git+https://github.com/facebookresearch/sam2.git@2b90b9f5ceec907a1c18123530e92e794ad901a4"
 python -m pip install -r requirements.txt
@@ -340,6 +338,7 @@ python -c "import torch; print(torch.cuda.is_available())"
 ```
 
 - 마지막 줄 결과 `True`: GPU 사용 가능
+- `setuptools<81`: pytorch-lightning 1.9.5가 사용하는 `pkg_resources` 포함 버전. 최신 setuptools는 `pkg_resources` 미포함으로 서버 예열 시 `ModuleNotFoundError`
 - 버전 고정 이유: SAM2 커밋과 xformers `--no-deps`는 설치한 PyTorch 2.5.1이 다른 버전으로 교체되지 않도록 고정
 - `Failed to build the SAM 2 CUDA extension` 안내는 일부 후처리 가속만 제외, 분할 결과에 영향 없음
 
@@ -347,7 +346,7 @@ python -c "import torch; print(torch.cuda.is_available())"
 
 | 파일 | 모델 | 용도 | 크기 |
 |---|---|---|---|
-| AnyDoor 코드 | AnyDoor 공식 저장소, 커밋 `44ca2b2` | 착용 합성 모델 코드 | - |
+| AnyDoor 코드 | AnyDoor 공식 Repository, 커밋 `44ca2b2` | 착용 합성 모델 코드 | - |
 | `sam2.1_hiera_base_plus.pt` | SAM 2.1 Base+ | 상의 영역 분할 가중치 | 약 309MB |
 | `epoch=1-step=8687.ckpt` | AnyDoor | 착용 합성 가중치 | 약 16.8GB |
 | `dinov2_vitg14_pretrain.pth` | DINOv2 ViT-g/14 | AnyDoor 내부 상의 이미지 특징 추출 가중치 | 약 4.5GB |
@@ -360,10 +359,14 @@ mkdir checkpoints\AnyDoor\path
 curl.exe -L -o checkpoints\sam2\sam2.1_hiera_base_plus.pt https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_base_plus.pt
 curl.exe -L -o "checkpoints\AnyDoor\path\epoch=1-step=8687.ckpt" "https://huggingface.co/spaces/xichenhku/AnyDoor/resolve/main/epoch=1-step=8687.ckpt"
 curl.exe -L -o checkpoints\AnyDoor\path\dinov2_vitg14_pretrain.pth https://dl.fbaipublicfiles.com/dinov2/dinov2_vitg14/dinov2_vitg14_pretrain.pth
+conda env config vars set ANYDOOR_DIR=C:\CGI_MOA\checkpoints\AnyDoor -n CGI
+conda deactivate
+conda activate CGI
 ```
 
 - `checkout 44ca2b2`: MOA 합성 모듈이 AnyDoor `run_inference.py`의 특정 코드 줄을 바꿔 실행하므로 같은 버전으로 고정. `detached HEAD` 안내는 정상
 - `path` 폴더: AnyDoor 공식 설정 파일이 가리키는 가중치 위치. 이 위치에 받으면 설정 파일 수정 불필요
+- 마지막 3줄: 서버가 AnyDoor 폴더를 찾는 환경 변수 `ANYDOOR_DIR`을 conda 환경 `CGI`에 저장 후 재활성화. 이후 활성화마다 자동 적용. Repository를 `C:\CGI_MOA`가 아닌 위치에 받은 경우 경로 변경
 - 다운로드가 중단된 경우 해당 `curl.exe` 줄만 다시 실행. 파일 크기 확인과 다른 받는 곳: [모델 파일 확인](docs/environment.md#3-모델-파일-확인)
 
 ### 설치 6. 접속 설정 파일
@@ -387,11 +390,10 @@ python scripts\check_env.py
 
 - 정상: `가상환경 CGI` 항목을 제외한 모든 항목 `[OK]`
 - `가상환경 CGI` 항목: 점검 스크립트가 venv 방식만 인식해 conda 환경에서는 `[NG]` 표시. 실행 경로 끝이 `envs\CGI\python.exe`이면 정상
+- `AnyDoor 폴더` 항목 `[NG]`이고 경로가 `Desktop\AnyDoor`: `ANYDOOR_DIR` 미설정. 설치 5의 마지막 3줄 실행
 - `A matching Triton is not available` 경고: Windows에서 항상 출력되는 안내, 무시
 
 ### 백엔드 실행
-
-Anaconda Prompt에서 실행합니다.
 
 ```bat
 cd C:\CGI_MOA
@@ -406,7 +408,7 @@ python -m uvicorn backend.main:app --port 8000
 
 ### 프론트엔드 실행
 
-백엔드 창은 그대로 두고, Anaconda Prompt를 하나 더 열어 실행합니다.
+- 실행 창: 새 Anaconda Prompt, 백엔드 창 유지
 
 ```bat
 cd C:\CGI_MOA\frontend
@@ -479,7 +481,7 @@ CGI_MOA/
 
 ---
 
-## 12. 저장소 제외 항목
+## 12. Repository 제외 항목
 
 | 항목 | 내용 | 사유 |
 |---|---|---|

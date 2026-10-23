@@ -45,7 +45,7 @@ GRANT ALL PRIVILEGES ON cgi.* TO 'cgi_app'@'localhost';
 
 ### 2-3. 접속 설정 파일 생성
 
-1. PowerShell에서 저장소 최상위 디렉터리 `CGI_MOA`로 이동. [README 설치 3. 저장소 받기와 conda 환경 구축](../README.md#설치-3-저장소-받기와-conda-환경-구축)에서 받은 위치
+1. PowerShell에서 Repository 최상위 디렉터리 `CGI_MOA`로 이동. [README 설치 3. Repository와 conda 환경](../README.md#설치-3-repository와-conda-환경)에서 받은 위치
 
 ```powershell
 cd CGI_MOA

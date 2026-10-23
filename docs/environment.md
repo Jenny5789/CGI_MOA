@@ -28,6 +28,7 @@
 | 시작 메뉴에 Anaconda Prompt 없음 | 바로가기 미생성 | 일반 PowerShell에서 `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` 실행 후 `Y`, 이어서 `conda init powershell` 실행 후 창을 새로 열기 |
 | `conda`를 찾을 수 없다는 오류 | 일반 PowerShell에서 conda 실행 | Anaconda Prompt 사용, 또는 위 행의 `conda init powershell` |
 | `ModuleNotFoundError` | `(CGI)` 환경이 아닌 상태에서 실행 | `conda activate CGI` 후 재실행 |
+| 서버 예열 중 `No module named 'pkg_resources'` | 최신 setuptools의 `pkg_resources` 미포함 | `python -m pip install "setuptools<81"` 실행 후 서버 재시작 |
 | `npm` 실행 시 `이 시스템에서 스크립트를 실행할 수 없으므로` 오류 | PowerShell 스크립트 실행 정책 제한 | `npm` 대신 `npm.cmd` 사용, 또는 `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` 실행 후 `Y` |
 | `torch.cuda.is_available()` 결과 `False` | GPU 미지원 PyTorch 설치, 또는 드라이버 미설치 | `nvidia-smi`로 드라이버 확인 후 PyTorch 설치 줄 재실행 |
 | PyTorch 설치 중 `typing_extensions` 관련 실패 | pip 구버전 | pip 업그레이드 줄 실행 후 재실행 |
