@@ -78,7 +78,7 @@ result = fix_seam(tar_rgb, result, last_crop_box())   # RGB uint8, 인물 이미
 
 ## 4. 필요 파일
 
-- 준비: [environment.md 5. AI 모델 준비](../../docs/environment.md#5-ai-모델-준비)
+- 준비: [README 설치 5. AI 모델 준비](../../README.md#설치-5-ai-모델-준비)
 
 | 파일 | 종류 |
 |---|---|
