@@ -286,7 +286,7 @@ AnyDoor 공식 설정 기준 RTX 3080 10GB에서 50스텝 합성 1건에 11~15�
 
 | 프로그램 | 용도 |
 |---|---|
-| Git | MOA 저장소·AnyDoor 코드 받기, SAM2 패키지 설치 |
+| Git | MOA Repository·AnyDoor 코드 받기, SAM2 패키지 설치 |
 | Anaconda | Python 3.10 전용 conda 환경 생성. Anaconda나 Miniconda가 이미 있으면 해당 줄 생략 |
 | Node.js 24 | React 웹 화면 개발 서버 실행 |
 
@@ -301,7 +301,7 @@ winget install -e --id OpenJS.NodeJS.LTS --version 24.22.1
 - 원본 사용 약관 동의를 묻는 경우 `Y` 입력
 - 설치 후 열려 있는 PowerShell 창을 모두 닫기. 새 창에서 설치한 명령 인식
 
-### 설치 3. 저장소와 conda 환경
+### 설치 3. Repository와 conda 환경
 
 - 실행 창: Anaconda Prompt, 설치 3부터 프론트엔드 실행까지 동일
 
@@ -314,7 +314,7 @@ conda env config vars set ANYDOOR_DIR=C:\CGI_MOA\checkpoints\AnyDoor -n CGI
 conda activate CGI
 ```
 
-- 저장소 위치: `C:\CGI_MOA`. 다른 위치를 쓰는 경우 경로에 한글·공백이 없는 폴더 권장
+- Repository 위치: `C:\CGI_MOA`. 다른 위치를 쓰는 경우 경로에 한글·공백이 없는 폴더 권장
 - conda 환경 `CGI`: MOA 전용 Python 3.10 실행 공간. PC의 다른 Python과 패키지 버전이 섞이지 않도록 격리
 - `conda env config vars set`: 서버가 AnyDoor 폴더를 찾는 환경 변수 `ANYDOOR_DIR`을 conda 환경에 저장, 이후 활성화할 때마다 자동 적용. 다른 위치에 받은 경우 경로를 그 위치로 변경
 - `conda activate CGI` 후 명령 줄 앞 표시가 `(CGI)`로 바뀌면 정상
@@ -346,7 +346,7 @@ python -c "import torch; print(torch.cuda.is_available())"
 
 | 파일 | 모델 | 용도 | 크기 |
 |---|---|---|---|
-| AnyDoor 코드 | AnyDoor 공식 저장소, 커밋 `44ca2b2` | 착용 합성 모델 코드 | - |
+| AnyDoor 코드 | AnyDoor 공식 Repository, 커밋 `44ca2b2` | 착용 합성 모델 코드 | - |
 | `sam2.1_hiera_base_plus.pt` | SAM 2.1 Base+ | 상의 영역 분할 가중치 | 약 309MB |
 | `epoch=1-step=8687.ckpt` | AnyDoor | 착용 합성 가중치 | 약 16.8GB |
 | `dinov2_vitg14_pretrain.pth` | DINOv2 ViT-g/14 | AnyDoor 내부 상의 이미지 특징 추출 가중치 | 약 4.5GB |
@@ -476,7 +476,7 @@ CGI_MOA/
 
 ---
 
-## 12. 저장소 제외 항목
+## 12. Repository 제외 항목
 
 | 항목 | 내용 | 사유 |
 |---|---|---|
