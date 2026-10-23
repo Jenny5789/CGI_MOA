@@ -3,6 +3,7 @@
 ## 1. 개요
 
 - 구성: 팀원마다 자기 PC의 MySQL에 같은 이름으로 구축
+- 대상: 정식 설치. MySQL 없이 체험하는 경우 [environment.md 6-1. 체험판 · SQLite](environment.md#6-1-체험판--sqlite)
 - 구축 결과
 
 | 항목 | 이름 | 설명 |

@@ -277,10 +277,10 @@ AnyDoor 공식 설정 기준 RTX 3080 10GB에서 50스텝 합성 1건에 11~15�
 
 | 순서 | 설치 대상 | 용도 | 안내 |
 |---|---|---|---|
-| 1 | NVIDIA 드라이버, Git, Anaconda, Node.js 24, MySQL 8.0 | GPU 사용, 코드 받기, Python 환경 관리, 웹 화면 실행, 회원 데이터 저장 | [3. 기본 프로그램 설치](docs/environment.md#3-기본-프로그램-설치) |
+| 1 | NVIDIA 드라이버, Git, Anaconda, Node.js 24 | GPU 사용, 코드 받기, Python 환경 관리, 웹 화면 실행 | [3. 기본 프로그램 설치](docs/environment.md#3-기본-프로그램-설치) |
 | 2 | MOA 저장소, Python 3.10 conda 환경 `CGI`, PyTorch·SAM2·AnyDoor 실행 패키지 | 소스 코드, AI 모델 실행 라이브러리 | [4. 저장소 받기와 conda 환경 구축](docs/environment.md#4-저장소-받기와-conda-환경-구축) |
 | 3 | AnyDoor 코드, 모델 가중치 파일 3개 약 21.7GB | 상의 영역 분할·착용 합성 모델 | [5. AI 모델 준비](docs/environment.md#5-ai-모델-준비) |
-| 4 | 데이터베이스 `cgi`, 접속 설정 파일 `backend\.env` | 로그인·회원가입 | [MySQL 데이터베이스 구축](docs/database.md#2-구축-순서) |
+| 4 | 회원 데이터 저장 설정: 체험판 SQLite 파일, 정식 MySQL 8.0 | 로그인·회원가입·사진첩 | [6. 회원 데이터 저장 설정](docs/environment.md#6-회원-데이터-저장-설정) |
 | 5 | 점검 스크립트 | 설치 상태 확인 | [7. 설치 확인](docs/environment.md#7-설치-확인) |
 
 ### 실행 구성
@@ -297,7 +297,7 @@ AnyDoor 공식 설정 기준 RTX 3080 10GB에서 50스텝 합성 1건에 11~15�
 
 - 준비 사항
   - conda 환경 `CGI`, SAM2·AnyDoor 코드와 모델 파일: [개발 환경 구축](docs/environment.md)
-  - MySQL: [MySQL 데이터베이스 구축](docs/database.md)
+  - 회원 데이터 저장: 체험판 SQLite 또는 정식 MySQL, [회원 데이터 저장 설정](docs/environment.md#6-회원-데이터-저장-설정)
   - NVIDIA GPU
 - 실행 순서: Anaconda PowerShell Prompt, 저장소 최상위 디렉터리
   1. `conda activate CGI`: conda 환경 활성화, 새 창마다 1회
@@ -314,7 +314,7 @@ AnyDoor 공식 설정 기준 RTX 3080 10GB에서 50스텝 합성 1건에 11~15�
 - 실행 순서: 저장소 최상위 디렉터리
   1. `cd frontend`: 디렉터리 이동
   2. `npm install`: 의존 패키지 설치, 최초 1회
-  3. `Copy-Item .env.example .env.local` 후 `.env.local`의 `VITE_API_MODE`를 `mixed`로 변경: 백엔드 연결 설정, 최초 1회. 생략하면 모의 데이터로 동작
+  3. `Set-Content -Encoding ascii .env.local "VITE_API_MODE=mixed","VITE_API_TARGET=http://localhost:8000"`: 백엔드 연결 설정 파일 생성, 최초 1회. 생략하면 모의 데이터로 동작
   4. `npm run dev -- --port 5180 --strictPort`: 개발 서버 실행
   5. http://localhost:5180 접속 → 테스트 계정 `test` / `test1234` 로그인
 - `--strictPort`: 5180번 사용 중이면 다른 포트로 옮기지 않고 종료, 터널 주소와 불일치 방지

@@ -7,10 +7,10 @@
 | 순서 | 내용 | 설치 대상 | 설치 방법 |
 |---|---|---|---|
 | 1 | PC 사양 확인 | NVIDIA GPU, 디스크 여유 공간 | 화면 확인 |
-| 2 | 기본 프로그램 설치 | NVIDIA 드라이버, Git, Anaconda, Node.js 24, MySQL 8.0 | 드라이버·MySQL은 설치 파일, 나머지는 winget 명령 |
+| 2 | 기본 프로그램 설치 | NVIDIA 드라이버, Git, Anaconda, Node.js 24 | 드라이버는 설치 파일, 나머지는 winget 명령 |
 | 3 | 저장소 받기와 conda 환경 구축 | MOA 소스 코드, conda 환경 `CGI`, PyTorch·SAM2·AnyDoor 실행 패키지 | 명령 |
 | 4 | AI 모델 준비 | AnyDoor 코드, 모델 가중치 파일 3개, 설정 파일 경로 수정 | 명령 |
-| 5 | 데이터베이스 구축 | MySQL 데이터베이스·계정, 접속 설정 파일 | MySQL Workbench, 명령 |
+| 5 | 회원 데이터 저장 설정 | 체험판: SQLite 파일, 정식: MySQL 8.0 | 체험판은 명령 2줄, 정식은 MySQL 설치 |
 | 6 | 설치 확인 | 점검 스크립트, 서버 실행 | 명령 |
 
 - 다운로드: 모델 파일 약 21.7GB와 PyTorch 등 Python 패키지
@@ -76,14 +76,9 @@ npm -v
 
 - 정상: `git version 2.xx`, `v24.x.x`, npm 버전 숫자
 
-### 3-3. MySQL 8.0 · 설치 파일
+- MySQL: 체험판은 설치 불필요. 정식 설치는 6-2
 
-- 설치 대상: 회원 정보와 로그인 기록을 저장하는 데이터베이스 서버
-- 필요한 이유: 회원가입·로그인·사진첩 기능이 MySQL에 데이터 저장
-- 설치 파일 방식인 이유: winget에서는 8.4만 제공, 팀 기준 버전은 8.0.46
-- 설치 방법과 확인: [database.md](database.md) 2-1. 설치 중 정한 `root` 비밀번호는 5장에서 사용하므로 따로 기록
-
-### 3-4. VS Code · 선택
+### 3-3. VS Code · 선택
 
 - 설치 대상: 코드 편집기, 필수 아님
 - 설치 명령: `winget install -e --id Microsoft.VisualStudioCode`
@@ -271,10 +266,37 @@ Select-String "dinov2_vitg14_pretrain" checkpoints\AnyDoor\configs\anydoor.yaml
 
 - `configs\demo.yaml`: AnyDoor 데모 화면 전용, 수정 불필요
 
-## 6. 데이터베이스 구축
+## 6. 회원 데이터 저장 설정
 
-- 진행 문서: [database.md](database.md) 2-2 ~ 2-4
-- 내용: MySQL에 데이터베이스 `cgi`와 서버 접속 계정 `cgi_app` 생성 → `backend\.env` 접속 설정 파일 작성 → 서버 연결 확인
+- 저장 대상: 회원 정보, 로그인 세션, 최근 사용 사진 기록
+- 두 방식 모두 백엔드 코드 동일, `backend\.env`의 접속 주소만 다름
+
+| 구분 | 저장 방식 | 용도 | 준비 |
+|---|---|---|---|
+| 체험판, 기본 | SQLite 파일 `storage\moa_trial.db` | 개인 PC에서 localhost로 실행·시연 | 명령 2줄 |
+| 정식 | MySQL 8.0 서버 | 여러 사용자 동시 접속, 팀 공용 운영 | MySQL 설치, 데이터베이스·계정 생성 |
+
+### 6-1. 체험판 · SQLite
+
+- SQLite: 별도 서버 없이 파일 하나에 데이터를 저장하는 데이터베이스. Python에 내장되어 추가 설치 불필요
+- 실행 위치: 저장소 최상위 디렉터리 `CGI_MOA`
+
+```powershell
+New-Item -ItemType Directory -Force storage
+Set-Content -Encoding ascii backend\.env "DATABASE_URL=sqlite:///storage/moa_trial.db"
+```
+
+- 결과: 백엔드 첫 실행 시 `storage\moa_trial.db` 파일과 테스트 계정 `test` / `test1234` 자동 생성
+- 회원가입·로그인·사진첩 기록 저장 지원
+- `storage/`와 `backend/.env`는 `.gitignore` 등록 대상이라 GitHub에 올라가지 않음
+- 초기화: 백엔드 종료 후 `storage\moa_trial.db` 삭제, 다음 실행 시 새로 생성
+
+### 6-2. 정식 · MySQL
+
+- 진행 문서: [database.md](database.md) 2장
+- 내용: MySQL 8.0 설치 → 데이터베이스 `cgi`와 서버 접속 계정 `cgi_app` 생성 → `backend\.env` 접속 설정 파일 작성 → 서버 연결 확인
+- 설치 파일 방식인 이유: winget에서는 8.4만 제공, 팀 기준 버전은 8.0.46
+- 6-1 체험판에서 전환 시 6-2 순서대로 진행하면 `backend\.env`가 MySQL 주소로 교체됨. 체험판 데이터는 옮겨지지 않음
 
 ## 7. 설치 확인
 
@@ -313,7 +335,8 @@ python scripts\check_env.py
 | 4-5 실행 중 `typing_extensions` 관련 설치 실패 | pip 구버전 | 4-4 pip 업그레이드 후 재실행 |
 | `No space left on device` | 디스크 여유 공간 부족 | 여유 공간 확보 후 재실행 |
 | 서버 예열 중 `epoch=1-step=8687.ckpt` 또는 `dinov2_vitg14_pretrain.pth` 경로 오류 | 모델 파일 위치·이름 불일치, 또는 설정 파일 미수정 | 5-2 저장 위치·파일 이름, 5-3 설정 파일 확인 |
-| 백엔드 로그 `DB에 연결하지 못했습니다` | MySQL 계정·비밀번호·서비스 문제 | [database.md 4. 오류별 조치](database.md#4-오류별-조치) |
+| 백엔드 로그 `DATABASE_URL이 없습니다` | `backend\.env` 미작성 | 6-1 체험판 명령 실행 |
+| 백엔드 로그 `DB에 연결하지 못했습니다` | 체험판: `storage` 폴더 없음. 정식: MySQL 계정·비밀번호·서비스 문제 | 체험판은 6-1 명령 재실행. 정식은 [database.md 4. 오류별 조치](database.md#4-오류별-조치) |
 
 ## 8. conda 환경 사용 규칙
 
