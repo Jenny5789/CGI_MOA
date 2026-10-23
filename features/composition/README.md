@@ -29,7 +29,6 @@ result = compose(ref_rgb, ref_mask, tar_rgb, tar_mask, seed=1234, on_progress=fn
 - 반환: `np.uint8` (H, W, 3) RGB, 인물 이미지와 같은 크기
 - `ref_mask`: 상의 영역 추출 모듈(`extract_object`) 결과를 그대로 사용
 - `tar_mask`: 기본은 영역을 감싸는 사각형만 사용, `shape_control=True`면 칠한 모양 그대로 (AnyDoor 웹 데모 Enable Shape Control과 같음, 2026-10-17)
-  - 외접 사각형 안 미도색 영역의 입력은 원본 인물 사진으로 교체. AnyDoor 기본 입력인 검은 바탕 상의 윤곽 지도가 남으면 몸통·팔 사이 검은 띠 생성 (2026-10-22)
 - `refine`: AnyDoor 웹 데모 Reference Mask Refine과 같음. 긴 변 1024px로 줄여 계산 (1024px 상의 사진 약 1.6초)
 - 다시 그리는 범위: `tar_mask` 사각형(1.1배)을 다시 1.3배 넓힌 정사각형 (AnyDoor 기본 1.5~2.9배 무작위 대신 고정, `AnyDoorComposer(crop_ratio=...)`로 변경)
 - `warmup()`: 모델 로딩 + 2스텝 시험 합성 (백엔드 시작 시 자동 실행)
