@@ -347,30 +347,38 @@ python -c "import torch; print(torch.cuda.is_available())"
 
 | 파일 | 모델 | 용도 | 크기 |
 |---|---|---|---|
-| AnyDoor 코드 | AnyDoor 공식 저장소, 커밋 `44ca2b2` | 착용 합성 모델 코드 | - |
+| AnyDoor 코드 | AnyDoor 공식 저장소 | 착용 합성 모델 코드 | - |
 | `sam2.1_hiera_base_plus.pt` | SAM 2.1 Base+ | 상의 영역 분할 가중치 | 약 309MB |
 | `epoch=1-step=8687.ckpt` | AnyDoor | 착용 합성 가중치 | 약 16.8GB |
 | `dinov2_vitg14_pretrain.pth` | DINOv2 ViT-g/14 | AnyDoor 내부 상의 이미지 특징 추출 가중치 | 약 4.5GB |
 
 ```powershell
-python scripts\setup_models.py
+git clone https://github.com/ali-vilab/AnyDoor checkpoints\AnyDoor
+git -C checkpoints\AnyDoor checkout 44ca2b2
+New-Item -ItemType Directory -Force checkpoints\sam2, checkpoints\AnyDoor\checkpoints
+curl.exe -L -o checkpoints\sam2\sam2.1_hiera_base_plus.pt https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_base_plus.pt
+curl.exe -L -o "checkpoints\AnyDoor\checkpoints\epoch=1-step=8687.ckpt" "https://huggingface.co/spaces/xichenhku/AnyDoor/resolve/main/epoch%3D1-step%3D8687.ckpt"
+curl.exe -L -o checkpoints\AnyDoor\checkpoints\dinov2_vitg14_pretrain.pth https://dl.fbaipublicfiles.com/dinov2/dinov2_vitg14/dinov2_vitg14_pretrain.pth
+(Get-Content checkpoints\AnyDoor\configs\inference.yaml) -replace 'path/epoch=1-step=8687.ckpt', './checkpoints/epoch=1-step=8687.ckpt' | Set-Content checkpoints\AnyDoor\configs\inference.yaml
+(Get-Content checkpoints\AnyDoor\configs\anydoor.yaml) -replace 'path/dinov2_vitg14_pretrain.pth', 'checkpoints/dinov2_vitg14_pretrain.pth' | Set-Content checkpoints\AnyDoor\configs\anydoor.yaml
 ```
 
-- 처리 내용: AnyDoor 코드 받기 → 가중치 3개 다운로드와 크기 검증 → AnyDoor 설정 파일의 `path/...` 자리표시 경로를 받은 위치로 변경
-- 마지막 줄 `결과: AI 모델 준비 완료`이면 정상
-- 다운로드가 중단된 경우 같은 명령 재실행, 받은 부분부터 이어 받기. 받는 곳과 파일 크기: [모델 파일 확인](docs/environment.md#3-모델-파일-확인)
-- AnyDoor 커밋 고정 이유: MOA 합성 모듈이 AnyDoor `run_inference.py`의 특정 코드 줄을 바꿔 실행
+- `checkout 44ca2b2`: MOA 합성 모듈이 AnyDoor `run_inference.py`의 특정 코드 줄을 바꿔 실행하므로 같은 버전으로 고정. `detached HEAD` 안내는 정상
+- 마지막 2줄: AnyDoor 설정 파일의 `path/...` 자리표시 경로를 받은 가중치 위치로 변경
+- 가중치 다운로드가 중단된 경우 해당 `curl.exe` 줄만 다시 실행. 파일 크기 확인과 다른 받는 곳: [모델 파일 확인](docs/environment.md#3-모델-파일-확인)
 
 ### 설치 6. 접속 설정 파일
 
 ```powershell
-python scripts\setup_trial_env.py
+New-Item -ItemType Directory -Force storage
+Set-Content -Encoding ascii backend\.env "DATABASE_URL=sqlite:///storage/moa_trial.db"
+Set-Content -Encoding ascii frontend\.env.local "VITE_API_MODE=mixed","VITE_API_TARGET=http://localhost:8000"
 ```
 
-- `backend\.env`: 회원 데이터를 SQLite 파일 `storage\moa_trial.db`에 저장, MySQL 설치 불필요. 백엔드 첫 실행 시 파일과 테스트 계정 `test` / `test1234` 자동 생성
+- `backend\.env`: 회원 데이터를 SQLite 파일 `storage\moa_trial.db`에 저장. 백엔드 첫 실행 시 파일과 테스트 계정 `test` / `test1234` 자동 생성
 - `frontend\.env.local`: 웹 화면이 로그인·추출·합성 요청을 localhost:8000 백엔드로 전송
-- 이미 있는 파일은 덮어쓰지 않음. 두 파일과 `storage/`는 `.gitignore` 등록 대상
-- 팀 공용 MySQL을 쓰는 경우 이 단계 대신 [MySQL 데이터베이스 구축](docs/database.md) 진행
+- 두 파일과 `storage/`는 `.gitignore` 등록 대상
+- 팀 공용 MySQL을 쓰는 경우 첫 두 줄 대신 [MySQL 데이터베이스 구축](docs/database.md) 진행
 
 ### 설치 7. 설치 확인
 

@@ -32,10 +32,10 @@
 | `torch.cuda.is_available()` 결과 `False` | GPU 미지원 PyTorch 설치, 또는 드라이버 미설치 | `nvidia-smi`로 드라이버 확인 후 PyTorch 설치 줄 재실행 |
 | PyTorch 설치 중 `typing_extensions` 관련 실패 | pip 구버전 | pip 업그레이드 줄 실행 후 재실행 |
 | `No space left on device` | 디스크 여유 공간 부족 | 여유 공간 확보 후 재실행 |
-| 서버 예열 중 `epoch=1-step=8687.ckpt` 또는 `dinov2_vitg14_pretrain.pth` 경로 오류 | 가중치 파일 위치·이름 불일치, 또는 설정 파일 미수정 | `python scripts\setup_models.py` 재실행, 3장 모델 파일 확인 |
+| 서버 예열 중 `epoch=1-step=8687.ckpt` 또는 `dinov2_vitg14_pretrain.pth` 경로 오류 | 가중치 파일 위치·이름 불일치, 또는 설정 파일 미수정 | 3장 모델 파일 확인 |
 | AnyDoor 폴더를 찾지 못하는 오류 | 환경 변수 `ANYDOOR_DIR` 미설정 또는 경로 불일치 | `conda env config vars set ANYDOOR_DIR=저장소경로\checkpoints\AnyDoor -n CGI` 실행 후 `conda activate CGI` |
-| 백엔드 로그 `DATABASE_URL이 없습니다` | `backend\.env` 미작성 | `python scripts\setup_trial_env.py` 실행 |
-| 백엔드 로그 `DB에 연결하지 못했습니다` | SQLite: `storage` 폴더 없음. MySQL: 계정·비밀번호·서비스 문제 | SQLite는 `python scripts\setup_trial_env.py` 재실행. MySQL은 [database.md 4. 오류별 조치](database.md#4-오류별-조치) |
+| 백엔드 로그 `DATABASE_URL이 없습니다` | `backend\.env` 미작성 | README 설치 6의 접속 설정 파일 명령 실행 |
+| 백엔드 로그 `DB에 연결하지 못했습니다` | SQLite: `storage` 폴더 없음. MySQL: 계정·비밀번호·서비스 문제 | SQLite는 README 설치 6 재실행. MySQL은 [database.md 4. 오류별 조치](database.md#4-오류별-조치) |
 
 - winget 대신 설치 파일을 쓰는 경우 받는 곳: Git https://git-scm.com/downloads/win , Anaconda https://www.anaconda.com/download/success , Node.js 24 https://nodejs.org/ko/download
 
