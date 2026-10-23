@@ -269,64 +269,172 @@ AnyDoor 공식 설정 기준 RTX 3080 10GB에서 50스텝 합성 1건에 11~15�
 
 ---
 
-## 9. 실행 방법
+## 9. 설치 및 실행
 
-### 최초 설치
+새 Windows PC 기준 설치 순서입니다. 코드 블록의 명령을 위에서부터 차례로 붙여 넣어 실행하면 설치가 끝납니다. 오류가 나면 [설치 오류별 조치](docs/environment.md#2-설치-오류별-조치)를 참고합니다.
 
-새 PC에서는 아래 순서로 설치한 뒤 실행합니다. 단계별 받는 곳, 설치 화면 선택 항목, 설치 확인 방법은 [개발 환경 구축 문서](docs/environment.md)에 정리되어 있습니다.
+- 필요 조건: Windows 64비트, NVIDIA GPU, 모델 파일 약 21.7GB를 저장할 디스크 여유 공간
+- 검증 환경: RTX 3080 10GB, 메모리 32GB, Windows 11
+- 회원 데이터 저장: 기본은 MySQL 설치가 필요 없는 SQLite 체험판. 팀 공용 MySQL 구성은 [MySQL 데이터베이스 구축](docs/database.md)
 
-| 순서 | 설치 대상 | 용도 | 안내 |
+### 설치 1. NVIDIA 그래픽 드라이버
+
+- PyTorch가 GPU로 모델을 실행하기 위한 드라이버. CUDA는 PyTorch에 포함되어 별도 설치 불필요
+- https://www.nvidia.com/ko-kr/drivers/ 에서 그래픽 카드 모델에 맞는 최신 드라이버를 받아 설치 후 PC 재시작
+- 확인: Windows PowerShell에서 `nvidia-smi` 실행, 오른쪽 위 `CUDA Version` 12.1 이상
+
+### 설치 2. Git · Anaconda · Node.js
+
+| 프로그램 | 용도 |
+|---|---|
+| Git | MOA 저장소·AnyDoor 코드 받기, SAM2 패키지 설치 |
+| Anaconda | Python 3.10 전용 conda 환경 생성. Anaconda나 Miniconda가 이미 있으면 해당 줄 생략 |
+| Node.js 24 | React 웹 화면 개발 서버 실행 |
+
+Windows PowerShell에서 실행합니다. winget은 Windows 10·11에 기본 포함된 프로그램 설치 명령입니다.
+
+```powershell
+winget install -e --id Git.Git
+winget install -e --id Anaconda.Anaconda3
+winget install -e --id OpenJS.NodeJS.LTS --version 24.22.1
+```
+
+- 원본 사용 약관 동의를 묻는 경우 `Y` 입력
+- 설치 후 열려 있는 PowerShell 창을 모두 닫기. 새 창에서 설치한 명령 인식
+
+### 설치 3. 저장소 받기와 conda 환경 구축
+
+시작 메뉴에서 **Anaconda PowerShell Prompt**를 실행합니다. 이후 모든 명령은 이 창에서 실행합니다.
+
+```powershell
+cd C:\
+git clone https://github.com/Jenny5789/CGI_MOA.git
+cd CGI_MOA
+conda create -n CGI python=3.10 -c conda-forge --override-channels -y
+conda activate CGI
+```
+
+- 저장소 위치: `C:\CGI_MOA`. 다른 위치를 쓰는 경우 경로에 한글·공백이 없는 폴더 권장
+- conda 환경 `CGI`: MOA 전용 Python 3.10 실행 공간. PC의 다른 Python과 패키지 버전이 섞이지 않도록 격리
+- `conda activate CGI` 후 명령 줄 앞 표시가 `(CGI)`로 바뀌면 정상. 창을 새로 열 때마다 `cd C:\CGI_MOA`, `conda activate CGI` 1회 실행
+
+### 설치 4. Python 패키지
+
+| 패키지 | 용도 |
+|---|---|
+| PyTorch 2.5.1, CUDA 12.1 빌드 | SAM2·AnyDoor를 GPU에서 실행하는 딥러닝 프레임워크 |
+| SAM2 | 클릭 지점 기반 상의 영역 분할 |
+| `requirements.txt` | AnyDoor 실행, FastAPI 서버, 데이터베이스 접속 패키지 |
+| xformers | 어텐션 연산 최적화, 합성 속도 향상·GPU 메모리 절감 |
+
+```powershell
+python -m pip install --upgrade pip
+python -m pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu121
+python -m pip install "git+https://github.com/facebookresearch/sam2.git@2b90b9f5ceec907a1c18123530e92e794ad901a4"
+python -m pip install -r requirements.txt
+python -m pip install xformers==0.0.28.post3 --index-url https://download.pytorch.org/whl/cu124 --no-deps
+python -c "import torch; print(torch.cuda.is_available())"
+```
+
+- 마지막 줄 결과 `True`: GPU 사용 가능
+- 버전 고정 이유: SAM2 커밋과 xformers `--no-deps`는 설치한 PyTorch 2.5.1이 다른 버전으로 교체되지 않도록 고정
+- `Failed to build the SAM 2 CUDA extension` 안내는 일부 후처리 가속만 제외, 분할 결과에 영향 없음
+
+### 설치 5. AI 모델 준비
+
+| 파일 | 모델 | 용도 | 크기 |
 |---|---|---|---|
-| 1 | NVIDIA 드라이버, Git, Anaconda, Node.js 24 | GPU 사용, 코드 받기, Python 환경 관리, 웹 화면 실행 | [3. 기본 프로그램 설치](docs/environment.md#3-기본-프로그램-설치) |
-| 2 | MOA 저장소, Python 3.10 conda 환경 `CGI`, PyTorch·SAM2·AnyDoor 실행 패키지 | 소스 코드, AI 모델 실행 라이브러리 | [4. 저장소 받기와 conda 환경 구축](docs/environment.md#4-저장소-받기와-conda-환경-구축) |
-| 3 | AnyDoor 코드, 모델 가중치 파일 3개 약 21.7GB | 상의 영역 분할·착용 합성 모델 | [5. AI 모델 준비](docs/environment.md#5-ai-모델-준비) |
-| 4 | 회원 데이터 저장 설정: 체험판 SQLite 파일, 정식 MySQL 8.0 | 로그인·회원가입·사진첩 | [6. 회원 데이터 저장 설정](docs/environment.md#6-회원-데이터-저장-설정) |
-| 5 | 점검 스크립트 | 설치 상태 확인 | [7. 설치 확인](docs/environment.md#7-설치-확인) |
+| AnyDoor 코드 | AnyDoor 공식 저장소 | 착용 합성 모델 코드 | - |
+| `sam2.1_hiera_base_plus.pt` | SAM 2.1 Base+ | 상의 영역 분할 가중치 | 약 309MB |
+| `epoch=1-step=8687.ckpt` | AnyDoor | 착용 합성 가중치 | 약 16.8GB |
+| `dinov2_vitg14_pretrain.pth` | DINOv2 ViT-g/14 | AnyDoor 내부 상의 이미지 특징 추출 가중치 | 약 4.5GB |
 
-### 실행 구성
+```powershell
+git clone https://github.com/ali-vilab/AnyDoor checkpoints\AnyDoor
+git -C checkpoints\AnyDoor checkout 44ca2b2
+New-Item -ItemType Directory -Force checkpoints\sam2, checkpoints\AnyDoor\checkpoints
+curl.exe -L -o checkpoints\sam2\sam2.1_hiera_base_plus.pt https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_base_plus.pt
+curl.exe -L -o "checkpoints\AnyDoor\checkpoints\epoch=1-step=8687.ckpt" "https://huggingface.co/spaces/xichenhku/AnyDoor/resolve/main/epoch%3D1-step%3D8687.ckpt"
+curl.exe -L -o checkpoints\AnyDoor\checkpoints\dinov2_vitg14_pretrain.pth https://dl.fbaipublicfiles.com/dinov2/dinov2_vitg14/dinov2_vitg14_pretrain.pth
+(Get-Content checkpoints\AnyDoor\configs\inference.yaml) -replace 'path/epoch=1-step=8687.ckpt', './checkpoints/epoch=1-step=8687.ckpt' | Set-Content checkpoints\AnyDoor\configs\inference.yaml
+(Get-Content checkpoints\AnyDoor\configs\anydoor.yaml) -replace 'path/dinov2_vitg14_pretrain.pth', 'checkpoints/dinov2_vitg14_pretrain.pth' | Set-Content checkpoints\AnyDoor\configs\anydoor.yaml
+```
 
-- 실행 셸: PowerShell, 서버마다 창 하나
+- `checkout 44ca2b2`: MOA 합성 모듈이 AnyDoor `run_inference.py`의 특정 코드 줄을 바꿔 실행하므로 같은 버전으로 고정. `detached HEAD` 안내는 정상
+- 마지막 2줄: AnyDoor 설정 파일의 `path/...` 자리표시 경로를 받은 가중치 위치로 변경
+- 가중치 다운로드가 중단된 경우 해당 `curl.exe` 줄만 다시 실행. 파일 크기 확인과 다른 받는 곳: [모델 파일 확인](docs/environment.md#3-모델-파일-확인)
+
+### 설치 6. 접속 설정 파일
+
+```powershell
+New-Item -ItemType Directory -Force storage
+Set-Content -Encoding ascii backend\.env "DATABASE_URL=sqlite:///storage/moa_trial.db"
+Set-Content -Encoding ascii frontend\.env.local "VITE_API_MODE=mixed","VITE_API_TARGET=http://localhost:8000"
+```
+
+- `backend\.env`: 회원 데이터를 SQLite 파일 `storage\moa_trial.db`에 저장. 백엔드 첫 실행 시 파일과 테스트 계정 `test` / `test1234` 자동 생성
+- `frontend\.env.local`: 웹 화면이 로그인·추출·합성 요청을 localhost:8000 백엔드로 전송
+- 두 파일과 `storage/`는 `.gitignore` 등록 대상
+- 팀 공용 MySQL을 쓰는 경우 첫 두 줄 대신 [MySQL 데이터베이스 구축](docs/database.md) 진행
+
+### 설치 7. 설치 확인
+
+```powershell
+$env:ANYDOOR_DIR = "$PWD\checkpoints\AnyDoor"
+python scripts\check_env.py
+```
+
+- 정상: `가상환경 CGI` 항목을 제외한 모든 항목 `[OK]`
+- `가상환경 CGI` 항목: 점검 스크립트가 venv 방식만 인식해 conda 환경에서는 `[NG]` 표시. 실행 경로 끝이 `envs\CGI\python.exe`이면 정상
+- `A matching Triton is not available` 경고: Windows에서 항상 출력되는 안내, 무시
+
+### 백엔드 실행
+
+Anaconda PowerShell Prompt, 저장소 최상위 디렉터리에서 실행합니다.
+
+```powershell
+conda activate CGI
+$env:ANYDOOR_DIR = "$PWD\checkpoints\AnyDoor"
+python -m uvicorn backend.main:app --port 8000
+```
+
+- `$env:ANYDOOR_DIR`: AnyDoor 폴더 위치 지정, 창을 새로 열 때마다 1회
+- 모델 로드와 예열 약 2분
+- 확인: http://localhost:8000/api/health 의 `status`가 `ok`이면 서버 실행, `warmup`이 `done`이면 합성 준비 완료
+- API 테스트 페이지: http://localhost:8000/docs . 자물쇠 표시 API는 `POST /api/auth/login` 응답의 `token`을 Authorize 버튼에 입력 후 실행
+- 환경 변수: [백엔드 환경 변수 목록](backend/README.md#3-환경-변수)
+
+### 프론트엔드 실행
+
+백엔드 창은 그대로 두고, 새 PowerShell 창의 저장소 최상위 디렉터리에서 실행합니다.
+
+```powershell
+cd frontend
+npm install
+npm run dev -- --port 5180 --strictPort
+```
+
+- `npm install`: 웹 화면 의존 패키지 설치, 최초 1회
+- 접속: http://localhost:5180 → 테스트 계정 `test` / `test1234` 로그인
+- `--strictPort`: 5180번 사용 중이면 다른 포트로 옮기지 않고 종료, 터널 주소와 불일치 방지
 
 | 구성 | 포트 |
 |---|---|
 | 백엔드 FastAPI | 8000 |
 | 프론트엔드 개발 서버 | 5180 |
-| 외부 접속 Cloudflare 터널 | 5180 연결 |
-
-### 백엔드 실행
-
-- 준비 사항
-  - conda 환경 `CGI`, SAM2·AnyDoor 코드와 모델 파일: [개발 환경 구축](docs/environment.md)
-  - 회원 데이터 저장: 체험판 SQLite 또는 정식 MySQL, [회원 데이터 저장 설정](docs/environment.md#6-회원-데이터-저장-설정)
-  - NVIDIA GPU
-- 실행 순서: Anaconda PowerShell Prompt, 저장소 최상위 디렉터리
-  1. `conda activate CGI`: conda 환경 활성화, 새 창마다 1회
-  2. `$env:ANYDOOR_DIR = "$PWD\checkpoints\AnyDoor"`: AnyDoor 폴더 지정, 새 창마다 1회
-  3. `python -m uvicorn backend.main:app --port 8000`: 서버 실행, 모델 로드와 예열 약 2분
-  4. http://localhost:8000/api/health 접속: `status`가 `ok`이면 서버 실행, `warmup`이 `done`이면 합성 준비 완료
-- API 테스트 페이지: http://localhost:8000/docs
-  - 자물쇠 표시가 있는 인증 필요 API: `POST /api/auth/login` 응답의 `token`을 Authorize 버튼에 입력 후 실행
-- 환경 변수: [백엔드 환경 변수 목록](backend/README.md#3-환경-변수)
-
-### 프론트엔드 실행
-
-- 준비 사항: Node.js 24, 백엔드 실행
-- 실행 순서: 저장소 최상위 디렉터리
-  1. `cd frontend`: 디렉터리 이동
-  2. `npm install`: 의존 패키지 설치, 최초 1회
-  3. `Set-Content -Encoding ascii .env.local "VITE_API_MODE=mixed","VITE_API_TARGET=http://localhost:8000"`: 백엔드 연결 설정 파일 생성, 최초 1회. 생략하면 모의 데이터로 동작
-  4. `npm run dev -- --port 5180 --strictPort`: 개발 서버 실행
-  5. http://localhost:5180 접속 → 테스트 계정 `test` / `test1234` 로그인
-- `--strictPort`: 5180번 사용 중이면 다른 포트로 옮기지 않고 종료, 터널 주소와 불일치 방지
 
 ### 외부 접속 · Cloudflare 터널
 
-- 용도: 휴대폰·외부 PC 시연, 계정 없이 임시 주소 발급
+- 용도: 휴대폰·외부 PC 시연, 계정 없이 임시 주소 발급. localhost 실행만으로는 불필요
 - 준비 사항: 백엔드·프론트엔드 실행
-- 실행 순서
-  1. `winget install --id Cloudflare.cloudflared`: 설치, 최초 1회. 설치 후 새 PowerShell 창 사용
-  2. `cloudflared tunnel --no-autoupdate --url http://localhost:5180`: 터널 실행
-  3. 실행 로그의 `https://….trycloudflare.com` 주소 접속
+
+```powershell
+winget install --id Cloudflare.cloudflared
+cloudflared tunnel --no-autoupdate --url http://localhost:5180
+```
+
+- 첫 줄은 최초 1회, 설치 후 새 PowerShell 창에서 두 번째 줄 실행
+- 실행 로그의 `https://….trycloudflare.com` 주소로 접속
 - 백엔드 요청: 프론트엔드 개발 서버가 `/api`를 8000번으로 전달, 터널 하나로 전체 기능 사용
 - 접속 허용: `frontend/vite.config.js`의 `allowedHosts`에 `.trycloudflare.com` 등록
 - 주소 유지: 터널 창 종료 시 만료, 실행마다 새 주소
@@ -340,7 +448,7 @@ CGI_MOA/
 ├── README.md                        프로젝트 개요
 ├── docs/                            공용 문서
 │   ├── api.md                       API 명세
-│   ├── environment.md               개발 환경 구축
+│   ├── environment.md               개발 환경 참고: 오류별 조치, 패키지 버전
 │   ├── pip_freeze.txt               Python 패키지 목록
 │   ├── database.md                  MySQL 데이터베이스 구축
 │   ├── login_extend.md              로그인 세션 연장 정책
@@ -363,7 +471,7 @@ CGI_MOA/
 
 | 목적 | 참고 문서 |
 |---|---|
-| 개발 환경 구축 | [environment.md](docs/environment.md), [database.md](docs/database.md) |
+| 설치 오류·패키지 버전 확인 | [environment.md](docs/environment.md), MySQL 구성: [database.md](docs/database.md) |
 | 프론트엔드 개발 | [api.md](docs/api.md), [login_extend.md](docs/login_extend.md), [frontend/README.md](frontend/README.md) |
 | API 사양 확인 | [api.md](docs/api.md), [backend/README.md](backend/README.md) |
 | 로그인 오류 조치 | [DB 연결 오류별 조치](docs/database.md#4-오류별-조치) |
