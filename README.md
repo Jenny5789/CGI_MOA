@@ -271,11 +271,10 @@ AnyDoor 공식 설정 기준 RTX 3080 10GB에서 50스텝 합성 1건에 11~15�
 
 ## 9. 설치 및 실행
 
-새 Windows PC 기준 설치 순서입니다. 코드 블록의 명령을 위에서부터 차례로 붙여 넣어 실행하면 설치가 끝납니다. 오류가 나면 [설치 오류별 조치](docs/environment.md#2-설치-오류별-조치)를 참고합니다.
-
 - 필요 조건: Windows 64비트, NVIDIA GPU, 모델 파일 약 21.7GB를 저장할 디스크 여유 공간
 - 검증 환경: RTX 3080 10GB, 메모리 32GB, Windows 11
 - 회원 데이터 저장: 기본은 MySQL 설치가 필요 없는 SQLite 체험판. 팀 공용 MySQL 구성은 [MySQL 데이터베이스 구축](docs/database.md)
+- 오류 조치: [설치 오류별 조치](docs/environment.md#2-설치-오류별-조치)
 
 ### 설치 1. NVIDIA 그래픽 드라이버
 
@@ -291,7 +290,7 @@ AnyDoor 공식 설정 기준 RTX 3080 10GB에서 50스텝 합성 1건에 11~15�
 | Anaconda | Python 3.10 전용 conda 환경 생성. Anaconda나 Miniconda가 이미 있으면 해당 줄 생략 |
 | Node.js 24 | React 웹 화면 개발 서버 실행 |
 
-Windows PowerShell에서 실행합니다. winget은 Windows 10·11에 기본 포함된 프로그램 설치 명령입니다.
+- 실행 창: Windows PowerShell
 
 ```powershell
 winget install -e --id Git.Git
@@ -302,9 +301,9 @@ winget install -e --id OpenJS.NodeJS.LTS --version 24.22.1
 - 원본 사용 약관 동의를 묻는 경우 `Y` 입력
 - 설치 후 열려 있는 PowerShell 창을 모두 닫기. 새 창에서 설치한 명령 인식
 
-### 설치 3. 저장소 받기와 conda 환경 구축
+### 설치 3. 저장소와 conda 환경
 
-시작 메뉴에서 **Anaconda Prompt**를 실행합니다. 설치 3부터 프론트엔드 실행까지 모든 명령은 Anaconda Prompt에 그대로 붙여 넣어 실행합니다.
+- 실행 창: Anaconda Prompt, 설치 3부터 프론트엔드 실행까지 동일
 
 ```bat
 cd C:\
@@ -318,7 +317,7 @@ conda activate CGI
 - 저장소 위치: `C:\CGI_MOA`. 다른 위치를 쓰는 경우 경로에 한글·공백이 없는 폴더 권장
 - conda 환경 `CGI`: MOA 전용 Python 3.10 실행 공간. PC의 다른 Python과 패키지 버전이 섞이지 않도록 격리
 - `conda env config vars set`: 서버가 AnyDoor 폴더를 찾는 환경 변수 `ANYDOOR_DIR`을 conda 환경에 저장, 이후 활성화할 때마다 자동 적용. 다른 위치에 받은 경우 경로를 그 위치로 변경
-- `conda activate CGI` 후 명령 줄 앞 표시가 `(CGI)`로 바뀌면 정상.
+- `conda activate CGI` 후 명령 줄 앞 표시가 `(CGI)`로 바뀌면 정상
 - 창을 새로 열 때마다 `cd C:\CGI_MOA`, `conda activate CGI` 1회 실행
 
 ### 설치 4. Python 패키지
@@ -391,8 +390,6 @@ python scripts\check_env.py
 
 ### 백엔드 실행
 
-Anaconda Prompt에서 실행합니다.
-
 ```bat
 cd C:\CGI_MOA
 conda activate CGI
@@ -406,7 +403,7 @@ python -m uvicorn backend.main:app --port 8000
 
 ### 프론트엔드 실행
 
-백엔드 창은 그대로 두고, Anaconda Prompt를 하나 더 열어 실행합니다.
+- 실행 창: 새 Anaconda Prompt, 백엔드 창 유지
 
 ```bat
 cd C:\CGI_MOA\frontend
