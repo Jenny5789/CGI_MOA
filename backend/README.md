@@ -4,7 +4,7 @@
 
 - 역할: 프론트엔드 요청 처리 (로그인, 이미지 업로드, 상의 영역 추출 SAM2, 이미지 합성 AnyDoor, 합성 결과 관리)
 - API 명세: [docs/api.md](../docs/api.md)
-- 실행 방법: [README.md 10-1. 백엔드](../README.md#10-1-백엔드)
+- 실행 방법: [README 백엔드 실행](../README.md#백엔드-실행)
 
 ## 2. 파일 구성
 
