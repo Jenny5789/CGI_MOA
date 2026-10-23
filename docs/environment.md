@@ -7,7 +7,7 @@
 | 순서 | 내용 | 설치 대상 | 설치 방법 |
 |---|---|---|---|
 | 1 | PC 사양 확인 | NVIDIA GPU, 디스크 여유 공간 | 화면 확인 |
-| 2 | 기본 프로그램 설치 | NVIDIA 드라이버, Git, Miniconda, Node.js 24, MySQL 8.0 | 드라이버·MySQL은 설치 파일, 나머지는 winget 명령 |
+| 2 | 기본 프로그램 설치 | NVIDIA 드라이버, Git, Anaconda, Node.js 24, MySQL 8.0 | 드라이버·MySQL은 설치 파일, 나머지는 winget 명령 |
 | 3 | 저장소 받기와 conda 환경 구축 | MOA 소스 코드, conda 환경 `CGI`, PyTorch·SAM2·AnyDoor 실행 패키지 | 명령 |
 | 4 | AI 모델 준비 | AnyDoor 코드, 모델 가중치 파일 3개, 설정 파일 경로 수정 | 명령 |
 | 5 | 데이터베이스 구축 | MySQL 데이터베이스·계정, 접속 설정 파일 | MySQL Workbench, 명령 |
@@ -46,7 +46,7 @@ nvidia-smi
 
 - 정상: 표 오른쪽 위 `CUDA Version`이 12.1 이상
 
-### 3-2. Git · Miniconda · Node.js · winget 명령
+### 3-2. Git · Anaconda · Node.js · winget 명령
 
 - winget: Windows 10·11에 기본 포함된 프로그램 설치 명령. 설치 파일을 직접 찾지 않고 명령 한 줄로 공식 배포판 설치
 - 실행 위치: Windows PowerShell
@@ -54,18 +54,18 @@ nvidia-smi
 | 프로그램 | 설치 대상 | 필요한 이유 |
 |---|---|---|
 | Git | 소스 코드 버전 관리 프로그램 | GitHub에서 MOA 저장소·AnyDoor 코드 받기, SAM2 패키지 설치 |
-| Miniconda | conda 환경 관리 도구와 최소 구성 Python | MOA 전용 Python 3.10 환경 생성. Anaconda가 이미 있으면 설치 생략 |
+| Anaconda | conda 환경 관리 도구와 Python 배포판 | MOA 전용 Python 3.10 환경 생성. Anaconda나 Miniconda가 이미 있으면 생략 |
 | Node.js 24 | JavaScript 실행 환경과 패키지 관리 도구 npm | React 웹 화면 개발 서버 실행 |
 
 ```powershell
 winget install -e --id Git.Git
-winget install -e --id Anaconda.Miniconda3
+winget install -e --id Anaconda.Anaconda3
 winget install -e --id OpenJS.NodeJS.LTS --version 24.22.1
 ```
 
 - 첫 실행 시 원본 사용 약관 동의를 묻는 경우 `Y` 입력
 - `--version 24.22.1`: Node.js 24 고정. 생략하면 그 시점의 최신 LTS 버전 설치
-- 설치 화면 방식이 필요한 경우 받는 곳: Git https://git-scm.com/downloads/win , Miniconda https://www.anaconda.com/download/success , Node.js https://nodejs.org/ko/download
+- 설치 화면 방식이 필요한 경우 받는 곳: Git https://git-scm.com/downloads/win , Anaconda https://www.anaconda.com/download/success , Node.js https://nodejs.org/ko/download
 - 설치 확인: PowerShell 창을 닫고 새로 연 뒤 실행
 
 ```powershell
@@ -93,7 +93,7 @@ npm -v
 ### 4-1. Anaconda PowerShell Prompt 열기
 
 - 4장부터는 conda 명령을 쓸 수 있는 창에서 실행
-- 시작 메뉴에서 `Anaconda Powershell Prompt` 검색 → 실행
+- 시작 메뉴에서 `Anaconda PowerShell Prompt` 검색 → 실행
 - 정상: 명령 줄 앞에 `(base)` 표시
 - 일반 PowerShell에서 conda를 쓰려면 아래 명령을 1회 실행한 뒤 창을 새로 열기. 실행 정책 질문에는 `Y`
 
@@ -306,7 +306,7 @@ python scripts\check_env.py
 
 | 증상 | 원인 | 조치 |
 |---|---|---|
-| `git`, `conda`, `node`, `npm`을 찾을 수 없다는 오류 | 설치 전에 열어 둔 창 사용, 또는 일반 PowerShell에서 conda 실행 | 창을 닫고 새로 열기. conda는 4-1의 Anaconda Powershell Prompt 사용 |
+| `git`, `conda`, `node`, `npm`을 찾을 수 없다는 오류 | 설치 전에 열어 둔 창 사용, 또는 일반 PowerShell에서 conda 실행 | 창을 닫고 새로 열기. conda는 4-1의 Anaconda PowerShell Prompt 사용 |
 | `ModuleNotFoundError` | `(CGI)` 환경이 아닌 상태에서 실행 | `conda activate CGI` 후 재실행 |
 | `npm` 실행 시 `이 시스템에서 스크립트를 실행할 수 없으므로` 오류 | PowerShell 스크립트 실행 정책 제한 | `npm` 대신 `npm.cmd` 사용, 또는 `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` 실행 후 `Y` |
 | `torch.cuda.is_available()` 결과 `False` | GPU 미지원 PyTorch 설치, 또는 드라이버 미설치 | 3-1 드라이버 확인 후 4-5 명령 재실행 |
