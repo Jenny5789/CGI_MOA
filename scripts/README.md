@@ -4,7 +4,7 @@
 
 - 역할: 웹 화면·서버 없이 AI 모듈(SAM2, AnyDoor) 단독 실행, 개발 환경 점검, 화면 예시 이미지 줄이기
 - 실행 위치: 저장소 최상위 디렉터리 (PowerShell)
-- 실행 환경: 가상환경 `CGI` ([environment.md](../docs/environment.md))
+- 실행 환경: conda 환경 `CGI`, 실행 전 `conda activate CGI`. 구축: [environment.md](../docs/environment.md)
 
 | 스크립트 | 용도 | 필요 모델 |
 |---|---|---|
@@ -16,7 +16,7 @@
 ## 2. check_env.py (개발 환경 점검)
 
 ```powershell
-CGI\Scripts\python.exe scripts\check_env.py
+python scripts\check_env.py
 ```
 
 - 점검: Python·패키지 버전, GPU, AnyDoor 폴더, SAM2 모델 가중치, `backend/.env`
@@ -25,7 +25,7 @@ CGI\Scripts\python.exe scripts\check_env.py
 ## 3. test_object_extraction.py (상의 영역 추출)
 
 ```powershell
-CGI\Scripts\python.exe scripts\test_object_extraction.py 상의.jpg --points "487,731;483,443" --out mask.png
+python scripts\test_object_extraction.py 상의.jpg --points "487,731;483,443" --out mask.png
 ```
 
 | 옵션 | 필수 | 설명 |
@@ -42,7 +42,7 @@ CGI\Scripts\python.exe scripts\test_object_extraction.py 상의.jpg --points "48
 ## 4. test_compose.py (이미지 합성)
 
 ```powershell
-CGI\Scripts\python.exe scripts\test_compose.py --garment 상의.jpg --garment-mask mask.png --person 인물.jpg --area 착용영역.png --out compose.jpg
+python scripts\test_compose.py --garment 상의.jpg --garment-mask mask.png --person 인물.jpg --area 착용영역.png --out compose.jpg
 ```
 
 | 옵션 | 필수 | 설명 |
@@ -59,7 +59,7 @@ CGI\Scripts\python.exe scripts\test_compose.py --garment 상의.jpg --garment-ma
 ## 5. compress_web_images.py (화면 예시 이미지 줄이기)
 
 ```powershell
-CGI\Scripts\python.exe scripts\compress_web_images.py
+python scripts\compress_web_images.py
 ```
 
 - 원본: `generated_assets/<묶음>/*.png` (1254×1254, 장당 약 2MB, 저장소에 올리지 않음)

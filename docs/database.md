@@ -44,7 +44,7 @@ GRANT ALL PRIVILEGES ON cgi.* TO 'cgi_app'@'localhost';
 
 ### 2-3. 접속 설정 파일 생성
 
-1. PowerShell에서 저장소 최상위 디렉터리 `CGI_MOA`로 이동. [environment.md 4-1. 저장소 받기](environment.md#4-1-저장소-받기)에서 받은 위치
+1. PowerShell에서 저장소 최상위 디렉터리 `CGI_MOA`로 이동. [environment.md 4-2. 저장소 받기](environment.md#4-2-저장소-받기)에서 받은 위치
 
 ```powershell
 cd CGI_MOA
@@ -75,8 +75,9 @@ DATABASE_URL=mysql+pymysql://cgi_app:2-2에서_정한_비밀번호@localhost:330
 1. 저장소 최상위 디렉터리에서 백엔드 실행
 
 ```powershell
+conda activate CGI
 $env:ANYDOOR_DIR = "$PWD\checkpoints\AnyDoor"
-CGI\Scripts\python.exe -m uvicorn backend.main:app --port 8000
+python -m uvicorn backend.main:app --port 8000
 ```
 
 2. 실행 로그 확인
@@ -108,4 +109,4 @@ CGI\Scripts\python.exe -m uvicorn backend.main:app --port 8000
 | `Access denied for user 'cgi_app'@'localhost' (using password: YES)` | `backend/.env` 비밀번호 불일치, 또는 `cgi_app` 계정 없음 | 비밀번호 재확인: 2-3. 접속 설정 파일 생성. 계정이 없으면 2-2. 데이터베이스·MySQL 계정 생성 |
 | `Access denied for user 'cgi_app'@'localhost' to database 'cgi'` | 데이터베이스 `cgi` 없음 또는 권한 없음 | 데이터베이스·권한 생성: 2-2. 데이터베이스·MySQL 계정 생성 |
 | `Can't connect to MySQL server on 'localhost'` | MySQL 중지 | "서비스" 화면에서 MySQL 서비스 시작, 또는 관리자 권한 PowerShell에서 `Start-Service MySQL80`. 서비스 이름은 2-1 확인 |
-| `'cryptography' package is required` | 패키지 누락 | `CGI\Scripts\python.exe -m pip install cryptography` |
+| `'cryptography' package is required` | 패키지 누락 | `conda activate CGI` 후 `python -m pip install cryptography` |
