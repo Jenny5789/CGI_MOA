@@ -12,6 +12,8 @@
 | `test_object_extraction.py` | 상의 영역 추출 단독 실행 | SAM2 |
 | `test_compose.py` | 이미지 합성 단독 실행 | AnyDoor |
 | `compress_web_images.py` | 화면 예시 생성 이미지를 웹용 JPG로 줄이기 | - |
+| `setup_models.py` | AnyDoor 코드·모델 가중치 다운로드, AnyDoor 설정 경로 수정 | - |
+| `setup_trial_env.py` | 체험판 접속 설정 파일 생성: SQLite 저장, localhost 백엔드 연결 | - |
 
 ## 2. check_env.py (개발 환경 점검)
 

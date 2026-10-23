@@ -77,7 +77,6 @@ DATABASE_URL=mysql+pymysql://cgi_app:2-2에서_정한_비밀번호@localhost:330
 
 ```powershell
 conda activate CGI
-$env:ANYDOOR_DIR = "$PWD\checkpoints\AnyDoor"
 python -m uvicorn backend.main:app --port 8000
 ```
 

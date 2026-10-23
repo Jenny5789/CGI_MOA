@@ -29,7 +29,7 @@
 | 이름 | 용도 | 기본값 | 설정 위치 |
 |---|---|---|---|
 | `DATABASE_URL` | MySQL 접속 정보 | 없음 (필수) | `backend/.env` ([database.md 2-3. 접속 설정 파일 생성](../docs/database.md#2-3-접속-설정-파일-생성)) |
-| `ANYDOOR_DIR` | AnyDoor 폴더 위치 | `Desktop\AnyDoor` | 실행 전 PowerShell `$env:ANYDOOR_DIR="경로"` |
+| `ANYDOOR_DIR` | AnyDoor 폴더 위치 | `Desktop\AnyDoor` | conda 환경에 저장: `conda env config vars set ANYDOOR_DIR=경로 -n CGI`, [README 설치 3](../README.md#설치-3-저장소-받기와-conda-환경-구축) |
 | `MOA_WARMUP` | `0`이면 서버 시작 시 AnyDoor 모델 로딩(1~2분) 생략 | `1` (로딩함) | 실행 전 PowerShell `$env:MOA_WARMUP="0"` |
 | `MOA_SEAM_FIX` | `0`이면 합성 후 박스 선 보정 생략 ([features/composition/README.md](../features/composition/README.md#박스-선-보정-seampy)) | `1` (보정함) | 실행 전 PowerShell `$env:MOA_SEAM_FIX="0"` |
 

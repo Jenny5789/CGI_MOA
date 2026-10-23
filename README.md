@@ -311,11 +311,13 @@ cd C:\
 git clone https://github.com/Jenny5789/CGI_MOA.git
 cd CGI_MOA
 conda create -n CGI python=3.10 -c conda-forge --override-channels -y
+conda env config vars set ANYDOOR_DIR=C:\CGI_MOA\checkpoints\AnyDoor -n CGI
 conda activate CGI
 ```
 
 - 저장소 위치: `C:\CGI_MOA`. 다른 위치를 쓰는 경우 경로에 한글·공백이 없는 폴더 권장
 - conda 환경 `CGI`: MOA 전용 Python 3.10 실행 공간. PC의 다른 Python과 패키지 버전이 섞이지 않도록 격리
+- `conda env config vars set`: 서버가 AnyDoor 폴더를 찾는 환경 변수 `ANYDOOR_DIR`을 conda 환경에 저장, 이후 활성화할 때마다 자동 적용. 다른 위치에 받은 경우 경로를 그 위치로 변경
 - `conda activate CGI` 후 명령 줄 앞 표시가 `(CGI)`로 바뀌면 정상.
 - 창을 새로 열 때마다 `cd C:\CGI_MOA`, `conda activate CGI` 1회 실행
 
@@ -345,43 +347,34 @@ python -c "import torch; print(torch.cuda.is_available())"
 
 | 파일 | 모델 | 용도 | 크기 |
 |---|---|---|---|
-| AnyDoor 코드 | AnyDoor 공식 저장소 | 착용 합성 모델 코드 | - |
+| AnyDoor 코드 | AnyDoor 공식 저장소, 커밋 `44ca2b2` | 착용 합성 모델 코드 | - |
 | `sam2.1_hiera_base_plus.pt` | SAM 2.1 Base+ | 상의 영역 분할 가중치 | 약 309MB |
 | `epoch=1-step=8687.ckpt` | AnyDoor | 착용 합성 가중치 | 약 16.8GB |
 | `dinov2_vitg14_pretrain.pth` | DINOv2 ViT-g/14 | AnyDoor 내부 상의 이미지 특징 추출 가중치 | 약 4.5GB |
 
 ```powershell
-git clone https://github.com/ali-vilab/AnyDoor checkpoints\AnyDoor
-git -C checkpoints\AnyDoor checkout 44ca2b2
-New-Item -ItemType Directory -Force checkpoints\sam2, checkpoints\AnyDoor\checkpoints
-curl.exe -L -o checkpoints\sam2\sam2.1_hiera_base_plus.pt https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_base_plus.pt
-curl.exe -L -o "checkpoints\AnyDoor\checkpoints\epoch=1-step=8687.ckpt" "https://huggingface.co/spaces/xichenhku/AnyDoor/resolve/main/epoch%3D1-step%3D8687.ckpt"
-curl.exe -L -o checkpoints\AnyDoor\checkpoints\dinov2_vitg14_pretrain.pth https://dl.fbaipublicfiles.com/dinov2/dinov2_vitg14/dinov2_vitg14_pretrain.pth
-(Get-Content checkpoints\AnyDoor\configs\inference.yaml) -replace 'path/epoch=1-step=8687.ckpt', './checkpoints/epoch=1-step=8687.ckpt' | Set-Content checkpoints\AnyDoor\configs\inference.yaml
-(Get-Content checkpoints\AnyDoor\configs\anydoor.yaml) -replace 'path/dinov2_vitg14_pretrain.pth', 'checkpoints/dinov2_vitg14_pretrain.pth' | Set-Content checkpoints\AnyDoor\configs\anydoor.yaml
+python scripts\setup_models.py
 ```
 
-- `checkout 44ca2b2`: MOA 합성 모듈이 AnyDoor `run_inference.py`의 특정 코드 줄을 바꿔 실행하므로 같은 버전으로 고정. `detached HEAD` 안내는 정상
-- 마지막 2줄: AnyDoor 설정 파일의 `path/...` 자리표시 경로를 받은 가중치 위치로 변경
-- 가중치 다운로드가 중단된 경우 해당 `curl.exe` 줄만 다시 실행. 파일 크기 확인과 다른 받는 곳: [모델 파일 확인](docs/environment.md#3-모델-파일-확인)
+- 처리 내용: AnyDoor 코드 받기 → 가중치 3개 다운로드와 크기 검증 → AnyDoor 설정 파일의 `path/...` 자리표시 경로를 받은 위치로 변경
+- 마지막 줄 `결과: AI 모델 준비 완료`이면 정상
+- 다운로드가 중단된 경우 같은 명령 재실행, 받은 부분부터 이어 받기. 받는 곳과 파일 크기: [모델 파일 확인](docs/environment.md#3-모델-파일-확인)
+- AnyDoor 커밋 고정 이유: MOA 합성 모듈이 AnyDoor `run_inference.py`의 특정 코드 줄을 바꿔 실행
 
 ### 설치 6. 접속 설정 파일
 
 ```powershell
-New-Item -ItemType Directory -Force storage
-Set-Content -Encoding ascii backend\.env "DATABASE_URL=sqlite:///storage/moa_trial.db"
-Set-Content -Encoding ascii frontend\.env.local "VITE_API_MODE=mixed","VITE_API_TARGET=http://localhost:8000"
+python scripts\setup_trial_env.py
 ```
 
-- `backend\.env`: 회원 데이터를 SQLite 파일 `storage\moa_trial.db`에 저장. 백엔드 첫 실행 시 파일과 테스트 계정 `test` / `test1234` 자동 생성
+- `backend\.env`: 회원 데이터를 SQLite 파일 `storage\moa_trial.db`에 저장, MySQL 설치 불필요. 백엔드 첫 실행 시 파일과 테스트 계정 `test` / `test1234` 자동 생성
 - `frontend\.env.local`: 웹 화면이 로그인·추출·합성 요청을 localhost:8000 백엔드로 전송
-- 두 파일과 `storage/`는 `.gitignore` 등록 대상
-- 팀 공용 MySQL을 쓰는 경우 첫 두 줄 대신 [MySQL 데이터베이스 구축](docs/database.md) 진행
+- 이미 있는 파일은 덮어쓰지 않음. 두 파일과 `storage/`는 `.gitignore` 등록 대상
+- 팀 공용 MySQL을 쓰는 경우 이 단계 대신 [MySQL 데이터베이스 구축](docs/database.md) 진행
 
 ### 설치 7. 설치 확인
 
 ```powershell
-$env:ANYDOOR_DIR = "$PWD\checkpoints\AnyDoor"
 python scripts\check_env.py
 ```
 
@@ -391,15 +384,14 @@ python scripts\check_env.py
 
 ### 백엔드 실행
 
-Anaconda PowerShell Prompt, 저장소 최상위 디렉터리에서 실행합니다.
+Anaconda PowerShell Prompt에서 실행합니다.
 
 ```powershell
+cd C:\CGI_MOA
 conda activate CGI
-$env:ANYDOOR_DIR = "$PWD\checkpoints\AnyDoor"
 python -m uvicorn backend.main:app --port 8000
 ```
 
-- `$env:ANYDOOR_DIR`: AnyDoor 폴더 위치 지정, 창을 새로 열 때마다 1회
 - 모델 로드와 예열 약 2분
 - 확인: http://localhost:8000/api/health 의 `status`가 `ok`이면 서버 실행, `warmup`이 `done`이면 합성 준비 완료
 - API 테스트 페이지: http://localhost:8000/docs . 자물쇠 표시 API는 `POST /api/auth/login` 응답의 `token`을 Authorize 버튼에 입력 후 실행
@@ -407,10 +399,10 @@ python -m uvicorn backend.main:app --port 8000
 
 ### 프론트엔드 실행
 
-백엔드 창은 그대로 두고, 새 PowerShell 창의 저장소 최상위 디렉터리에서 실행합니다.
+백엔드 창은 그대로 두고, Anaconda PowerShell Prompt를 하나 더 열어 실행합니다.
 
 ```powershell
-cd frontend
+cd C:\CGI_MOA\frontend
 npm install
 npm run dev -- --port 5180 --strictPort
 ```
