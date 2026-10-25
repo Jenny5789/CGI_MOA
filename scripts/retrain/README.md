@@ -28,6 +28,9 @@
 | `retrain_ids.py` | 학습 쌍 목록 `ids.txt` 생성 (`test` = 시험 100쌍, `all` = 전체) |
 | `retrain_train.py` | 학습 (GPU 개수, GPU당 사진 수, 스텝 수, 저장 간격 지정) |
 | `retrain_compose_test.py` | 결과 확인 합성 (유형 B 5장 × seed 3개, 원래·재학습 가중치 비교) |
+| `retrain_compare_95.py` | 결과 확인 95장 (여러 가중치를 같은 입력·seed로 비교, 옷 색·없던 물건까지, 박스 선 보정 전후 숫자) |
+| `pairs_95.json` | 95장 비교 쌍 목록 (VITON-HD 시험용 사진 이름·seed, 2026-10-17 시험과 같은 쌍) |
+| `HANDOFF.md` | 기존 PC에서 B200으로 넘어올 때의 상태·이어서 할 일 |
 | `test_env_packages.txt` | 시험 학습 환경 패키지 목록 (`pip freeze`, 참고용) |
 
 ## 3. 준비 사항
@@ -193,6 +196,21 @@ python retrain_compose_test.py $HOME/retrain_run/compose step2000 $HOME/retrain_
 - 결과: `compose_compare.jpg` (원래 사진 / 새 상의 / 새 입력 / 원래 가중치 / 재학습 가중치, 첫 seed), 합성 사진 seed 3개씩
 - 판정: 남는 자리(배·팔)에 엉뚱한 천 없이 맨살, 새 옷 무늬·모양 유지
 - 비교 기준: 2026-10-24 시험 학습(100쌍 · 1,000스텝) 결과
+
+### 95장 비교 (옷 색·없던 물건까지)
+
+- 유형 B 5장만으로는 옷 색 바뀜·없던 물건을 보기 어려움 → 95장으로 가중치 비교
+- 처음에는 `--limit 2`로 동작 확인 (앞의 2쌍만, 오류 없이 `compare/V01.jpg`, `compare/V02.jpg`가 생기는지)
+
+```bash
+python retrain_compare_95.py $HOME/compare95 original=original aug10000=$HOME/retrain_run/checkpoints/wide-step=10000.ckpt noaug10000=$HOME/retrain_run_noaug/checkpoints/wide-step=10000.ckpt --limit 2
+python retrain_compare_95.py $HOME/compare95 original=original aug10000=$HOME/retrain_run/checkpoints/wide-step=10000.ckpt noaug10000=$HOME/retrain_run_noaug/checkpoints/wide-step=10000.ckpt
+```
+
+- 가중치는 `이름=경로` (경로가 `original`이면 공식 가중치), 이미 만든 결과는 건너뜀 (두 번째 명령은 나머지 93쌍만 합성)
+- 결과: `overview_?.jpg` (12쌍씩, 원래 사진 | 입힐 옷 | 가중치별 결과), `compare/V??.jpg` (한 쌍씩, 포아송 붙인 결과 포함), `compare_95.csv` (박스 선 세기 포아송 전·후, 밝기 변화)
+- 판정할 사진을 고른 뒤 `--pick V02,V08,V10`을 붙여 다시 실행하면 `compare_pick.jpg` (합성은 건너뛰고 그림만 다시 만듦)
+- 참고 (기존 PC 2026-10-25, 1,000스텝): 새 학습 재료 가중치에서 옷 색 바뀜 V10·V29·V56·V90·V53, 없던 물건 V02·V08·V38·V68
 
 ## 9. 주의
 

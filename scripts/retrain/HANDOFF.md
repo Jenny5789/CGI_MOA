@@ -2,6 +2,7 @@
 
 - 작성: 2026-10-26 (기존 PC → B200 컴퓨터)
 - 실행 방법은 같은 폴더 [README.md](README.md), 이 문서는 지금까지의 상태와 이어서 할 일
+- 기존 PC 없이 B200만으로 진행: 필요한 것 = GitHub 브랜치 `cej-retrain` (코드·문서·95장 쌍 목록) + [2장](#2-가져갈-파일-github-업로드-금지-외장-드라이브-등으로-직접-복사)의 큰 파일 4개
 
 ## 1. 목적과 지금 상태
 
@@ -59,18 +60,25 @@ python retrain_compose_test.py $HOME/compose aug_step10000 $HOME/retrain_run/che
 python retrain_compose_test.py $HOME/compose noaug_step10000 $HOME/retrain_run_noaug/checkpoints/wide-step=10000.ckpt
 ```
 
+7. 95장 비교 (README 8장 "95장 비교"): 먼저 `--limit 2`로 동작 확인 → 95장 → 사진 고른 뒤 `--pick`
+
+```bash
+python retrain_compare_95.py $HOME/compare95 original=original aug10000=$HOME/retrain_run/checkpoints/wide-step=10000.ckpt noaug10000=$HOME/retrain_run_noaug/checkpoints/wide-step=10000.ckpt --limit 2
+```
+
 ## 4. 결과 판정 기준
 
 - 유형 B 5장 (`compose_compare.jpg`): 남는 자리(배·팔)에 엉뚱한 천 없이 맨살, 원래 옷 조각 없음, 새 옷 무늬·모양 유지
 - 옷 색: 옷 사진과 같은 색인지 (10/25 시험에서 회색 → 초록, 남색 → 청록, 연노랑 → 분홍 같은 색 바뀜)
 - 없던 물건: 벨트·얼룩·레이스 층, 바지 색 바뀜
 - 다시 그린 정사각형 경계(박스 선)·어두워짐: 앱에서 박스 선 보정이 붙으므로 판정에서 제외 가능
-- `retrain_compose_test.py`는 유형 B 5장만 → 색 바뀜까지 보려면 95장 비교 필요
-  - 95장 비교 스크립트(`retrain_compare_weights.py`)는 기존 PC(저장소 `CGI_MOA` 로컬, Windows 경로)에만 있음 → 고른 가중치를 기존 PC로 가져와 비교하거나, B200용으로 옮기는 작업 필요
+- `retrain_compose_test.py`는 유형 B 5장만 → 옷 색·없던 물건은 `retrain_compare_95.py`로 95장 비교 (3장 7)
+  - 10/25 시험에서 문제였던 사진: 옷 색 V10·V29·V56·V90·V53, 없던 물건 V02·V08·V38·V68 (이 사진들을 먼저 확인)
+  - `retrain_compare_95.py`는 기존 PC의 비교 스크립트를 B200용(리눅스 경로·여러 가중치)으로 옮긴 것, 기존 PC에서는 실행하지 않음 → B200에서 `--limit 2`로 먼저 확인
 
 ## 5. 결과 가져오기
 
-- 가져올 것: `train_log.txt` (두 가지), `compose_compare.jpg`, 고른 가중치만 (1개 약 10GB, 외장 드라이브)
+- 가져올 것: `train_log.txt` (두 가지), `compose_compare.jpg`, 95장 비교 `overview_?.jpg`·`compare_pick.jpg`·`compare_95.csv`, 고른 가중치만 (1개 약 10GB, 외장 드라이브)
 - GitHub에는 그림·기록 문서만 (가중치·VITON-HD 금지)
 
 ## 6. 지킬 것
@@ -84,7 +92,7 @@ python retrain_compose_test.py $HOME/compose noaug_step10000 $HOME/retrain_run_n
 ## 7. 기존 PC 상태 (돌아왔을 때)
 
 - `CGI_V2`: `dev-cej` (`5262eea` = `main`), 앱 코드 변경 없음
-- `cej-retrain`: GitHub `5cc43b9` (README에 10/25 결과·`--no-ref-aug` 안내) + 이 문서
+- `cej-retrain`: GitHub 최신 (README에 10/25 결과·`--no-ref-aug` 안내·95장 비교, 95장 비교 스크립트·쌍 목록, 이 문서)
 - `CGI_MOA`: 작업일지 10/24~10/26 로컬 커밋 (마지막 `c9d8368`, push 안 함), 기록은 여기에 이어서
 - 시험 결과 (`Desktop\anydoor_retrain_test\`): 10/24 가중치 `checkpoints\`, 10/25 가중치 `run_1025\checkpoints\`, 비교 `compare_1025\` 등
 
