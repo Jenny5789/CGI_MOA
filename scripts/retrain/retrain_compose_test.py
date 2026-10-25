@@ -2,12 +2,14 @@
 
 - 합성: 서버 features.composition.AnyDoorComposer 그대로 (float16, save_memory, 크롭 1.3배, 50스텝)
 - 새 입력: AnyDoor의 process_pairs만 이 스크립트 안에서 교체 (retrain_dataset.py 학습 재료와 같은 계산, 서버·AnyDoor 코드 수정 없음)
-  - 생성 영역 = agnostic-mask (상체 옷 + 팔), 조건 이미지 = 옷 사진 비율 그대로 어깨 기준 배치 (VITON-HD 관절 점)
+  - 생성 영역 = agnostic-mask (상체 옷 + 팔) + 원래 상의 (상의 라벨, 5px 넓힘, 학습 재료와 같음), 네 번째 인자 ag면 상체 + 팔만
+  - 조건 이미지 = 옷 사진 비율 그대로 어깨 기준 배치 (VITON-HD 관절 점)
 - 대상: VITON-HD 시험용 유형 B 5장 (아래 CASES), seed 3개씩, 이미 만든 결과는 건너뜀
 - 저장: <out_dir>/V??_seed????_<이름>.png, compose_compare.jpg (결과 폴더에 있는 이름을 모두 모아 비교, 첫 seed)
+  - 생성 영역을 바꿔 비교할 때는 이름을 다르게 (예: step10000_ag)
 
-python retrain_compose_test.py <out_dir> original original                 (원래 가중치)
-python retrain_compose_test.py <out_dir> step10000 <가중치 .ckpt 경로>     (재학습 가중치)
+python retrain_compose_test.py <out_dir> original original [wide|ag]                 (원래 가중치)
+python retrain_compose_test.py <out_dir> step10000 <가중치 .ckpt 경로> [wide|ag]     (재학습 가중치)
 경로: ANYDOOR_DIR (AnyDoor 폴더), VITON_TEST_DIR (기본 $ANYDOOR_DIR/data/zalando-hd-resized/test)
 """
 import gc
@@ -24,10 +26,13 @@ sys.path.insert(0, str(HERE.parents[1]))  # 저장소 최상위 (features 패키
 sys.path.insert(1, str(HERE))
 import cv2  # noqa: E402
 
-from retrain_dataset import AD, du, placed_hint  # noqa: E402
+from retrain_dataset import AD, DIL, UPPER, du, placed_hint  # noqa: E402
 from retrain_ids import font  # noqa: E402
 
 OUT, NAME, CKPT = Path(sys.argv[1]), sys.argv[2], sys.argv[3]
+AREA = sys.argv[4] if len(sys.argv) > 4 else "wide"  # 생성 영역: wide = 상체 + 팔 + 원래 상의 (학습 재료와 같음), ag = 상체 + 팔만
+if AREA not in ("wide", "ag"):
+    sys.exit("네 번째 인자는 wide 또는 ag")
 OUT.mkdir(parents=True, exist_ok=True)
 VT = Path(os.environ.get("VITON_TEST_DIR", AD / "data" / "zalando-hd-resized" / "test"))
 # 유형 B 5장 (10/21 분류): 이름, 인물 사진, 새 상의 사진, 첫 seed (seed 3개 = 첫 seed, +1000, +2000)
@@ -42,9 +47,11 @@ def load(person_name, cloth_name):
     cloth = np.array(Image.open(VT / "cloth" / cloth_name).convert("RGB"))
     cmask = (np.array(Image.open(VT / "cloth-mask" / cloth_name).convert("L")) > 127).astype(np.uint8)
     ag = (np.array(Image.open(VT / "agnostic-mask" / person_name.replace(".jpg", "_mask.png")).convert("L")) > 127).astype(np.uint8)
+    top = (np.array(Image.open(VT / "image-parse-v3" / person_name.replace(".jpg", ".png"))) == UPPER).astype(np.uint8)
+    area = ag | cv2.dilate(top, np.ones((2 * DIL + 1, 2 * DIL + 1), np.uint8)) if AREA == "wide" else ag
     k = json.loads((VT / "openpose_json" / person_name.replace(".jpg", "_keypoints.json")).read_text())
     p = np.array(k["people"][0]["pose_keypoints_2d"], np.float32).reshape(-1, 3)
-    return person, cloth, cmask, ag, p
+    return person, cloth, cmask, ag, area, p
 
 
 def new_input(ref_image, ref_mask, tar_image, tar_mask, p):
@@ -93,13 +100,13 @@ if todo:
         gc.collect()
     cur = {}
     ns["process_pairs"] = lambda ref_image, ref_mask, tar_image, tar_mask: new_input(ref_image, ref_mask, tar_image, tar_mask, cur["p"])
-    for tag, s0, person, cloth, cmask, ag, p in plan:
+    for tag, s0, person, cloth, cmask, ag, area, p in plan:
         cur["p"] = p
         for s in (s0, s0 + 1000, s0 + 2000):
             path = OUT / f"{tag}_seed{s}_{NAME}.png"
             if path.exists():
                 continue
-            Image.fromarray(composer.compose(cloth, cmask, person, ag, seed=s)).save(path)
+            Image.fromarray(composer.compose(cloth, cmask, person, area, seed=s)).save(path)
             print(f"{tag} seed {s} ({NAME}) 저장", flush=True)
 
 # 비교 그림 (첫 seed): 원래 사진 | 새 상의 | 새 입력 | 결과 폴더에 있는 이름별 결과 (original 먼저)
@@ -107,13 +114,15 @@ names = sorted({f.stem.split("_", 2)[2] for f in OUT.glob(f"{CASES[0][0]}_seed{C
 F, FB = font(15), font(19)
 W_, H_, GAP = 200, 267, 8
 rows = []
-for tag, s0, person, cloth, cmask, ag, p in plan:
+for tag, s0, person, cloth, cmask, ag, area, p in plan:
     view = person.copy()
+    add = (area > 0) & (ag == 0)
     view[ag > 0] = (view[ag > 0] * 0.4 + np.array([0, 90, 255]) * 0.6).astype(np.uint8)
+    view[add] = (view[add] * 0.3 + np.array([255, 0, 0]) * 0.7).astype(np.uint8)
     _, sil = placed_hint(cloth, cmask, p, *ag.shape)
     cs, _ = cv2.findContours(sil, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     cv2.drawContours(view, cs, -1, (0, 220, 0), 4)
-    ims = [("원래 사진", person), ("새 상의", cloth), ("새 입력 (파랑 = 생성 영역, 초록 = 옷 그림)", view)] \
+    ims = [("원래 사진", person), ("새 상의", cloth), ("새 입력 (아래 설명)", view)] \
         + [(f"새 입력 + {x}", np.array(Image.open(OUT / f"{tag}_seed{s0}_{x}.png").convert("RGB"))) for x in names]
     r = Image.new("RGB", (len(ims) * (W_ + GAP), H_ + 56), "white")
     dr = ImageDraw.Draw(r)
@@ -122,10 +131,17 @@ for tag, s0, person, cloth, cmask, ag, p in plan:
         dr.text((j * (W_ + GAP) + 2, 30), t, fill="black", font=F)
         r.paste(Image.fromarray(im).resize((W_, H_)), (j * (W_ + GAP), 52))
     rows.append(r)
-sheet = Image.new("RGB", (rows[0].width, sum(x.height + 10 for x in rows)), "white")
+notes = ["새 입력: 파랑 = 상체 + 팔, 빨강 = 더한 원래 상의",
+         "  (파랑 + 빨강 = 다시 그리는 영역), 초록 = 옷 그림 위치",
+         "모두 박스 선 보정·원본 복원 전 결과, 같은 seed"]
+sheet = Image.new("RGB", (rows[0].width, sum(x.height + 10 for x in rows) + 26 * len(notes) + 10), "white")
 y = 0
 for x in rows:
     sheet.paste(x, (0, y))
     y += x.height + 10
+d = ImageDraw.Draw(sheet)
+for t in notes:
+    d.text((4, y), t, fill="black", font=F)
+    y += 26
 sheet.save(OUT / "compose_compare.jpg", quality=90)
 print("저장", OUT / "compose_compare.jpg", flush=True)

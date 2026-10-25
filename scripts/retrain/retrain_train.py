@@ -4,6 +4,7 @@
 - 학습 부품: AnyDoor 원래 학습 설정과 같음 (ControlNet 전부, UNet 뒷부분, DINOv2 연결부 / sd_locked = False)
 - 옵티마이저 AdamW, 학습률 --lr (기본 1e-5), 16비트 혼합 정밀도
 - 학습 재료: retrain_dataset.VitonHDWide (<out_dir>/ids.txt의 쌍, retrain_ids.py로 생성)
+  - 기본: 생성 영역에 원래 상의 포함 + 참조 이미지 밝기·대비 무작위, --no-wide-top / --no-ref-aug로 끔 (둘 다 끄면 2026-10-24 시험과 같음)
 - 여러 GPU: --gpus N (DDP), GPU당 한 번에 --batch장
 - 저장: --save-every 스텝마다 <out_dir>/checkpoints/wide-step=N.ckpt (1개 약 10GB, 모두 보관), 0이면 저장 안 함
 - 기록: 스텝마다 걸린 시간·손실·GPU 최대 메모리 (첫 GPU만 출력)
@@ -26,6 +27,8 @@ ap.add_argument("--save-every", type=int, default=0, help="가중치 저장 간�
 ap.add_argument("--lr", type=float, default=1e-5)
 ap.add_argument("--workers", type=int, default=0 if os.name == "nt" else 4, help="학습 재료를 만드는 프로세스 수")
 ap.add_argument("--resume", default=None, help="시작 가중치 (기본: AnyDoor 공식 가중치)")
+ap.add_argument("--no-wide-top", action="store_true", help="생성 영역에 원래 상의를 더하지 않음 (상체 + 팔만)")
+ap.add_argument("--no-ref-aug", action="store_true", help="참조 이미지 밝기·대비 무작위 변경 안 함")
 a = ap.parse_args()
 
 AD = Path(os.environ.get("ANYDOOR_DIR", Path.home() / "Desktop" / "AnyDoor")).resolve()
@@ -55,6 +58,8 @@ ids = [line.split("\t")[0] for line in (OUT / "ids.txt").read_text(encoding="utf
 resume = a.resume or str(AD / "checkpoints" / "epoch=1-step=8687.ckpt")
 print(f"학습 쌍 {len(ids)}개, {a.steps}스텝, GPU {a.gpus}개 × {a.batch}장, 저장 간격 {a.save_every or '없음'}, 시작 가중치 {resume}",
       flush=True)
+print(f"학습 재료: 생성 영역에 원래 상의 {'포함 안 함' if a.no_wide_top else '포함'}, "
+      f"참조 이미지 밝기·대비 무작위 {'안 함' if a.no_ref_aug else '함'}", flush=True)
 
 t0 = time.time()
 model = create_model(str(AD / "configs" / "anydoor.yaml")).cpu()
@@ -105,8 +110,8 @@ if a.save_every > 0:
 trainer = pl.Trainer(accelerator="gpu", devices=a.gpus, strategy="ddp" if a.gpus > 1 else None, precision=16,
                      max_steps=a.steps, callbacks=callbacks, enable_checkpointing=a.save_every > 0, logger=False,
                      default_root_dir=str(OUT), enable_progress_bar=False)
-loader = DataLoader(VitonHDWide(ids), batch_size=a.batch, shuffle=True, num_workers=a.workers,
-                    worker_init_fn=seed_worker, persistent_workers=a.workers > 0)
+loader = DataLoader(VitonHDWide(ids, wide_top=not a.no_wide_top, ref_aug=not a.no_ref_aug), batch_size=a.batch,
+                    shuffle=True, num_workers=a.workers, worker_init_fn=seed_worker, persistent_workers=a.workers > 0)
 t1 = time.time()
 trainer.fit(model, loader)
 if trainer.is_global_zero:

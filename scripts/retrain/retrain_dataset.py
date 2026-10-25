@@ -1,10 +1,13 @@
 """AnyDoor 재학습 학습 재료 (VITON-HD, 생성 영역 넓힘 + 조건 이미지 어깨 기준 배치).
 
 원래 AnyDoor 학습 재료(datasets/vitonhd.py + datasets/base.py process_pairs)와 다른 점
-- 생성 영역: 상의 라벨(image-parse-v3 5번) 박스 → agnostic-mask(상체 옷 + 팔) 모양 그대로
+- 생성 영역: 상의 라벨(image-parse-v3 5번) 박스 → agnostic-mask(상체 옷 + 팔) + 원래 상의(상의 라벨, 5px 넓힘) 모양 그대로 (wide_top)
 - 조건 이미지: 생성 영역 박스에 맞춰 늘림 → 옷 사진 비율 그대로,
   크기 = 어깨 너비 × K_A ÷ 옷 사진 몸통 너비, 위치 = 목에서 어깨 너비 × OFF 아래부터 (VITON-HD 관절 점)
-- 생성 영역 안은 0(검정)으로 비우고 조건 이미지만 놓음, 좌우 뒤집기 증강 없음
+- 생성 영역 안은 0(검정)으로 비우고 조건 이미지만 놓음, 좌우 뒤집기 증강 없음 (옷 그림 위치가 정답과 어긋나지 않게)
+- 참조 이미지 밝기·대비 무작위 변경은 원래와 같음 (ref_aug, RandomBrightnessContrast p=0.5, 224 정사각형 전체에 적용,
+  같은 값을 조건 이미지용 옷 사진에도 적용)
+- wide_top·ref_aug는 끌 수 있음 (둘 다 끄면 2026-10-24 시험 학습 재료와 같음)
 - 거르기: 부위 지도 오류(상의 영역 < 상체+팔의 25%), 옷 마스크 오류(마스크 범위 ÷ 윤곽선 범위 < 0.6), 관절 점 없음
 같은 점: 참조 이미지 처리, 크롭 정사각형 → 512, 출력 키(ref, jpg, hint, time_steps)
 
@@ -17,6 +20,7 @@ import json
 import os
 from pathlib import Path
 
+import albumentations as A
 import cv2
 import numpy as np
 from torch.utils.data import Dataset
@@ -31,6 +35,8 @@ UPPER, MIN_TOP, MASK_RATIO = 5, 0.25, 0.6
 KP_NECK, KP_RSH, KP_LSH, KP_HIP = 1, 2, 5, 8  # OpenPose BODY_25 목, 오른쪽 어깨, 왼쪽 어깨, 골반 가운데
 K_A, OFF = 0.93, -0.25  # 옷 그림 크기·위치 기준 (어깨 너비 단위, 학습용 300쌍 중앙값)
 CROP = (13, 20)  # 크롭 배율 1.3~1.9 (np.random.randint 범위 / 10, 서버 합성은 1.3)
+DIL = 5  # wide_top: 원래 상의 넓힘 (px)
+REF_AUG = A.ReplayCompose([A.RandomBrightnessContrast(p=0.5)])  # ref_aug: 원래 base.py aug_data_mask와 같은 설정 (좌우 뒤집기는 뺌)
 
 
 def read(i, root=None):
@@ -119,26 +125,32 @@ def placed_hint(cloth, cmask, p, H, W):
     return big, sil
 
 
-def make_item(i, rng=np.random):
+def make_item(i, rng=np.random, wide_top=True, ref_aug=True):
     image, cloth, cmask, top, ag, p = read(i)
     H, W = ag.shape
+    area = ag | cv2.dilate(top, np.ones((2 * DIL + 1, 2 * DIL + 1), np.uint8)) if wide_top else ag  # 생성 영역
     # 참조 이미지 (process_pairs와 같은 처리, 좌우 뒤집기 없음)
     y1, y2, x1, x2 = du.get_bbox_from_mask(cmask)
     m3 = np.stack([cmask] * 3, -1)
-    ref = (cloth * m3 + 255 * (1 - m3))[y1:y2, x1:x2]
+    gar = (cloth * m3 + 255 * (1 - m3)).astype(np.uint8)  # 흰 배경 옷 사진 (참조 이미지·조건 이미지 둘 다 이것으로)
+    ref = gar[y1:y2, x1:x2]
     ref, _ = du.expand_image_mask(ref, cmask[y1:y2, x1:x2], ratio=rng.randint(11, 15) / 10)
     ref = cv2.resize(du.pad_to_square(ref, 255).astype(np.uint8), (224, 224))
+    if ref_aug:  # 원래처럼 224 정사각형 전체(여백 포함)에 적용, 같은 값을 조건 이미지용 옷 사진에도
+        out = REF_AUG(image=ref)
+        ref = out["image"]
+        gar = A.ReplayCompose.replay(out["replay"], image=gar)["image"]
     # 정답·조건 이미지
-    box = du.get_bbox_from_mask(ag)
+    box = du.get_bbox_from_mask(area)
     crop = du.box2squre(image, du.expand_bbox(image, box, ratio=[CROP[0] / 10, CROP[1] / 10]))
-    hint_big, sil = placed_hint(cloth, cmask, p, H, W)
+    hint_big, sil = placed_hint(gar, cmask, p, H, W)
     collage = image.copy()
-    collage[ag > 0] = 0  # 생성 영역 안은 비움
+    collage[area > 0] = 0  # 생성 영역 안은 비움
     collage[sil > 0] = hint_big[sil > 0]
     cy1, cy2, cx1, cx2 = crop
     tgt = du.pad_to_square(image[cy1:cy2, cx1:cx2], pad_value=0).astype(np.uint8)
     col = du.pad_to_square(collage[cy1:cy2, cx1:cx2], pad_value=0).astype(np.uint8)
-    cm = du.pad_to_square(np.stack([ag[cy1:cy2, cx1:cx2]] * 3, -1).astype(np.uint8), pad_value=2).astype(np.uint8)
+    cm = du.pad_to_square(np.stack([area[cy1:cy2, cx1:cx2]] * 3, -1).astype(np.uint8), pad_value=2).astype(np.uint8)
     H2, W2 = col.shape[:2]
     tgt = cv2.resize(tgt, (512, 512)).astype(np.float32)
     col = cv2.resize(col, (512, 512)).astype(np.float32)
@@ -152,14 +164,15 @@ def make_item(i, rng=np.random):
 class VitonHDWide(Dataset):
     """ids의 쌍을 돌려 가며 학습 재료를 만든다 (length로 한 바퀴 길이 지정)"""
 
-    def __init__(self, ids, length=None):
+    def __init__(self, ids, length=None, wide_top=True, ref_aug=True):
         self.ids = list(ids)
         self.length = length or len(self.ids)
+        self.wide_top, self.ref_aug = wide_top, ref_aug
 
     def __len__(self):
         return self.length
 
     def __getitem__(self, idx):
-        item = make_item(self.ids[idx % len(self.ids)])
+        item = make_item(self.ids[idx % len(self.ids)], wide_top=self.wide_top, ref_aug=self.ref_aug)
         item["time_steps"] = np.array([np.random.randint(0, 1000)])  # base.py sample_timestep (VITON-HD 설정)과 같은 분포
         return item
