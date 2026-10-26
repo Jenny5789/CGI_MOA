@@ -1,7 +1,7 @@
 import { getToken, request, setToken } from './client.js';
 
 // 로그인 만료 시각 (서버가 준 expires_at, 한국 시간 글자). 연장 안내 창의 타이머 기준 → docs/login_extend.md
-const EXPIRES_KEY = 'moa_token_expires';
+export const EXPIRES_KEY = 'moa_token_expires';
 export const getExpiresAt = () => {
   try { const v = localStorage.getItem(EXPIRES_KEY); return v ? new Date(v) : null; } catch { return null; }
 };

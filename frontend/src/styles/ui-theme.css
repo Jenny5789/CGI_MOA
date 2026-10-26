@@ -48,6 +48,10 @@ button:focus-visible, a:focus-visible, select:focus-visible { outline: 2px solid
 .topnav .auth-btn:hover { background: transparent; color: var(--moa-green-dark); }
 .topnav .auth-btn-primary { padding: 0 20px; border: 1px solid #bdc6b4; border-radius: 4px; color: var(--moa-green); }
 .topnav .auth-btn-primary:hover { background: #eaf0e2; opacity: 1; }
+.topnav .topnav-timer { color: #6a7165; }
+.topnav .topnav-timer-time { color: var(--moa-green); }
+.topnav .topnav-timer-btn { border-color: #cbd2c2; border-radius: 4px; background: transparent; color: #4a5c43; }
+.topnav .topnav-timer-btn:hover { background: #eaf0e2; }
 
 /* ---------- 로그인, 회원가입 창 ---------- */
 .auth-modal { background: rgba(36, 48, 39, .27); backdrop-filter: blur(8px); }
@@ -64,6 +68,9 @@ button:focus-visible, a:focus-visible, select:focus-visible { outline: 2px solid
 .auth-field input { height: 48px; border-color: #dfe3d6; border-radius: 5px; background: #f8f9f4; }
 .auth-field input:focus { border-color: #53724b; box-shadow: 0 0 0 3px rgba(83, 114, 75, .06); }
 .auth-submit { height: 50px; margin-top: 10px; border-radius: 5px; background: var(--moa-green); font-weight: 600; }
+.auth-choice .auth-submit { margin-top: 0; }
+.auth-choice-no { border: 1px solid #cbd2c2; border-radius: 5px; background: #fffefa; color: #4a5c43; font-weight: 600; }
+.auth-choice-no:hover { background: #eaf0e2; }
 .auth-toast { border-radius: 6px; background: var(--moa-green); }
 
 /* ---------- 합성하기 ---------- */

@@ -1,6 +1,6 @@
+import { useEffect, useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
-import { DEFAULT_BIO } from '../utils/profile.js';
 
 // 합성하기 화면으로 가는 링크. 로그인하지 않았으면 이동을 막고 로그인 팝업을 띄운다.
 export function StudioLink({ className, children }) {
@@ -35,16 +35,17 @@ export default function TopNav() {
           {!loggedIn && (
             <a className="auth-btn" href="#" onClick={(e) => { e.preventDefault(); openSignup(); }}>회원가입</a>
           )}
-          {/* 로그인 중: 로그아웃 옆에 프로필 사진, 이름, 소개 글 */}
+          {/* 로그인 중: 프로필 사진과 닉네임 환영 문구, 로그인 남은 시간, 로그아웃 순서 */}
           {loggedIn && me && (
             <div className="topnav-profile">
               <span className="topnav-avatar">{me.avatar_url && <img src={me.avatar_url} alt="" />}</span>
               <span className="topnav-profile-text">
-                <strong>{me.name}</strong>
-                <span>{me.bio || DEFAULT_BIO}</span>
+                <strong>{me.name} 님</strong>
+                <span>어서오세요</span>
               </span>
             </div>
           )}
+          {loggedIn && <LoginTimer />}
           <a
             className="auth-btn auth-btn-primary"
             href="#"
@@ -55,6 +56,37 @@ export default function TopNav() {
         </div>
       </div>
     </header>
+  );
+}
+
+// 남은 시간 글자: 1시간 이상이면 2:59:41, 미만이면 29:59
+const pad = (n) => String(n).padStart(2, '0');
+function formatLeft(ms) {
+  const s = Math.floor(ms / 1000);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  return h > 0 ? `${h}:${pad(m)}:${pad(s % 60)}` : `${m}:${pad(s % 60)}`;
+}
+
+// 로그인 남은 시간과 연장 버튼. 1초마다 이 부분만 다시 그린다 (만료 처리와 안내 창은 auth/ExpiryNotice.jsx)
+function LoginTimer() {
+  const { expiresAt, extendLogin } = useAuth();
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!expiresAt) return undefined;
+    setNow(Date.now());
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [expiresAt]);
+
+  if (!expiresAt) return null;
+  return (
+    <div className="topnav-timer">
+      <span className="topnav-timer-label">남은 시간</span>
+      <span className="topnav-timer-time">{formatLeft(Math.max(0, expiresAt.getTime() - now))}</span>
+      <button type="button" className="topnav-timer-btn" onClick={extendLogin}>연장</button>
+    </div>
   );
 }
 
