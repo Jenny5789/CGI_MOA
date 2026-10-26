@@ -22,7 +22,24 @@
 .topnav-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .topnav-profile-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; line-height: 1.25; }
 .topnav-profile-text strong { font-size: 14px; font-weight: 800; color: #16171b; }
-.topnav-profile-text span { max-width: 240px; font-size: 12px; color: #6b6e75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topnav-profile-text strong, .topnav-profile-text span { white-space: nowrap; }
+.topnav-profile-text span { font-size: 12px; color: #6b6e75; }
+
+/* 프로필과 로그아웃 사이: 로그인 남은 시간 + 연장 */
+.topnav-timer { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #6b6e75; white-space: nowrap; }
+.topnav-timer-time { min-width: 52px; font-weight: 700; color: #16171b; font-variant-numeric: tabular-nums; }
+.topnav-timer-btn {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid #c9c9c9;
+  background: #ffffff;
+  color: #16171b;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.topnav-timer-btn:hover { background: #f1f0ec; }
 
 .auth-btn {
   display: inline-flex;
@@ -167,6 +184,23 @@
   cursor: pointer;
 }
 
+/* ---------- 로그인 시간 연장 안내 (ExpiryNotice.jsx): 아니요 + 연장 ---------- */
+.auth-choice { display: flex; gap: 10px; }
+.auth-choice .auth-submit { flex: 1; margin-top: 0; }
+.auth-choice-no {
+  flex: 1;
+  height: 50px;
+  border: 1.5px solid #16171b;
+  border-radius: 0;
+  background: #ffffff;
+  color: #16171b;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.auth-choice-no:hover { background: #f1f0ec; }
+
 /* ---------- 회원가입 팝업 (SignupModal.jsx) ---------- */
 .auth-modal-signup .auth-modal-box {
   max-width: 460px;
@@ -227,12 +261,8 @@
 
 .auth-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-@media (max-width: 900px) {
-  .topnav-profile-text span { max-width: 140px; }
-}
-
 @media (max-width: 640px) {
-  .topnav-profile-text { display: none; }
+  .topnav-profile-text, .topnav-timer-label { display: none; }
   .auth-btn { height: 38px; padding: 0 16px; font-size: 14px; }
   .auth-modal-box { padding: 40px 24px 28px; }
 }

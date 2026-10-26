@@ -8,6 +8,7 @@ import useToast from '../components/useToast.js';
 import * as authApi from '../api/auth.js';
 import { getMe } from '../api/me.js';
 import SignupModal from './SignupModal.jsx';
+import ExpiryNotice from './ExpiryNotice.jsx';
 import { getToken, UNAUTHORIZED_EVENT } from '../api/client.js';
 
 const WELCOME = 'MOA에 오신 것을 환영합니다.';
@@ -24,6 +25,8 @@ export const useAuth = () => useContext(AuthContext);
 export function AuthProvider({ children }) {
   const [loggedIn, setLoggedIn] = useState(() => !!getToken());
   const [me, setMe] = useState(null); // 내 정보(명세 2-3). 상단 메뉴 프로필과 마이페이지가 함께 쓴다
+  // 로그인 만료 시각(Date). 상단 메뉴 남은 시간과 연장 안내 창(ExpiryNotice)의 기준, 로그아웃 상태면 null
+  const [expiresAt, setExpiresAt] = useState(() => (getToken() ? authApi.getExpiresAt() : null));
   const [modal, setModal] = useState({ open: false, sub: WELCOME, next: null });
   const [signup, setSignup] = useState({ open: false, next: null }); // next: 가입 뒤 갈 화면 (로그인 창에서 넘어온 경우)
   const [toast, showToast] = useToast(2000);
@@ -56,16 +59,46 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const onExpired = () => {
       setLoggedIn(false);
+      setExpiresAt(null);
       setModal({ open: true, sub: EXPIRED, next: location.pathname });
     };
     window.addEventListener(UNAUTHORIZED_EVENT, onExpired);
     return () => window.removeEventListener(UNAUTHORIZED_EVENT, onExpired);
   }, [location.pathname]);
 
+  // 만료 시각이 되면 로그아웃하고 로그인 창을 연다 (docs/login_extend.md 3장)
+  const expireLogin = useCallback(() => {
+    authApi.logout();
+    setLoggedIn(false);
+    setExpiresAt(null);
+    setModal({ open: true, sub: EXPIRED, next: location.pathname });
+  }, [location.pathname]);
+
+  // 로그인 시간 연장: 성공하면 연장한 시각부터 다시 3시간. 이미 만료됐으면 401 → client.js가 로그인 만료로 처리
+  const extendLogin = useCallback(async () => {
+    try {
+      setExpiresAt(await authApi.extendLogin());
+      showToast('로그인 시간이 연장되었습니다.');
+      return true;
+    } catch (e) {
+      if (e.status !== 401) showToast(e.message);
+      return false;
+    }
+  }, [showToast]);
+
+  // 다른 탭에서 연장하거나 로그아웃하면 이 탭의 만료 시각도 맞춘다. 맞추지 않으면 이 탭이 먼저 만료 처리해 토큰을 지운다
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key === authApi.EXPIRES_KEY) setExpiresAt(e.newValue ? new Date(e.newValue) : null);
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
   // 화면을 열 때 저장된 토큰이 아직 유효한지 서버에 확인 (10/18). 만료됐거나 서버에 기록이 없으면 로그아웃 상태로
   useEffect(() => {
     let alive = true;
-    authApi.checkLogin().then((ok) => { if (alive && !ok) setLoggedIn(false); });
+    authApi.checkLogin().then((ok) => { if (alive && !ok) { setLoggedIn(false); setExpiresAt(null); } });
     return () => { alive = false; };
   }, []);
 
@@ -86,6 +119,7 @@ export function AuthProvider({ children }) {
       return false;
     }
     setLoggedIn(true);
+    setExpiresAt(authApi.getExpiresAt());
     closeLogin();
     if (next) navigate(next);
     else showToast('로그인되었습니다');
@@ -97,6 +131,7 @@ export function AuthProvider({ children }) {
     const next = signup.next;
     await authApi.register(form);
     setLoggedIn(true);
+    setExpiresAt(authApi.getExpiresAt());
     closeSignup();
     if (next) navigate(next);
     showToast('가입이 완료되었습니다. ' + WELCOME);
@@ -105,15 +140,17 @@ export function AuthProvider({ children }) {
   const logout = () => {
     authApi.logout();
     setLoggedIn(false);
+    setExpiresAt(null);
     if (GATED[location.pathname]) navigate('/', { replace: true });
     showToast('로그아웃되었습니다');
   };
 
-  const value = { loggedIn, me, setMe, openLogin, openSignup, login, logout, showToast };
+  const value = { loggedIn, me, setMe, expiresAt, extendLogin, openLogin, openSignup, login, logout, showToast };
 
   return (
     <AuthContext.Provider value={value}>
       {children}
+      {loggedIn && <ExpiryNotice expiresAt={expiresAt} onExtend={extendLogin} onExpire={expireLogin} />}
       <LoginModal modal={modal} onClose={closeLogin} onSubmit={login} onSignup={() => openSignup(modal.next)} />
       {signup.open && (
         <SignupModal
