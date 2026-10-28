@@ -3,10 +3,10 @@
 - 작성: 2026-10-26 (기존 PC → B200 컴퓨터)
 - 실행 방법은 같은 폴더 [README.md](README.md), 이 문서는 지금까지의 상태와 이어서 할 일
 - 기존 PC 없이 B200만으로 진행: 필요한 것 = GitHub 브랜치 `cej-retrain` (코드·문서·95장 쌍 목록) + [2장](#2-가져갈-파일-github-업로드-금지-외장-드라이브-등으로-직접-복사)의 큰 파일 4개
-- 작업일지: GitHub `main`의 `docs/작업일지.md` 하나 (두 컴퓨터 공용, B200에서 쓴 날짜·항목은 `[B200]` 표시, 맨 위 "작성 컴퓨터 구분" 참고, 10/28 `dev-cej` 브랜치 삭제)
+- 작업일지: GitHub 브랜치 `dev-cej`의 `docs/작업일지.md` 하나 (두 컴퓨터 공용, B200에서 쓴 날짜·항목은 `[B200]` 표시, 맨 위 "작성 컴퓨터 구분" 참고)
 
 ```bash
-git clone -b main https://github.com/Jenny5789/CGI_MOA.git $HOME/CGI_MOA_dev   # 작업일지: $HOME/CGI_MOA_dev/docs/작업일지.md (이미 dev-cej로 받아 둔 폴더는 main으로 바꾸기)
+git clone -b dev-cej https://github.com/Jenny5789/CGI_MOA.git $HOME/CGI_MOA_dev   # 작업일지: $HOME/CGI_MOA_dev/docs/작업일지.md
 ```
 
 ## 1. 목적과 지금 상태
@@ -96,9 +96,9 @@ python retrain_compare_95.py $HOME/compare95 original=original aug10000=$HOME/re
 
 ## 7. 기존 PC 상태 (돌아왔을 때)
 
-- `CGI_V2`: `dev-cej` = `main` (10/28 `b30728b`, GitHub `dev-cej`는 10/28 삭제), 앱 코드 변경 없음
+- `CGI_V2`: `dev-cej` (`main` + 작업일지, GitHub과 같음), 앱 코드 변경 없음
 - `cej-retrain`: GitHub 최신 (README에 10/25 결과·`--no-ref-aug` 안내·95장 비교, 95장 비교 스크립트·쌍 목록, 이 문서)
-- 작업일지: `docs/작업일지.md`로 옮김 (2026-10-26 `dev-cej`, 10/28부터 `main`), 기존 PC `CGI_MOA`의 작업일지는 10/26 ③까지 기록하고 더 쓰지 않음
+- 작업일지: `dev-cej`의 `docs/작업일지.md`로 옮김 (2026-10-26), 기존 PC `CGI_MOA`의 작업일지는 10/26 ③까지 기록하고 더 쓰지 않음
 - 시험 결과 (`Desktop\anydoor_retrain_test\`): 10/24 가중치 `checkpoints\`, 10/25 가중치 `run_1025\checkpoints\`, 비교 `compare_1025\` 등
 
 ## 8. 새 컴퓨터에서 Claude와 작업할 때
@@ -106,6 +106,6 @@ python retrain_compare_95.py $HOME/compare95 original=original aug10000=$HOME/re
 - 답변은 한국어, 쉬운 말 (모르는 용어는 비유로)
 - 고치기 전에 파일·위치·전→후·이유를 먼저 설명, 한 단계씩
 - 원인은 "확인"과 "추정"을 나눠 적기, 모델 탓으로 보기 전에 확대해 보고 seed 여러 개로 확인
-- 시험 기록은 작업일지(`main`의 `docs/작업일지.md`)에 `[합성 test]` 표시, B200에서 쓴 날짜·항목은 `[B200]` 표시
-- 작업일지는 두 컴퓨터에서 동시에 고치지 않기: 쓰기 전에 `main` pull, 쓴 뒤 커밋·push → PR로 `main`에 합치기 (커밋·push는 결과 확인 뒤 사용자 요청 시)
+- 시험 기록은 작업일지(`dev-cej`의 `docs/작업일지.md`)에 `[합성 test]` 표시, B200에서 쓴 날짜·항목은 `[B200]` 표시
+- 작업일지는 두 컴퓨터에서 동시에 고치지 않기: 쓰기 전에 `git pull`, 쓴 뒤 커밋·push (커밋·push는 결과 확인 뒤 사용자 요청 시)
 - 그림은 칸 이름·설명을 쉬운 말로, 원래 사진과 입힐 옷을 나란히
