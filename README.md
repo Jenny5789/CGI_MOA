@@ -67,7 +67,7 @@ MOA는 **상의를 직접 착용하지 않고도 사용자 본인의 사진 위�
 | Backend `backend/` | FastAPI 서버. 인증, 이미지 업로드, 상의 분할, 합성 작업 큐, 결과·사진첩 관리 |
 | AI 모듈 `features/` | `object_extraction`: SAM2 상의 영역 분할 / `composition`: AnyDoor 착용 합성 및 후처리 |
 | MySQL | 회원 `users`, 인증 세션 `sessions`, 업로드 기록 `images` |
-| `storage/` | 업로드 이미지, 분할 마스크, 합성 결과. 미저장 결과는 24시간 후 자동 삭제 |
+| `storage/` | 업로드 이미지, 상의 영역 추출 이미지, 합성 결과 이미지 파일 (정보는 MySQL). 미저장 결과는 24시간 후 자동 삭제 |
 
 ---
 
