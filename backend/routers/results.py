@@ -21,7 +21,7 @@ from backend.config import EXTRACTIONS_DIR, JOBS_DIR, RESULT_KEEP_HOURS, RESULTS
 from backend.db import User
 from backend.errors import ApiError
 from backend.file_keys import signed_url
-from backend.storage import _ID, KST, is_owner, load_extraction_info, load_image_info
+from backend.storage import _ID, KST, is_owner, load_extraction_info, load_image_info, load_job_info
 
 router = APIRouter()
 _lock = threading.Lock()  # 저장/좋아요를 동시에 바꿀 때 파일이 엉키지 않게
@@ -128,11 +128,10 @@ def get_result_source(result_id: str, user: User = Depends(current_user)):
     재료 파일 중 하나라도 없으면 404 SOURCE_NOT_FOUND (화면은 결과만 보여 준다)"""
     record = _load(result_id, user)
     missing = ApiError(404, "SOURCE_NOT_FOUND", "이 결과의 재료를 찾을 수 없습니다.")
-    job_id = record.get("job_id")
-    job_path = JOBS_DIR / f"{job_id}.json" if isinstance(job_id, str) and _ID.match(job_id) else None
-    if job_path is None or not job_path.is_file():
+    try:
+        job = load_job_info(record.get("job_id"))  # DB jobs 표 (없으면 404 JOB_NOT_FOUND → 재료 없음으로 답함)
+    except ApiError:
         raise missing
-    job = json.loads(job_path.read_text(encoding="utf-8"))
     try:
         ext = load_extraction_info(record["extraction_id"], user)
         garment = load_image_info(record["garment_image_id"], user)

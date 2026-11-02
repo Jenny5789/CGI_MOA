@@ -77,6 +77,29 @@ class Extraction(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime)  # UTC
 
 
+class Job(Base):
+    """합성 작업 기록 (명세 5-1, 5-2, 11/2 json에서 옮김). 입힐 영역·다듬은 윤곽 그림 파일은 storage/jobs에 두고, 여기엔 진행 상태와 합성 설정만.
+    진행 중인 작업의 대기열 순서는 메모리(routers/compose.py)가 맡고, 여기는 서버를 다시 켠 뒤에도 남는 기록"""
+    __tablename__ = "jobs"
+
+    job_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    extraction_id: Mapped[str] = mapped_column(ForeignKey("extractions.extraction_id", ondelete="CASCADE"), index=True)
+    person_image_id: Mapped[str] = mapped_column(ForeignKey("images.image_id", ondelete="CASCADE"), index=True)
+    status: Mapped[str] = mapped_column(String(10))  # queued 대기 / running 진행 중 / done 완료 / failed 실패
+    progress: Mapped[float] = mapped_column(Float, default=0.0)  # 0~1
+    result_id: Mapped[str | None] = mapped_column(String(32), nullable=True)  # 완료되면 결과 번호 (res_...)
+    error: Mapped[dict | None] = mapped_column(JSON(none_as_null=True), nullable=True)  # 실패하면 { code, message }
+    area_mask: Mapped[str] = mapped_column(String(64))  # 입힐 영역 그림 파일 이름 job_xxx_area.png
+    garment_mask: Mapped[str | None] = mapped_column(String(64), nullable=True)  # 다듬은 상의 윤곽 파일 이름 (없으면 추출 단계의 윤곽)
+    refine: Mapped[bool] = mapped_column(Boolean, default=False)  # 합성 설정: 상의 경계 다듬기
+    shape_control: Mapped[bool] = mapped_column(Boolean, default=False)  # 합성 설정: 칠한 모양 그대로
+    seed: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime)  # UTC
+    started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
 class AuthSession(Base):
     """로그인 증표 (명세 2-1, 2-4). 토큰 원문 대신 해시를 저장한다"""
     __tablename__ = "sessions"

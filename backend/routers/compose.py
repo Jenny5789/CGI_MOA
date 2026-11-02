@@ -10,9 +10,10 @@
 - AnyDoor는 features/composition의 compose를 그대로 쓴다 (50스텝, float16 + save_memory)
 - 상의 윤곽: 화면 "다듬기"에서 고친 윤곽(garment_mask, 추가 제안)을 보내면 그것으로, 안 보내면 4-1 SAM2 윤곽으로 합성
 - 합성 설정 (10/17): refine="1" 상의 경계 다듬기(Reference Mask Refine), shape_control="1" 칠한 모양 그대로
-  (Enable Shape Control). 생략하면 둘 다 끔. 작업 기록(storage/jobs)에 함께 남긴다
+  (Enable Shape Control). 생략하면 둘 다 끔. 작업 기록(DB jobs 표)에 함께 남긴다
 - 로그인 필요. 자기 추출 결과·인물 사진으로만 합성, 자기 작업만 진행 확인. 작업·결과에 회원 번호(user_id) 기록
-- 작업·결과는 storage/jobs, storage/results에 파일로 저장
+- 작업은 DB jobs 표에 (11/2), 입힐 영역·다듬은 윤곽 그림은 storage/jobs에, 결과는 storage/results에 파일로 저장
+- 진행 중인 작업은 메모리가 먼저이고, 바뀐 값은 DB에도 바로 적는다 (서버를 다시 켠 뒤 진행 확인·재료 보기용)
 """
 import io
 import json
@@ -25,13 +26,15 @@ import uuid
 import numpy as np
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 from PIL import Image, UnidentifiedImageError
+from sqlalchemy import update
+from sqlalchemy.orm import Session
 
 from backend.auth import current_user
 from backend.config import EXTRACTIONS_DIR, IMAGES_DIR, JOBS_DIR, MAX_UPLOAD_BYTES, RESTORE_ORIGINAL, RESULTS_DIR, SEAM_FIX
-from backend.db import User
+from backend.db import Job, User, get_db, open_session, utcnow
 from backend.errors import ApiError
 from backend.gpu import GPU_LOCK, release_cached_memory
-from backend.storage import _ID, is_owner, load_extraction_info, load_image_info, now_kst
+from backend.storage import is_owner, load_extraction_info, load_image_info, load_job_info, now_kst
 
 router = APIRouter()
 log = logging.getLogger("moa.compose")
@@ -47,17 +50,17 @@ _worker = None
 
 # ---------- 작업 기록 ----------
 
-def _save_job(job):
-    JOBS_DIR.mkdir(parents=True, exist_ok=True)
-    (JOBS_DIR / f"{job['job_id']}.json").write_text(json.dumps(job, ensure_ascii=False), encoding="utf-8")
-
-
 def _update(job_id, **changes):
+    """메모리 작업 정보를 바꾸고, 바뀐 값만 DB jobs 표에도 적는다 (started_at·finished_at은 DB에만 둠).
+    DB에 적지 못해도 합성은 계속한다: 서버가 켜져 있는 동안은 메모리가 기준이고, 실패는 서버 창에 남긴다"""
     with _lock:
-        job = _jobs[job_id]
-        job.update(changes)
-        snapshot = dict(job)
-    _save_job(snapshot)
+        _jobs[job_id].update({k: v for k, v in changes.items() if k not in ("started_at", "finished_at")})
+    try:
+        with open_session() as s:
+            s.execute(update(Job).where(Job.job_id == job_id).values(**changes))
+            s.commit()
+    except Exception:
+        log.exception("작업 기록을 DB에 적지 못했습니다: %s", job_id)
 
 
 def _public(job):
@@ -134,7 +137,7 @@ def _run(job_id):
     with _lock:
         _waiting.remove(job_id)
         job = dict(_jobs[job_id])
-    _update(job_id, status="running", progress=0.0, started_at=now_kst())
+    _update(job_id, status="running", progress=0.0, started_at=utcnow())
 
     ext = load_extraction_info(job["extraction_id"])
     garment = load_image_info(ext["image_id"])
@@ -200,7 +203,7 @@ def _run(job_id):
         "garment_found": garment_found,       # 새 상의 찾기 성공 여부 (실패 시 상단 경계만으로 복원, 미적용 시 None)
     }
     (RESULTS_DIR / f"{result_id}.json").write_text(json.dumps(record, ensure_ascii=False), encoding="utf-8")
-    _update(job_id, status="done", progress=1.0, result_id=result_id, finished_at=now_kst())
+    _update(job_id, status="done", progress=1.0, result_id=result_id, finished_at=utcnow())
 
 
 # ---------- 주소 ----------
@@ -229,6 +232,7 @@ async def request_compose(
     refine: str = Form("0"),
     shape_control: str = Form("0"),
     user: User = Depends(current_user),
+    db: Session = Depends(get_db),
 ):
     ext = load_extraction_info(extraction_id, user)     # 없거나 남의 것이면 404
     person = load_image_info(person_image_id, user)    # 없거나 남의 것이면 404
@@ -268,12 +272,12 @@ async def request_compose(
         "refine": refine == "1",  # 합성 설정: 상의 경계 다듬기
         "shape_control": shape_control == "1",  # 합성 설정: 칠한 모양 그대로
         "seed": random.randint(0, 2 ** 31 - 1),
-        "created_at": now_kst(),
     }
+    db.add(Job(**job, created_at=utcnow()))  # DB에 먼저 적고 (실패하면 대기열에 올리지 않음) 메모리 대기열에 올린다
+    db.commit()
     with _lock:
         _jobs[job_id] = job
         _waiting.append(job_id)
-    _save_job(job)
     _ensure_worker()
     _queue.put(job_id)
 
@@ -286,11 +290,8 @@ def get_job(job_id: str, user: User = Depends(current_user)):
     with _lock:
         job = dict(_jobs[job_id]) if job_id in _jobs else None
     if job is None:
-        # 서버를 다시 켜면 메모리 기록은 사라진다. 파일 기록이 있으면 그것을 보여 준다
-        path = JOBS_DIR / f"{job_id}.json"
-        if not _ID.match(job_id) or not path.is_file():
-            raise ApiError(404, "JOB_NOT_FOUND", "작업을 찾을 수 없습니다.")
-        job = json.loads(path.read_text(encoding="utf-8"))
+        # 서버를 다시 켜면 메모리 기록은 사라진다. DB 기록이 있으면 그것을 보여 준다 (없으면 404 JOB_NOT_FOUND)
+        job = load_job_info(job_id)
         if job["status"] in ("queued", "running"):
             job["status"] = "failed"
             job["error"] = {"code": "SERVER_RESTARTED", "message": "서버가 다시 시작되어 작업이 중단되었습니다. 다시 요청해 주세요."}

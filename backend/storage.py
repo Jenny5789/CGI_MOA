@@ -1,11 +1,11 @@
-"""기록 찾기 도우미 (사진은 DB images 표, 추출 결과는 DB extractions 표, 합성 작업·결과는 아직 storage/ 폴더의 json).
+"""기록 찾기 도우미 (사진·추출 결과·합성 작업은 DB images·extractions·jobs 표, 합성 결과는 아직 storage/ 폴더의 json).
 
 - 기록마다 user_id(만든 회원 번호)를 적고, 다른 회원의 기록은 "없음"(404)으로 답한다 (있는지 여부도 알리지 않음)
 """
 import re
 from datetime import datetime, timedelta, timezone
 
-from backend.db import Extraction, UploadedImage, open_session
+from backend.db import Extraction, Job, UploadedImage, open_session
 from backend.errors import ApiError
 
 KST = timezone(timedelta(hours=9))
@@ -46,3 +46,23 @@ def load_extraction_info(extraction_id, user=None):
         raise not_found
     return {"extraction_id": row.extraction_id, "user_id": row.user_id, "image_id": row.image_id,
             "width": row.width, "height": row.height, "mask": row.mask, "cutout": row.cutout}
+
+
+def job_to_dict(row):
+    """DB jobs 행 → 예전 json 기록과 같은 모양 (routers/compose.py가 메모리에 두는 작업 정보도 이 모양)"""
+    return {"job_id": row.job_id, "user_id": row.user_id, "status": row.status, "progress": row.progress,
+            "result_id": row.result_id, "error": row.error, "extraction_id": row.extraction_id,
+            "person_image_id": row.person_image_id, "area_mask": row.area_mask, "garment_mask": row.garment_mask,
+            "refine": row.refine, "shape_control": row.shape_control, "seed": row.seed}
+
+
+def load_job_info(job_id):
+    """합성 요청(5-1) 때 DB jobs 표에 남긴 작업 기록. 형식이 틀리거나 없으면 404 (주인 확인은 부르는 쪽에서)."""
+    not_found = ApiError(404, "JOB_NOT_FOUND", "작업을 찾을 수 없습니다.")
+    if not isinstance(job_id, str) or not _ID.match(job_id):
+        raise not_found
+    with open_session() as s:
+        row = s.get(Job, job_id)
+    if row is None:
+        raise not_found
+    return job_to_dict(row)
