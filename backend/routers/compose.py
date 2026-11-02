@@ -12,11 +12,10 @@
 - 합성 설정 (10/17): refine="1" 상의 경계 다듬기(Reference Mask Refine), shape_control="1" 칠한 모양 그대로
   (Enable Shape Control). 생략하면 둘 다 끔. 작업 기록(DB jobs 표)에 함께 남긴다
 - 로그인 필요. 자기 추출 결과·인물 사진으로만 합성, 자기 작업만 진행 확인. 작업·결과에 회원 번호(user_id) 기록
-- 작업은 DB jobs 표에 (11/2), 입힐 영역·다듬은 윤곽 그림은 storage/jobs에, 결과는 storage/results에 파일로 저장
+- 작업은 DB jobs 표에, 결과 정보는 DB results 표에 (11/2), 입힐 영역·다듬은 윤곽 그림은 storage/jobs에, 결과 사진은 storage/results에 파일로 저장
 - 진행 중인 작업은 메모리가 먼저이고, 바뀐 값은 DB에도 바로 적는다 (서버를 다시 켠 뒤 진행 확인·재료 보기용)
 """
 import io
-import json
 import logging
 import queue
 import random
@@ -31,10 +30,10 @@ from sqlalchemy.orm import Session
 
 from backend.auth import current_user
 from backend.config import EXTRACTIONS_DIR, IMAGES_DIR, JOBS_DIR, MAX_UPLOAD_BYTES, RESTORE_ORIGINAL, RESULTS_DIR, SEAM_FIX
-from backend.db import Job, User, get_db, open_session, utcnow
+from backend.db import Job, Result, User, get_db, open_session, utcnow
 from backend.errors import ApiError
 from backend.gpu import GPU_LOCK, release_cached_memory
-from backend.storage import is_owner, load_extraction_info, load_image_info, load_job_info, now_kst
+from backend.storage import is_owner, load_extraction_info, load_image_info, load_job_info
 
 router = APIRouter()
 log = logging.getLogger("moa.compose")
@@ -183,26 +182,25 @@ def _run(job_id):
     thumb.thumbnail((THUMB_WIDTH, THUMB_WIDTH * 4))
     thumb.save(RESULTS_DIR / f"{result_id}_thumb.jpg", quality=90)
 
-    record = {
-        "result_id": result_id,
-        "user_id": job["user_id"],
-        "image_url": f"/api/files/{result_id}.png",
-        "thumb_url": f"/api/files/{result_id}_thumb.jpg",
-        "created_at": now_kst(),
-        "saved": False,
-        "favorite": False,
-        "garment_image_id": ext["image_id"],
-        "person_image_id": job["person_image_id"],
-        # 아래는 명세 밖 기록 (재현·분석용)
-        "job_id": job_id,
-        "extraction_id": job["extraction_id"],
-        "seed": job["seed"],
-        "seam_fix": SEAM_FIX,  # 박스 선 보정 적용 여부
-        "crop_box": list(crop_box) if crop_box else None,  # 박스 선 보정에 쓴 크롭 영역 (위, 아래, 왼쪽, 오른쪽), None = 보정 안 됨
-        "restore_original": RESTORE_ORIGINAL,  # 원본 복원 후처리 적용 여부
-        "garment_found": garment_found,       # 새 상의 찾기 성공 여부 (실패 시 상단 경계만으로 복원, 미적용 시 None)
-    }
-    (RESULTS_DIR / f"{result_id}.json").write_text(json.dumps(record, ensure_ascii=False), encoding="utf-8")
+    try:
+        with open_session() as s:
+            s.add(Result(
+                result_id=result_id, user_id=job["user_id"], job_id=job_id, extraction_id=job["extraction_id"],
+                garment_image_id=ext["image_id"], person_image_id=job["person_image_id"], seed=job["seed"], created_at=utcnow(),
+                # 아래는 명세 밖 기록 (재현·분석용)
+                detail={
+                    "seam_fix": SEAM_FIX,  # 박스 선 보정 적용 여부
+                    "crop_box": list(crop_box) if crop_box else None,  # 박스 선 보정에 쓴 크롭 영역 (위, 아래, 왼쪽, 오른쪽), None = 보정 안 됨
+                    "restore_original": RESTORE_ORIGINAL,  # 원본 복원 후처리 적용 여부
+                    "garment_found": garment_found,  # 새 상의 찾기 성공 여부 (실패 시 상단 경계만으로 복원, 미적용 시 None)
+                },
+            ))
+            s.commit()
+    except Exception:
+        # 결과 기록이 없으면 이 사진 파일은 24시간 정리(DB 행 기준)에도 걸리지 않으므로, 남기지 않고 지운다
+        for name in (f"{result_id}.png", f"{result_id}_thumb.jpg"):
+            (RESULTS_DIR / name).unlink(missing_ok=True)
+        raise
     _update(job_id, status="done", progress=1.0, result_id=result_id, finished_at=utcnow())
 
 

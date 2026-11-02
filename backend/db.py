@@ -100,6 +100,25 @@ class Job(Base):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
+class Result(Base):
+    """합성 결과 기록 (명세 5-3, 6-1, 6-2, 11/2 json에서 옮김). 결과 사진(res_xxx.png)과 작은 사진(res_xxx_thumb.jpg)은 storage/results에 두고,
+    여기엔 정보와 사진첩 상태(저장·좋아요)만. 사진 주소(image_url, thumb_url)는 저장하지 않고 결과 번호에서 만들어 응답한다"""
+    __tablename__ = "results"
+
+    result_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    job_id: Mapped[str | None] = mapped_column(ForeignKey("jobs.job_id", ondelete="SET NULL"), nullable=True, index=True)
+    extraction_id: Mapped[str | None] = mapped_column(ForeignKey("extractions.extraction_id", ondelete="SET NULL"), nullable=True, index=True)
+    # 사진 행이 지워지면 저장한 결과까지 사라지지 않도록 지우기를 막는다 (ondelete 없음)
+    garment_image_id: Mapped[str] = mapped_column(ForeignKey("images.image_id"), index=True)
+    person_image_id: Mapped[str] = mapped_column(ForeignKey("images.image_id"), index=True)
+    saved: Mapped[bool] = mapped_column(Boolean, default=False)  # 사진첩에 저장
+    favorite: Mapped[bool] = mapped_column(Boolean, default=False)  # 좋아요 (사진첩의 좋아요 탭은 저장한 것 중에서만)
+    seed: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    detail: Mapped[dict] = mapped_column(JSON, default=dict)  # 재현·분석용: seam_fix, crop_box, restore_original, garment_found (옛 기록엔 일부만)
+    created_at: Mapped[datetime] = mapped_column(DateTime, index=True)  # UTC
+
+
 class AuthSession(Base):
     """로그인 증표 (명세 2-1, 2-4). 토큰 원문 대신 해시를 저장한다"""
     __tablename__ = "sessions"
