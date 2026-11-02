@@ -130,8 +130,8 @@ python -m uvicorn backend.main:app --port 8000
 - 합성 대기열·진행 중 작업은 서버 메모리에서 처리, 진행 상태는 `jobs`에도 기록. 서버 재시작 시 처리 중이던 작업은 `failed` (`SERVER_RESTARTED`)
 - 테이블 변경: 새 테이블은 자동 생성, 기존 테이블에 새 열 추가는 `backend/db.py`의 `_add_missing_columns`에 등록 (별도 변경 도구 없음)
 - 삭제
-  - `jobs`·`extractions`를 지우면 연결된 `results`는 남고 연결만 비워짐 (재료 보기 404 `SOURCE_NOT_FOUND`)
-  - `results`의 상의·인물 이미지 연결은 삭제를 막는 설정. `users` 한 줄 삭제는 이 연결에 막히므로 회원 삭제는 `results` → `jobs` → `extractions` → `images` → `users` 순서로 지움 (회원 삭제 기능은 현재 없음)
+  - `jobs`·`extractions` 레코드를 삭제하면 `results`의 해당 외래키가 NULL이 되고 `results` 레코드는 유지됨 (`ON DELETE SET NULL`, 재료 보기는 404 `SOURCE_NOT_FOUND`)
+  - `results`의 `garment_image_id`·`person_image_id`는 `images`를 참조하며 `ON DELETE NO ACTION`이라 참조 중인 `images` 레코드는 삭제할 수 없음. `users` 레코드 삭제의 `CASCADE`가 이 제약에 막히므로 회원 삭제는 `results` → `jobs` → `extractions` → `images` → `users` 순서로 삭제 (회원 삭제 기능은 현재 없음)
 
 ## 6. 예전 기록 가져오기
 
