@@ -129,9 +129,33 @@ python -m uvicorn backend.main:app --port 8000
 - 시각: DB는 UTC로 저장, API 응답과 결과 목록의 `date` 조건은 한국 시간 (+09:00)
 - 합성 대기열·진행 중 작업은 서버 메모리에서 처리, 진행 상태는 `jobs`에도 기록. 서버 재시작 시 처리 중이던 작업은 `failed` (`SERVER_RESTARTED`)
 - 테이블 변경: 새 테이블은 자동 생성, 기존 테이블에 새 열 추가는 `backend/db.py`의 `_add_missing_columns`에 등록 (별도 변경 도구 없음)
-- 삭제
-  - `jobs`·`extractions` 레코드를 삭제하면 `results`의 해당 외래키가 NULL이 되고 `results` 레코드는 유지됨 (`ON DELETE SET NULL`, 재료 보기는 404 `SOURCE_NOT_FOUND`)
-  - `results`의 `garment_image_id`·`person_image_id`는 `images`를 참조하며 `ON DELETE NO ACTION`이라 참조 중인 `images` 레코드는 삭제할 수 없음. `users` 레코드 삭제의 `CASCADE`가 이 제약에 막히므로 회원 삭제는 `results` → `jobs` → `extractions` → `images` → `users` 순서로 삭제 (회원 삭제 기능은 현재 없음)
+
+### 5-1. 외래키
+
+- 외래키 12개 (자식 테이블 기준). 모든 외래키는 부모 테이블의 기본키를 참조
+
+| 테이블 | 컬럼 | 참조 대상 | ON DELETE | 관계 (부모 : 자식) |
+|---|---|---|---|---|
+| `sessions` | `user_id` | `users.id` | `CASCADE` | 1 : N |
+| `images` | `user_id` | `users.id` | `CASCADE` | 1 : N |
+| `extractions` | `user_id` | `users.id` | `CASCADE` | 1 : N |
+| `extractions` | `image_id` | `images.image_id` | `CASCADE` | 1 : N |
+| `jobs` | `user_id` | `users.id` | `CASCADE` | 1 : N |
+| `jobs` | `extraction_id` | `extractions.extraction_id` | `CASCADE` | 1 : N |
+| `jobs` | `person_image_id` | `images.image_id` | `CASCADE` | 1 : N |
+| `results` | `user_id` | `users.id` | `CASCADE` | 1 : N |
+| `results` | `job_id` | `jobs.job_id` | `SET NULL` | 1 : N |
+| `results` | `extraction_id` | `extractions.extraction_id` | `SET NULL` | 1 : N |
+| `results` | `garment_image_id` | `images.image_id` | `NO ACTION` | 1 : N |
+| `results` | `person_image_id` | `images.image_id` | `NO ACTION` | 1 : N |
+
+- `ON DELETE`: 부모 레코드를 삭제할 때 자식 레코드의 동작
+  - `CASCADE`: 자식 레코드도 삭제 (연쇄 삭제)
+  - `SET NULL`: 자식의 외래키 컬럼을 NULL로 변경, 자식 레코드는 유지 (`results`는 재료 보기만 404 `SOURCE_NOT_FOUND`)
+  - `NO ACTION`: 자식이 참조 중이면 부모 삭제 거부 (MySQL InnoDB에서 `RESTRICT`와 동일)
+- `results.job_id`: 스키마는 1 : N (UNIQUE 제약 없음), 애플리케이션은 작업 하나당 결과를 최대 1개만 생성 (1 : 0..1)
+- `jobs.result_id`는 외래키가 아니며 완료된 결과의 ID만 저장
+- 회원 삭제: `users` 레코드 하나를 삭제하면 `CASCADE`가 `results`의 `NO ACTION`에 막히므로 `results` → `jobs` → `extractions` → `images` → `users` 순서로 삭제 (회원 삭제 기능은 현재 없음)
 
 ## 6. 예전 기록 가져오기
 
