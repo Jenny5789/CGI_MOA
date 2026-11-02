@@ -10,7 +10,7 @@ import os
 from datetime import datetime, timezone
 
 from dotenv import load_dotenv
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, create_engine, inspect, select, text
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, create_engine, inspect, select, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
 from backend.config import ROOT
@@ -59,6 +59,22 @@ class UploadedImage(Base):
     content_hash: Mapped[str] = mapped_column(String(64))  # 올린 파일의 SHA-256. 같은 파일은 목록에 한 번만
     from_sample: Mapped[bool] = mapped_column(Boolean, default=False)  # 예시 사진에서 고른 것 (최근 목록에서 뺌)
     created_at: Mapped[datetime] = mapped_column(DateTime, index=True)  # UTC
+
+
+class Extraction(Base):
+    """상의 추출 결과 기록 (명세 4-1, 11/2 json에서 옮김). 윤곽·cutout 사진 파일은 storage/extractions에 두고, 여기엔 정보만"""
+    __tablename__ = "extractions"
+
+    extraction_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    image_id: Mapped[str] = mapped_column(ForeignKey("images.image_id", ondelete="CASCADE"), index=True)  # 추출한 상의 사진
+    width: Mapped[int] = mapped_column(Integer)  # 상의 사진 크기 (합성에서 다듬은 윤곽의 크기를 맞출 때 씀)
+    height: Mapped[int] = mapped_column(Integer)
+    mask: Mapped[str] = mapped_column(String(64))  # 상의 윤곽 파일 이름 ext_xxx_mask.png
+    cutout: Mapped[str] = mapped_column(String(64))  # 배경을 지운 상의 파일 이름 ext_xxx_cutout.png
+    seconds: Mapped[float] = mapped_column(Float)  # SAM2 추출에 걸린 시간(초)
+    detail: Mapped[dict] = mapped_column(JSON)  # 재현·분석용: points(찍은 점), box(그린 박스, 없으면 null), bbox(상의를 감싸는 사각형)
+    created_at: Mapped[datetime] = mapped_column(DateTime)  # UTC
 
 
 class AuthSession(Base):
