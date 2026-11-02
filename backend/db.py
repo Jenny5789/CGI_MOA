@@ -3,7 +3,7 @@
 - 접속 정보: backend/.env 의 DATABASE_URL (각자 컴퓨터의 MySQL, GitHub에 올리지 않음). 만드는 법: docs/database.md
 - 서버가 켜질 때 init_db()가 표가 없으면 만들고, 시험용 회원 test / test1234 를 넣는다
 - 예전에 만든 표에 새 칸이 없으면 추가한다 (_add_missing_columns, 10/17 회원가입 전화번호 phone, 10/20 소개 글 bio·프로필 사진 avatar)
-- DB에 접속하지 못해도 서버는 켜진다 (추출·합성은 DB를 안 씀). 그때 로그인 관련 주소만 503
+- DB에 접속하지 못해도 서버는 켜진다. 그때 로그인이 필요한 주소는 모두 503
 """
 import logging
 import os
@@ -123,3 +123,11 @@ def get_db():
         raise ApiError(503, "DB_UNAVAILABLE", "로그인 서버(DB)에 연결되어 있지 않습니다.")
     with _SessionLocal() as s:
         yield s
+
+
+def open_session():
+    """요청 밖(합성 일꾼 스레드, backend/storage.py 기록 읽기)에서 쓰는 DB 세션. `with open_session() as s:` 로 쓰면 끝날 때 닫힌다.
+    스레드끼리 세션을 나눠 쓰지 않도록 부를 때마다 새로 연다"""
+    if _SessionLocal is None:
+        raise ApiError(503, "DB_UNAVAILABLE", "로그인 서버(DB)에 연결되어 있지 않습니다.")
+    return _SessionLocal()

@@ -4,19 +4,19 @@
   from_sample ("1"이면 예시 사진에서 고른 것, 생략 가능)
 - 돌려주는 값: { image_id, url, width, height }
 - 로그인 필요. 올린 회원 번호(user_id)를 함께 기록 → 그 회원만 추출·합성에 쓸 수 있음
-- 사진과 정보(json)는 storage/images에 파일로 저장 (추출·합성이 읽는 곳)
-- 올린 기록은 DB images 표에도 남긴다 (10/17) → GET /api/images/recent 가 최근 24시간 동안 올린 사진을 보여 줌.
+- 사진 파일은 storage/images에, 정보는 DB images 표에 저장 (추출·합성이 DB에서 읽음, 11/2)
+- GET /api/images/recent 는 최근 24시간 동안 올린 사진을 보여 준다 (10/17). 24시간이 지난 행은 지우지 않고 목록에서만 뺀다
+  (행이 추출·합성이 사진을 찾는 기록이라 지우면 그 사진으로 한 작업의 재료를 찾지 못함).
   작은 사진(img_xxx_thumb.jpg, 긴 변 240px)도 함께 만들어 목록을 가볍게 한다
 """
 import hashlib
 import io
-import json
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta, timezone
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 from PIL import Image, ImageOps, UnidentifiedImageError
-from sqlalchemy import delete, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.auth import current_user
@@ -66,18 +66,7 @@ async def upload_image(file: UploadFile = File(...), kind: str = Form(...), from
     else:
         img.save(IMAGES_DIR / filename)
 
-    info = {
-        "image_id": image_id,
-        "user_id": user.id,
-        "kind": kind,
-        "width": img.width,
-        "height": img.height,
-        "filename": filename,
-        "created_at": datetime.now(KST).isoformat(timespec="seconds"),
-    }
-    (IMAGES_DIR / f"{image_id}.json").write_text(json.dumps(info, ensure_ascii=False), encoding="utf-8")
-
-    # 최근 사용한 사진 목록용: 작은 사진 + DB 기록
+    # 작은 사진(최근 사용한 사진 목록용) + DB 기록. 추출·합성은 이 기록(backend/storage.py load_image_info)으로 사진을 찾는다
     thumb_name = f"{image_id}_thumb.jpg"
     thumb = img.convert("RGB")
     thumb.thumbnail((THUMB_SIDE, THUMB_SIDE), Image.Resampling.LANCZOS)
@@ -98,11 +87,10 @@ def recent_images(kind: str, user: User = Depends(current_user), db: Session = D
     if kind not in IMAGE_KINDS:
         raise ApiError(400, "INVALID_KIND", "kind는 garment 또는 person이어야 합니다.")
     since = utcnow() - timedelta(hours=RECENT_IMAGE_KEEP_HOURS)
-    db.execute(delete(UploadedImage).where(UploadedImage.created_at < since))  # 지난 기록 정리 (모든 회원 것을 함께)
-    db.commit()
     rows = db.scalars(
         select(UploadedImage)
-        .where(UploadedImage.user_id == user.id, UploadedImage.kind == kind, UploadedImage.from_sample.is_(False))
+        .where(UploadedImage.user_id == user.id, UploadedImage.kind == kind, UploadedImage.from_sample.is_(False),
+               UploadedImage.created_at >= since)
         .order_by(UploadedImage.created_at.desc())
     ).all()
     items, seen = [], set()
