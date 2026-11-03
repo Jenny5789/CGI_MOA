@@ -244,53 +244,62 @@ sequenceDiagram
     participant A as AI 모듈
     participant S as DB · storage
 
-    Note over U,S: 1. 사진 업로드
-    U->>F: 상의 사진 · 인물 사진 선택
-    F->>B: POST /api/images
-    B->>S: 사진 파일 저장, images 기록
+    Note over U,S: 1. 사진 선택 · 업로드
+    F->>B: 1-1. GET /api/images/recent
+    B->>S: 1-2. images 조회
+    B-->>F: 1-3. 최근 사용한 사진 목록 (24시간)
+    U->>F: 1-4. 상의 사진 · 인물 사진 선택
+    alt 새 사진 · 예시 사진 선택
+        F->>B: 1-5. POST /api/images
+        B->>S: 1-6. 사진 파일 저장, images 기록
+        B-->>F: 1-7. image_id
+    else 최근 사용한 사진 선택
+        Note over F: 기존 image_id 사용, 업로드 생략
+    end
 
     Note over U,S: 2. 상의 영역 분할
-    U->>F: 상의 사진에 포함 · 제외 점 지정
-    F->>B: POST /api/extract
-    B->>A: SAM2 분할
-    A-->>B: 상의 마스크
-    B->>S: 마스크 파일 저장, extractions 기록
-    B-->>F: 상의 마스크
-    U->>F: 마스크 편집기 보정
+    U->>F: 2-1. 상의 사진에 포함 · 제외 점 지정
+    F->>B: 2-2. POST /api/extract
+    B->>A: 2-3. SAM2 분할
+    A-->>B: 2-4. 상의 마스크
+    B->>S: 2-5. 마스크 파일 저장, extractions 기록
+    B-->>F: 2-6. 상의 마스크
+    U->>F: 2-7. 마스크 편집기 보정
 
     Note over U,S: 3. 착용 영역 분할
-    U->>F: 인물 사진에 포함 · 제외 점 지정
-    F->>B: POST /api/extract
-    B->>A: SAM2 분할
-    A-->>B: 착용 영역 마스크
-    B->>S: 마스크 파일 저장, extractions 기록
-    B-->>F: 착용 영역 마스크
-    U->>F: 마스크 편집기 보정
+    U->>F: 3-1. 인물 사진에 포함 · 제외 점 지정
+    F->>B: 3-2. POST /api/extract
+    B->>A: 3-3. SAM2 분할
+    A-->>B: 3-4. 착용 영역 마스크
+    B->>S: 3-5. 마스크 파일 저장, extractions 기록
+    B-->>F: 3-6. 착용 영역 마스크
+    U->>F: 3-7. 마스크 편집기 보정
 
     Note over U,S: 4. 착용 합성
-    U->>F: 합성 요청
-    F->>B: POST /api/compose
-    B->>S: 착용 영역 마스크 저장, jobs 기록
-    B-->>F: job_id, 대기 순번
-    B->>A: AnyDoor 합성, 후처리
+    U->>F: 4-1. 합성 요청
+    F->>B: 4-2. POST /api/compose
+    B->>S: 4-3. 착용 영역 마스크 저장, jobs 기록
+    B-->>F: 4-4. job_id, 대기 순번
+    B->>A: 4-5. AnyDoor 합성, 후처리
     loop 2초 간격
-        F->>B: GET /api/jobs/{job_id}
-        B-->>F: 진행률 · 대기 순번
+        F->>B: 4-6. GET /api/jobs/{job_id}
+        B-->>F: 4-7. 진행률 · 대기 순번
     end
-    A-->>B: 합성 결과
-    B->>S: 결과 파일 저장, results 기록, jobs 완료 처리
+    A-->>B: 4-8. 합성 결과
+    B->>S: 4-9. 결과 파일 저장, results 기록, jobs 완료 처리
 
     Note over U,S: 5. 결과 확인 · 저장
-    F->>B: GET /api/results/{result_id}
-    B-->>F: 결과 사진
-    U->>F: 사진첩 저장 · 좋아요
-    F->>B: PATCH /api/results/{result_id}
-    B->>S: results 저장·좋아요 갱신
+    F->>B: 5-1. GET /api/results/{result_id}
+    B-->>F: 5-2. 결과 사진
+    U->>F: 5-3. 사진첩 저장 · 좋아요
+    F->>B: 5-4. PATCH /api/results/{result_id}
+    B->>S: 5-5. results 저장·좋아요 갱신
 ```
 
 | 단계 | 메서드 | 경로 | 요청 내용 |
 |---|---|---|---|
-| 1. 사진 업로드 | `POST` | `/api/images` | 사진 파일, 종류(`garment` · `person`) |
+| 1. 최근 사진 조회 | `GET` | `/api/images/recent` | 종류(`garment` · `person`) |
+| 1. 사진 업로드 (새 사진 · 예시 사진) | `POST` | `/api/images` | 사진 파일, 종류(`garment` · `person`), 예시 사진 여부 |
 | 2·3. 영역 분할 | `POST` | `/api/extract` | 사진 ID, 점 좌표·포함/제외 구분 |
 | 4. 착용 합성 | `POST` | `/api/compose` | 상의 분할 ID, 인물 사진 ID, 착용 영역 마스크, 보정한 상의 마스크, 합성 옵션 |
 | 4. 진행 확인 | `GET` | `/api/jobs/{job_id}` | - |
