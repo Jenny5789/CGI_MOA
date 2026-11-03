@@ -113,17 +113,41 @@ flowchart LR
 ### 2-1. DB 관계도
 
 ```mermaid
+flowchart LR
+    users["users<br/>회원"]
+    sessions["sessions<br/>로그인 세션"]
+    images["images<br/>업로드 사진"]
+    extractions["extractions<br/>영역 분할"]
+    jobs["jobs<br/>합성 작업"]
+    results["results<br/>합성 결과"]
+    users -- "1 : N" --> sessions
+    users -- "1 : N" --> images
+    images -- "1 : N<br/>상의 사진" --> extractions
+    extractions -- "1 : N" --> jobs
+    images -- "1 : N<br/>인물 사진" --> jobs
+    jobs -- "1 : 0..1" --> results
+```
+
+- 테이블 6개, 외래키 12개. 상세: [docs/database.md](docs/database.md#5-테이블-구성)
+- 그림에서 생략한 연결
+  - 모든 테이블의 `user_id`: `users` 참조
+  - `results`의 `garment_image_id`·`person_image_id`·`extraction_id`: `images`·`extractions` 직접 참조
+- 사진·마스크·결과 이미지 파일은 `storage/`에 저장, 테이블에는 파일명과 정보만 저장
+- `jobs.result_id`는 외래키가 아닌 완료 결과 ID 기록용 칸
+
+<details>
+<summary><b>ERD</b></summary>
+
+<br>
+
+```mermaid
 erDiagram
     users ||--o{ sessions : "로그인"
     users ||--o{ images : "업로드"
-    users ||--o{ extractions : "분할 요청"
-    users ||--o{ jobs : "합성 요청"
-    users ||--o{ results : "소유"
     images ||--o{ extractions : "상의 사진"
     images ||--o{ jobs : "인물 사진"
-    images ||--o{ results : "상의 사진"
-    images ||--o{ results : "인물 사진"
     extractions ||--o{ jobs : "상의 마스크"
+    images ||--o{ results : "상의·인물 사진"
     extractions |o--o{ results : "상의 마스크"
     jobs |o--o{ results : "합성 결과"
 
@@ -160,9 +184,9 @@ erDiagram
     }
 ```
 
-- 테이블 6개, 외래키 12개. 상세: [docs/database.md](docs/database.md#5-테이블-구성)
-- 사진·마스크·결과 이미지 파일은 `storage/`에 저장, 테이블에는 파일명과 정보만 저장
-- `jobs.result_id`는 외래키가 아닌 완료 결과 ID 기록용 칸
+- `users`와 `extractions`·`jobs`·`results` 사이 연결선 생략
+
+</details>
 
 <details>
 <summary><b>테이블별 컬럼</b></summary>
