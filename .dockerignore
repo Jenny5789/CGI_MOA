@@ -1,0 +1,33 @@
+# 이미지를 만들 때 보내지 않을 것
+
+# 비밀번호가 든 설정 파일, 올린 사진과 결과
+backend/.env
+storage/
+
+# 파이썬 가상환경
+CGI/
+.venv/
+venv/
+
+# 모델 가중치 (이미지에 넣지 않고 실행할 때 연결)
+checkpoints/
+**/*.pt
+**/*.pth
+**/*.ckpt
+**/*.safetensors
+
+# 학습 데이터, 시험 결과
+Dataset/
+generated_assets/
+
+# 서버 이미지에 필요 없는 폴더
+.git
+.claude
+.vscode
+frontend/
+web/
+docs/
+scripts/
+
+**/__pycache__
+**/*.py[cod]
