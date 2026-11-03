@@ -66,41 +66,11 @@ SAM2 영역 분할 · AnyDoor 합성 기반 상의 가상 피팅
 
 ## 2. 서비스 구조
 
-```mermaid
-flowchart LR
-    U["사용자<br/>웹 브라우저"]
+<p align="center">
+  <img src="docs/readme/moa_architecture.png" alt="MOA 서비스 구조" width="100%">
+</p>
 
-    subgraph FE["Frontend · React + Vite"]
-        F["웹 화면<br/>홈 · 합성하기 · 마이페이지"]
-    end
-
-    subgraph BE["Backend · FastAPI"]
-        direction TB
-        API["API 서버<br/>인증 · 업로드 · 결과 관리"]
-        Q["합성 작업 큐<br/>1건씩 순차 처리"]
-        API --> Q
-    end
-
-    subgraph AI["AI 모듈 · GPU"]
-        direction TB
-        SAM["SAM2<br/>상의 · 착용 영역 분할"]
-        AD["AnyDoor<br/>착용 합성"]
-        PP["후처리<br/>원본 복원 · seam 보정"]
-        AD --> PP
-    end
-
-    subgraph DATA["데이터 저장"]
-        direction TB
-        DB[("DB · SQLite / MySQL<br/>테이블 6개")]
-        ST[("storage/<br/>사진 · 마스크 · 결과 파일")]
-    end
-
-    U --> F
-    F -- "/api 요청 + 인증 토큰" --> API
-    API --> SAM
-    Q --> AD
-    API <--> DATA
-```
+- 그림의 DB 부분은 테이블 6개 전환 전 기준. 현재 DB 구조: [2-1. DB 관계도](#2-1-db-관계도)
 
 | 구성 | 역할 |
 |---|---|
