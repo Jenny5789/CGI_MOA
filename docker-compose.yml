@@ -1,6 +1,6 @@
-# MOA 백엔드 실행 (GPU)
+# MOA 실행: backend (FastAPI, GPU) + web (화면, nginx)
 # 처음: .env.docker.example 을 .env 로 복사하고 가중치 폴더 경로를 고친다
-# 실행: docker compose up --build   (확인: http://localhost:8000/api/health)
+# 실행: docker compose up --build -d   (확인: 화면 http://localhost:5180 , 서버 http://localhost:8000/api/health)
 name: moa
 services:
   backend:
@@ -33,6 +33,21 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+
+  web:
+    build:
+      context: .
+      dockerfile: web.Dockerfile
+      args:
+        # 화면의 API 모드 (빌드할 때 굳음, 바꾸면 다시 빌드): mock 가짜 서버 / mixed 실제+가짜 / real 전부 실제
+        VITE_API_MODE: ${VITE_API_MODE:-mixed}
+    image: moa-web
+    container_name: moa-web
+    ports:
+      # 화면과 /api 의 입구. Cloudflare 터널은 이 포트로 연결 (README 7-5: --url http://localhost:5180)
+      - "${WEB_PORT:-5180}:80"
+    depends_on:
+      - backend
 
 volumes:
   storage:
