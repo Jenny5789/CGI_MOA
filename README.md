@@ -4,11 +4,11 @@
 
 ### AI 기반 상의 착용 합성 웹 서비스
 
-상의 이미지와 인물 이미지를 선택하고 영역을 지정하면, AI가 인물에게 상의를 착용시킨 이미지를 생성하는 웹 서비스입니다.
+SAM2 영역 분할 · AnyDoor 합성 기반 상의 가상 피팅
 
-**팀 프로젝트 · Frontend / Backend / AI**
+**4인 팀 프로젝트**
 
-`React + Vite` · `FastAPI` · `MySQL` · `SAM2` · `AnyDoor` · `PyTorch`
+`React + Vite` · `FastAPI` · `SQLite / MySQL` · `SAM2` · `AnyDoor` · `PyTorch`
 
 <br>
 
@@ -18,279 +18,431 @@
 
 ---
 
+## 목차
+
+1. [프로젝트 개요](#1-프로젝트-개요)
+2. [서비스 구조](#2-서비스-구조)
+3. [처리 흐름](#3-처리-흐름)
+4. [구현 화면](#4-구현-화면)
+5. [기능](#5-기능)
+6. [문제 해결](#6-문제-해결)
+7. [설치 및 실행](#7-설치-및-실행)
+8. [디렉터리 구성](#8-디렉터리-구성)
+9. [관련 문서](#9-관련-문서)
+10. [참고 자료](#10-참고-자료)
+
+---
+
 ## 1. 프로젝트 개요
-
-MOA는 **상의를 직접 착용하지 않고도 사용자 본인의 사진 위에서 착용 모습을 미리 확인할 수 있는 이미지 합성 웹 서비스**입니다.
-
-사용자가 상의 이미지에 점을 지정하면 SAM2가 상의 영역을 분할하고, 인물 이미지에서 착용 영역을 지정하면 AnyDoor가 해당 위치에 상의를 합성합니다. 생성 결과는 회원별 사진첩에 저장되어 언제든 다시 확인할 수 있습니다.
 
 | 항목 | 내용 |
 |---|---|
-| **배경** | 오프라인 착용의 시간·공간·비용 제약, 기존 합성 도구의 부자연스러운 결과와 높은 편집 숙련도 요구 |
-| **목표** | 이미지 선택부터 상의 분할, 착용 합성, 결과 보관까지 단일 웹 흐름으로 제공 |
-| **기간** | 2026.09.28 ~ 2026.11.22 |
-| **구성** | 4인 팀 프로젝트 |
+| **배경** | 온라인 의류 구매 증가, 직접 입어 보지 않은 상태의 구매 결정 |
+| **문제** | 모델 착용 사진과 본인 착용 모습의 차이<br>구매 후 기대와 다른 색감·분위기로 인한 반품·교환<br>반품·교환 과정의 시간·배송비 부담 |
+| **목적** | 구매 전 본인 사진 기반 착용 모습 확인<br>구매 판단 지원, 반품·교환 부담 감소 |
+| **기능** | SAM2 기반 상의 영역 분할<br>AnyDoor 기반 착용 합성<br>회원별 사진첩 보관 |
 
-### Tech Stack
+### 1-1. Tech Stack
 
 | 영역 | 기술 |
 |---|---|
 | **Languages** | Python 3.10, JavaScript |
 | **Frontend** | React 19, Vite 6, React Router 6 |
 | **Backend / API** | FastAPI, Uvicorn |
-| **AI / Computer Vision** | SAM2 `sam2.1_hiera_base_plus`, AnyDoor: DINOv2 · ControlNet · Stable Diffusion 기반 |
+| **AI / Computer Vision** | SAM2 `sam2.1_hiera_base_plus`, AnyDoor (DINOv2 · ControlNet · Stable Diffusion 기반) |
 | **Inference** | PyTorch 2.5.1 · CUDA 12.1, xformers, float16 혼합 정밀도 |
-| **Database / Auth** | MySQL 8, SQLAlchemy, PyMySQL, 토큰 기반 인증 |
+| **Database / Auth** | SQLite · MySQL 8, SQLAlchemy, PyMySQL, PBKDF2-SHA256 비밀번호 해시, 토큰 인증 |
 
-### 실행 환경 및 지원 범위
+### 1-2. 실행 환경
 
 | 영역 | 범위 |
 |---|---|
-| Web | 데스크톱 1440px, 모바일 375px 반응형 화면 |
-| AI 추론 | NVIDIA GPU 기반, RTX 3080 10GB 검증, 합성 시 PyTorch 최대 할당 메모리 8.25GB |
+| Web | 데스크톱 1440px, 모바일 375px 반응형 |
+| AI 추론 | NVIDIA GPU, RTX 3080 10GB 검증 |
 | 운영체제 | Windows 11 |
-| 배포 | 로컬 개발 서버, Cloudflare Tunnel 기반 외부 시연 |
+| 배포 | 로컬 개발 서버, Cloudflare Tunnel 외부 시연, Docker 컨테이너 구성 진행 중 |
 
 ---
 
 ## 2. 서비스 구조
 
-프론트엔드는 `/api` 단일 진입점으로만 통신하고, 백엔드가 데이터베이스·파일 저장소·GPU 추론 모듈을 통합합니다.
+```mermaid
+flowchart LR
+    U["사용자<br/>웹 브라우저"]
 
-<p align="center">
-  <img src="docs/readme/moa_architecture.png" alt="MOA 서비스 구조" width="100%">
-</p>
+    subgraph FE["Frontend · React + Vite"]
+        F["웹 화면<br/>홈 · 합성하기 · 마이페이지"]
+    end
+
+    subgraph BE["Backend · FastAPI"]
+        direction TB
+        API["API 서버<br/>인증 · 업로드 · 결과 관리"]
+        Q["합성 작업 큐<br/>1건씩 순차 처리"]
+        API --> Q
+    end
+
+    subgraph AI["AI 모듈 · GPU"]
+        direction TB
+        SAM["SAM2<br/>상의 · 착용 영역 분할"]
+        AD["AnyDoor<br/>착용 합성"]
+        PP["후처리<br/>원본 복원 · seam 보정"]
+        AD --> PP
+    end
+
+    subgraph DATA["데이터 저장"]
+        direction TB
+        DB[("DB · SQLite / MySQL<br/>테이블 6개")]
+        ST[("storage/<br/>사진 · 마스크 · 결과 파일")]
+    end
+
+    U --> F
+    F -- "/api 요청 + 인증 토큰" --> API
+    API --> SAM
+    Q --> AD
+    API <--> DATA
+```
 
 | 구성 | 역할 |
 |---|---|
-| Frontend `frontend/` | React 기반 웹 화면. 모든 API 요청은 `src/api/` 계층에서 인증 토큰을 포함해 전송 |
-| Backend `backend/` | FastAPI 서버. 인증, 이미지 업로드, 상의 분할, 합성 작업 큐, 결과·사진첩 관리 |
-| AI 모듈 `features/` | `object_extraction`: SAM2 상의 영역 분할 / `composition`: AnyDoor 착용 합성 및 후처리 |
-| MySQL | 회원 `users`, 인증 세션 `sessions`, 업로드 기록 `images` |
-| `storage/` | 업로드 이미지, 상의 영역 추출 이미지, 합성 결과 이미지 파일 (정보는 MySQL). 미저장 결과는 24시간 후 자동 삭제 |
+| Frontend `frontend/` | React 웹 화면. `src/api/` 계층에서 인증 토큰 포함 요청 전송 |
+| Backend `backend/` | FastAPI 서버. 인증, 사진 업로드, 영역 분할, 합성 작업 큐, 결과·사진첩 관리 |
+| AI 모듈 `features/` | `object_extraction`: SAM2 영역 분할 / `composition`: AnyDoor 합성, 후처리 |
+| DB | 회원, 로그인 세션, 업로드 사진·영역 분할·합성 작업·합성 결과 정보 |
+| `storage/` | 사진, 마스크, 합성 결과 이미지 파일 |
+
+### 2-1. DB 관계도
+
+```mermaid
+erDiagram
+    users ||--o{ sessions : "로그인"
+    users ||--o{ images : "업로드"
+    users ||--o{ extractions : "분할 요청"
+    users ||--o{ jobs : "합성 요청"
+    users ||--o{ results : "소유"
+    images ||--o{ extractions : "상의 사진"
+    images ||--o{ jobs : "인물 사진"
+    images ||--o{ results : "상의 사진"
+    images ||--o{ results : "인물 사진"
+    extractions ||--o{ jobs : "상의 마스크"
+    extractions |o--o{ results : "상의 마스크"
+    jobs |o--o{ results : "합성 결과"
+
+    users {
+        int id PK
+        string username UK
+    }
+    sessions {
+        string token_hash PK
+        int user_id FK
+    }
+    images {
+        string image_id PK
+        int user_id FK
+    }
+    extractions {
+        string extraction_id PK
+        int user_id FK
+        string image_id FK
+    }
+    jobs {
+        string job_id PK
+        int user_id FK
+        string extraction_id FK
+        string person_image_id FK
+    }
+    results {
+        string result_id PK
+        int user_id FK
+        string job_id FK
+        string extraction_id FK
+        string garment_image_id FK
+        string person_image_id FK
+    }
+```
+
+- 테이블 6개, 외래키 12개. 상세: [docs/database.md](docs/database.md#5-테이블-구성)
+- 사진·마스크·결과 이미지 파일은 `storage/`에 저장, 테이블에는 파일명과 정보만 저장
+- `jobs.result_id`는 외래키가 아닌 완료 결과 ID 기록용 칸
+
+<details>
+<summary><b>테이블별 컬럼</b></summary>
+
+<br>
+
+| 테이블 | 컬럼 |
+|---|---|
+| `users` | `id` 회원 번호, `username` 아이디, `password_hash` 비밀번호 해시(PBKDF2-SHA256), `name` 이름, `email` 이메일, `phone` 휴대폰 번호, `bio` 소개 글, `avatar` 프로필 사진 파일명, `created_at` 가입 시각 |
+| `sessions` | `token_hash` 토큰 해시(SHA-256), `user_id` 회원 번호, `created_at` 발급 시각, `expires_at` 만료 시각 |
+| `images` | `image_id` 사진 ID, `user_id` 회원 번호, `kind` 종류(garment 상의, person 인물), `filename` 파일명, `thumb` 썸네일 파일명, `width`·`height` 크기, `content_hash` 파일 해시(SHA-256), `from_sample` 예시 사진 여부, `created_at` 업로드 시각 |
+| `extractions` | `extraction_id` 분할 ID, `user_id` 회원 번호, `image_id` 분할한 사진 ID, `width`·`height` 크기, `mask` 마스크 파일명, `cutout` 배경 제거 사진 파일명, `seconds` SAM2 분할 소요 시간, `detail` 지정한 점·영역 좌표(JSON), `created_at` 분할 시각 |
+| `jobs` | `job_id` 작업 ID, `user_id` 회원 번호, `extraction_id` 상의 분할 ID, `person_image_id` 인물 사진 ID, `status` 상태(queued, running, done, failed), `progress` 진행률, `result_id` 결과 ID, `error` 실패 사유(JSON), `area_mask` 착용 영역 마스크 파일명, `garment_mask` 보정한 상의 마스크 파일명, `refine`·`shape_control` 합성 옵션, `seed` 난수 시드, `created_at`·`started_at`·`finished_at` 요청·시작·종료 시각 |
+| `results` | `result_id` 결과 ID, `user_id` 회원 번호, `job_id` 작업 ID, `extraction_id` 상의 분할 ID, `garment_image_id` 상의 사진 ID, `person_image_id` 인물 사진 ID, `saved` 사진첩 저장 여부, `favorite` 좋아요 여부, `seed` 난수 시드, `detail` 후처리 적용 정보(JSON), `created_at` 생성 시각 |
+
+</details>
+
+- 외래키 삭제 규칙
+
+| 규칙 | 대상 | 동작 |
+|---|---|---|
+| `CASCADE` | `user_id` 전체, `extractions.image_id`, `jobs.extraction_id`, `jobs.person_image_id` | 부모 삭제 시 자식 기록도 삭제 |
+| `SET NULL` | `results.job_id`, `results.extraction_id` | 부모 삭제 시 칸만 비우고 결과 유지 |
+| `NO ACTION` | `results.garment_image_id`, `results.person_image_id` | 결과가 참조 중인 사진 기록의 삭제 거부 |
+
+- 삭제 규칙은 MySQL에서 적용, SQLite는 외래키 검사 미설정
+
+### 2-2. 데이터 저장 위치
+
+| 구분 | DB 테이블 | `storage/` 파일 |
+|---|---|---|
+| 회원 | `users` | `avatars/`: 프로필 사진 (256px 정사각형) |
+| 로그인 세션 | `sessions`: 토큰 해시, 만료 시각 (발급 후 3시간) | - |
+| 업로드 사진 | `images` | `images/`: 원본, 썸네일 (JPG·PNG, 10MB 이하) |
+| 영역 분할 결과 | `extractions` | `extractions/`: 마스크, 배경 제거 상의 |
+| 합성 작업 | `jobs` | `jobs/`: 착용 영역 마스크, 보정한 상의 마스크 |
+| 합성 결과 | `results` | `results/`: 결과 사진, 미리보기 |
+
+- DB 연결: `backend/.env`의 `DATABASE_URL`. 기본 SQLite `storage/moa_trial.db`, 팀 공용 MySQL은 [docs/database.md](docs/database.md)
+- 서버 기동 시 테이블 자동 생성, 테스트 계정 `test` / `test1234` 자동 등록
+- 합성 대기열·진행 중 작업은 서버 메모리에서 처리, 진행 상태는 `jobs`에도 기록. 서버 재시작 시 처리 중이던 작업은 `failed`
+- 미저장 합성 결과: 24시간 경과 후 결과 목록 조회 시 `results` 기록과 파일 삭제
+- 업로드 사진: 24시간 경과 후 최근 사용한 사진 목록에서만 제외, 기록과 파일 유지
+- 예전 버전의 JSON 기록 이전: [docs/database.md](docs/database.md#6-예전-기록-가져오기)
 
 ---
 
 ## 3. 처리 흐름
 
-| 순서 | 단계 | 내용 |
-|---|---|---|
-| 1 | 상의 이미지 업로드 | 합성 대상 의류 이미지 입력 |
-| 2 | 인물 이미지 업로드 | 착용 대상 인물 이미지 입력 |
-| 3 | 상의 영역 분할 | 포함·제외 점 프롬프트 기반 SAM2 분할, 마스크 보정 |
-| 4 | 착용 영역 지정 | 인물 이미지 내 합성 위치 분할·보정 |
-| 5 | 착용 합성 | 분할한 상의를 착용 영역에 AnyDoor로 합성, 후처리 적용 |
-| 6 | 결과 저장 | 사진첩 저장, 좋아요·다운로드 |
+```mermaid
+sequenceDiagram
+    participant U as 사용자
+    participant F as Frontend
+    participant B as Backend
+    participant A as AI 모듈
+    participant S as DB · storage
 
-### 합성 요청 흐름
+    Note over U,S: 1. 사진 업로드
+    U->>F: 상의 사진 · 인물 사진 선택
+    F->>B: POST /api/images
+    B->>S: 사진 파일 저장, images 기록
 
-```text
-Frontend
-  ↓ POST /api/images        상의·인물 이미지 업로드
-  ↓ POST /api/extract       점 프롬프트 → SAM2 상의 마스크
-  ↓ POST /api/compose       상의 마스크 + 착용 영역 → 합성 작업 등록
-  ↓ GET  /api/jobs/{id}     2초 간격 진행률·대기 순번 조회
-  ↓ GET  /api/results/{id}  합성 결과 조회
-  ↓ PATCH /api/results/{id} 사진첩 저장 · 좋아요
-Backend ↔ MySQL · storage/ · GPU
+    Note over U,S: 2. 상의 영역 분할
+    U->>F: 상의 사진에 포함 · 제외 점 지정
+    F->>B: POST /api/extract
+    B->>A: SAM2 분할
+    A-->>B: 상의 마스크
+    B->>S: 마스크 파일 저장, extractions 기록
+    B-->>F: 상의 마스크
+    U->>F: 마스크 편집기 보정
+
+    Note over U,S: 3. 착용 영역 분할
+    U->>F: 인물 사진에 포함 · 제외 점 지정
+    F->>B: POST /api/extract
+    B->>A: SAM2 분할
+    A-->>B: 착용 영역 마스크
+    B->>S: 마스크 파일 저장, extractions 기록
+    B-->>F: 착용 영역 마스크
+    U->>F: 마스크 편집기 보정
+
+    Note over U,S: 4. 착용 합성
+    U->>F: 합성 요청
+    F->>B: POST /api/compose
+    B->>S: 착용 영역 마스크 저장, jobs 기록
+    B-->>F: job_id, 대기 순번
+    B->>A: AnyDoor 합성, 후처리
+    loop 2초 간격
+        F->>B: GET /api/jobs/{job_id}
+        B-->>F: 진행률 · 대기 순번
+    end
+    A-->>B: 합성 결과
+    B->>S: 결과 파일 저장, results 기록, jobs 완료 처리
+
+    Note over U,S: 5. 결과 확인 · 저장
+    F->>B: GET /api/results/{result_id}
+    B-->>F: 결과 사진
+    U->>F: 사진첩 저장 · 좋아요
+    F->>B: PATCH /api/results/{result_id}
+    B->>S: results 저장·좋아요 갱신
 ```
 
-- 전체 API 요청·응답·오류 규격: [docs/api.md](docs/api.md)
-- 인증 토큰 유효 시간 3시간, 연장 정책: [docs/login_extend.md](docs/login_extend.md)
+| 단계 | 메서드 | 경로 | 요청 내용 |
+|---|---|---|---|
+| 1. 사진 업로드 | `POST` | `/api/images` | 사진 파일, 종류(`garment` · `person`) |
+| 2·3. 영역 분할 | `POST` | `/api/extract` | 사진 ID, 점 좌표·포함/제외 구분 |
+| 4. 착용 합성 | `POST` | `/api/compose` | 상의 분할 ID, 인물 사진 ID, 착용 영역 마스크, 보정한 상의 마스크, 합성 옵션 |
+| 4. 진행 확인 | `GET` | `/api/jobs/{job_id}` | - |
+| 5. 결과 조회 | `GET` | `/api/results/{result_id}` | - |
+| 5. 저장 · 좋아요 | `PATCH` | `/api/results/{result_id}` | `saved` 또는 `favorite` |
+
+- API 요청·응답·오류 규격: [docs/api.md](docs/api.md)
+- 로그인 유지 3시간, 연장 정책: [docs/login_extend.md](docs/login_extend.md)
 
 ---
 
-## 4. 실제 구현 화면
+## 4. 구현 화면
 
-### Web Service
+### 4-1. 웹 화면
 
 <p align="center">
-  <img src="docs/readme/moa_screens.jpg" alt="MOA 주요 화면" width="100%">
+  <img src="docs/readme/moa_screens.jpg" alt="MOA 웹 화면" width="100%">
 </p>
 
-### 합성하기 단계별 화면
+### 4-2. 합성하기 단계별 화면
 
-SAM2·AnyDoor 추론 서버와 연동한 실제 동작 화면입니다.
+- SAM2·AnyDoor 추론 서버 연동 상태의 화면
 
 <p align="center">
   <img src="docs/readme/moa_studio_flow.jpg" alt="MOA 합성하기 단계별 화면" width="100%">
 </p>
 
-### 합성 결과
+### 4-3. 합성 결과
 
 <p align="center">
-  <img src="docs/readme/moa_before_after.jpg" alt="상의 이미지, 인물 이미지, 합성 결과" width="100%">
+  <img src="docs/readme/moa_before_after.jpg" alt="상의 사진, 인물 사진, 합성 결과" width="100%">
 </p>
 
-- 예시 이미지는 모두 AI 생성 이미지입니다.
-- 캡처 일자: 2026-10-23, 실서버 연동 환경
+- 예시 사진은 모두 AI 생성 사진
 
 ---
 
-## 5. 핵심 기능
+## 5. 기능
 
-### 상의 영역 분할 · SAM2
+### 5-1. 상의 영역 분할 · SAM2
 
-- 좌클릭 **포함 점**, 우클릭 **제외 점** 프롬프트 기반 상의 영역 분할
-- 포함 점이 위치한 연결 영역 유지, 내부 구멍 보정 후처리
-- **마스크 편집기**: 영역 추가·영역 제거 도구, 휠 확대·드래그 이동 기반 경계 보정
+- 좌클릭 포함 점, 우클릭 제외 점 기반 분할
+- 포함 점이 있는 연결 영역만 유지, 내부 구멍 채움 후처리
+- 마스크 편집기: 영역 추가·제거, 휠 확대·드래그 이동 기반 경계 보정
+- 분할 응답 2.5~3초
 - 상세: [features/object_extraction/README.md](features/object_extraction/README.md)
 
-### 착용 합성 · AnyDoor
+### 5-2. 착용 합성 · AnyDoor
 
-- 착용 영역을 점 프롬프트로 분할한 뒤 마스크 편집기에서 보정
-- 합성 옵션: Reference Mask Refine, Shape Control
-- 비동기 작업 큐 기반 처리, 진행률·대기 순번 실시간 제공
-- 추론 설정: DDIM 50스텝, 재생성 범위 1.3배 고정, float16 혼합 정밀도, 구성 요소별 GPU 순차 적재, 서버 기동 시 예열
-- 후처리
-  - 원본 복원: 착용 영역 상단의 얼굴·머리·배경을 원본으로 복원, `MOA_RESTORE_ORIGINAL`
-  - 크롭 경계 seam 보정: AnyDoor 재생성 영역 경계의 밝기·색 불연속 보정, `MOA_SEAM_FIX`
+- 착용 영역의 점 지정 분할, 마스크 편집기 보정
+- 합성 옵션: Reference Mask Refine(상의 경계 보정), Shape Control(영역 모양 유지)
+- 작업 큐 기반 순차 처리, 진행률·대기 순번 표시
+- 합성 응답 22~26초
+- 추론 설정: DDIM 50스텝, 재생성 범위 1.3배 고정, float16, 구성 요소별 GPU 순차 적재, 서버 기동 시 예열
+- 후처리 (환경 변수로 끄기 가능)
+  - 원본 복원 `MOA_RESTORE_ORIGINAL`: 착용 영역 위쪽 얼굴·머리·배경의 원본 복원
+  - seam 보정 `MOA_SEAM_FIX`: 재생성 영역 경계의 밝기·색 차이 보정
 - 상세: [features/composition/README.md](features/composition/README.md)
 
-### 계정과 사진첩
+### 5-3. 계정 · 사진첩 · 마이페이지
 
-- 회원가입·로그인·로그아웃, 비밀번호 해시 저장, 토큰 기반 인증
-- 작업 이력 자동 보관: 저장한 결과는 사진첩으로 이동, 미저장 결과 24시간 후 자동 삭제
-- 사진첩: 전체·좋아요 탭, 날짜 필터, 최신순·오래된순 정렬, 크게 보기·다운로드
-- 상단 메뉴: 로그인 사용자의 프로필 사진·이름·소개 글 표시
+| 기능 | 내용 |
+|---|---|
+| 계정 | 회원가입·로그인·로그아웃·로그인 연장, 비밀번호 해시 저장, 토큰 인증 |
+| 작업 기록 | 미저장 결과 24시간 보관, 저장 결과의 사진첩 이동 |
+| 사진첩 | 전체·좋아요 탭, 날짜 필터, 최신순·오래된순 정렬, 크게 보기·다운로드 |
+| 프로필 수정 | 사진·이름·휴대폰 번호·소개 글. 사진은 중앙 256px 정사각형 변환, EXIF 제거 |
+| 이메일 변경 | 현재 비밀번호 확인, 중복 이메일 차단 |
+| 비밀번호 변경 | 현재 기기 세션 유지, 다른 기기 세션 만료 |
+| 설정 | 합성 완료 브라우저 알림, 합성 옵션 기본값 (브라우저 저장) |
+| 고객센터 | 자주 묻는 질문 7개, 이메일 문의 연결 |
 
-### 마이페이지
-
-- 내 정보: 프로필 카드와 계정 설정 탭 통합 구성
-- 계정 설정
-  - 프로필 수정: 프로필 사진·이름·휴대폰 번호·소개 글. 프로필 사진은 중앙 정사각형 256px로 변환, EXIF 메타데이터 제거
-  - 이메일 변경: 현재 비밀번호 기반 본인 확인, 중복 이메일 차단
-  - 비밀번호 변경: 현재 기기 세션 유지, 타 기기 세션 일괄 만료
-- 설정: 브라우저 로컬 저장
-  - 알림: 합성 완료 시 비활성 탭 대상 브라우저 알림
-  - 합성 기본값: Reference Mask Refine·Shape Control 초기 선택값
-- 고객센터: 자주 묻는 질문 7개, 이메일 문의 연결
-- API: [마이페이지 계정 API 명세](docs/api.md#2-7-프로필-수정-추가-제안)
+- 계정 API: [docs/api.md](docs/api.md#2-계정-관리-api)
 
 ---
 
-## 6. 합성 속도 개선
+## 6. 문제 해결
 
-AnyDoor 공식 설정 기준 RTX 3080 10GB에서 50스텝 합성 1건에 11~15분이 소요되었습니다. 동일 입력·동일 조건에서 단계적 최적화를 적용해 **약 25초**로 단축했습니다.
+### 6-1. 합성 시간 지연
 
-| 단계 | 변경 내용 | 합성 1건 소요 시간 |
+- **문제점**: AnyDoor 공식 설정 기준 RTX 3080 10GB에서 합성 1건(50스텝)에 11~15분 소요
+- **원인**
+  - 16.8GB 가중치 파일을 GPU 메모리(VRAM)로 바로 불러오는 구조, VRAM 10GB 초과
+  - 부족분의 공유 GPU 메모리(시스템 메모리) 사용에 따른 연산 지연
+- **해결 방법** (`features/composition/anydoor_composer.py`)
+  - 가중치 파일을 시스템 메모리에서 연 뒤 필요한 가중치 약 9.2GB만 GPU에 적재
+  - float16 혼합 정밀도 연산 적용
+  - 서버 기동 시 예열 추론으로 첫 요청의 초기화 지연 제거
+  - AnyDoor 구성 요소를 두 묶음으로 나눠 사용 중인 묶음만 GPU에 적재
+- **결과**: 합성 1건 약 25초. 결과 화질 동일 (float32 대비 평균 픽셀 차이 0.12~0.17 / 255)
+
+### 6-2. 재생성 영역 경계선 노출
+
+- **문제점**: 합성 결과에 AnyDoor가 다시 그린 정사각형 영역의 테두리가 선 형태로 노출
+- **원인**: 착용 영역 주변 정사각형을 다시 그려 원본에 붙이는 AnyDoor 구조, 다시 그린 배경과 원본의 밝기·색 차이
+- **해결 방법** (`features/composition/seam.py`)
+  - 테두리의 원본·결과 색 차이에서 이상값을 제외해 보정량 추정
+  - 개선 포아송 방식으로 보정량을 영역 내부에 점진 반영
+- **결과**: 100장 기준 경계 밝기 차이 평균 2.49에서 0.57로 77% 감소
+
+### 6-3. 착용 사진의 인물 전체 분할
+
+- **문제점**: 사람이 입은 상의 사진에서 상의에만 점을 지정해도 얼굴·머리를 포함한 인물 전체 분할
+- **원인**: 점 1개만으로는 분할 대상이 모호, SAM2의 더 큰 객체(인물 전체) 선택
+- **해결 방법**
+  - 우클릭 제외 점 추가
+  - 포함 점이 있는 연결 영역만 남기는 후처리
+  - 마스크 편집기의 경계 직접 보정
+- **결과**: 착용 사진 평균 IoU 클릭 1회 0.77, 클릭 3회 0.86 (VITON-HD 무작위 30쌍)
+  - IoU: 정답 영역과 분할 영역의 교집합 ÷ 합집합, 1에 가까울수록 정확
+
+### 6-4. 착용 영역 밖의 얼굴·배경 변형
+
+- **문제점**: 합성 결과에서 착용 영역 밖의 얼굴·머리·배경까지 변형
+- **원인**: 착용 영역을 감싼 정사각형 전체를 다시 그리는 AnyDoor 구조, 기본 정사각형 크기가 착용 영역의 1.5~2.9배 중 무작위
+- **해결 방법** (`features/composition/restore.py`)
+  - 정사각형 크기 1.3배 고정
+  - 착용 영역 상단 경계 위쪽의 원본 복원 후처리, 새 상의 영역은 유지
+- **결과**: 얼굴·머리·배경 원본 유지, 어깨선 잘림 방지
+
+---
+
+## 7. 설치 및 실행
+
+| 항목 | 내용 |
+|---|---|
+| 운영체제 | Windows 64비트 (Windows 11 검증) |
+| GPU | NVIDIA GPU (RTX 3080 10GB 검증) |
+| 메모리 | 32GB 검증 |
+| 디스크 | 가중치 파일용 여유 공간 약 21.7GB |
+| DB | SQLite 기본 사용, 별도 설치 불필요. 팀 공용 MySQL 구성: [docs/database.md](docs/database.md) |
+| 설치 오류 조치 | [설치 오류별 조치](docs/environment.md#2-설치-오류별-조치) |
+
+### 7-1. 용어
+
+| 용어 | 뜻 |
+|---|---|
+| 명령 입력 창 | 명령어를 입력해 프로그램을 실행하는 창. 이 문서에서는 Windows PowerShell, Anaconda Prompt 사용 |
+| Anaconda Prompt | Anaconda 설치 시 함께 설치되는 명령 입력 창. 시작 메뉴에서 `Anaconda Prompt` 검색 후 실행, `conda` 명령 사용 가능 |
+| conda 환경 | MOA 전용 Python과 패키지를 PC의 다른 Python과 분리해 설치하는 공간. MOA는 이름 `CGI` 사용 |
+| 패키지 | Python 프로그램이 불러 쓰는 라이브러리. `pip` 명령으로 설치 |
+| 가중치 파일 | 학습을 마친 AI 모델의 매개변수를 담은 파일. SAM2·AnyDoor 실행에 필요 |
+| Repository | GitHub에 올린 MOA 코드 전체 |
+
+### 7-2. 설치
+
+| 단계 | 내용 | 명령 입력 창 |
 |---|---|---|
-| 공식 설정 | 기준 | 11\~15분, 스텝당 13\~18초 |
-| CPU 메모리 경유 로드 | 16.8GB 체크포인트를 GPU에 직접 로드하며 발생한 VRAM 용량 초과 해소. CPU 메모리에서 로드한 뒤 가중치 약 9.2GB만 GPU 적재 | 2분 30초 ~ 3분 45초 |
-| 혼합 정밀도 | 행렬 곱·합성곱·어텐션 연산에 float16 적용 | 약 48초 ~ 1분 |
-| 서버 기동 시 예열 | 최초 추론의 GPU 초기화 구간을 서버 기동 시점에 선처리 | 첫 요청부터 동일 속도 |
-| 구성 요소별 GPU 순차 적재 | 사용 중인 구성 요소 묶음만 GPU에 상주, 교체 시 해제 후 적재 | 약 25초 |
+| 1단계 | NVIDIA 그래픽 드라이버 설치 | Windows PowerShell (확인용) |
+| 2단계 | Git · Anaconda · Node.js 설치 | Windows PowerShell |
+| 3단계 | MOA 코드 다운로드, conda 환경 생성 | Anaconda Prompt |
+| 4단계 | Python 패키지 설치 | Anaconda Prompt |
+| 5단계 | AI 모델 코드 · 가중치 파일 다운로드 | Anaconda Prompt |
+| 6단계 | 접속 설정 파일 생성 | Anaconda Prompt |
+| 7단계 | 설치 확인 | Anaconda Prompt |
 
-- 화질: float32 대비 float16 결과의 평균 픽셀 차이 0.12~0.17 / 255, 육안 식별 불가 수준. 순차 적재 전후 결과는 픽셀 단위 동일
-- 서버 실측 2026-10-21: 요청부터 결과 수신까지 22\~26초, 7건. 이전 서버 기록 48\~98초
+- 단계 이름 클릭 시 명령어와 설명 표시
 
-### 구성 요소별 GPU 순차 적재 · 2026-10-21
+<details>
+<summary><b>1단계 · NVIDIA 그래픽 드라이버 설치</b></summary>
 
-- 구조: AnyDoor 메모리 절약 모드는 네 구성 요소를 두 묶음으로 나누어 사용 중인 묶음만 GPU에 상주
-  - 노이즈 제거 단계: U-Net · ControlNet
-  - 전후 처리 단계: VAE · DINOv2
-- 기존 방식의 병목
-  - 모델 로드 시 네 구성 요소 약 9.2GB 일괄 GPU 적재
-  - 묶음 교체 시 신규 묶음 적재 후 기존 묶음 해제 → 교체 시점마다 네 구성 요소 동시 상주
-  - VRAM 10GB 용량 초과, 공유 GPU 메모리 최대 3.2GB 사용에 따른 합성 지연
-- 개선 내용: `features/composition/anydoor_composer.py`
-  - 대형 구성 요소 네 개를 CPU에 둔 상태로 모델 로드
-  - 묶음 교체 순서를 기존 묶음 해제 → 신규 묶음 적재로 변경
-  - 가중치 · 연산 방식 · AnyDoor 원본 코드 변경 없음
-- 비교 조건: RTX 3080 10GB, 서버 종료 상태, 동일 입력과 seed, Reference Mask Refine 적용, 예열 → SAM2 분할 → 합성 2회
+<br>
 
-| 항목 | 기존 | 개선 |
-|---|---|---|
-| 합성 시간 1회 · 2회 | 41.1초 · 36.9초 | 25.4초 · 24.4초 |
-| 합성 시간 평균 | 39.0초 | 24.9초, 36% 단축 |
-| 모델 로드 · 예열 | 152.1초 | 100.8초 |
-| PyTorch 최대 할당 메모리 | 9.70GB | 8.25GB |
-| PyTorch 최대 확보 메모리 | 11.43GB | 9.22GB |
-| 공유 GPU 메모리 최대 사용량 | 3,199MB | 218MB |
-| 결과 이미지 | 기준 | 픽셀 단위 동일, 최대 차이 0 |
+- 목적: PyTorch의 GPU 사용
+- 설치: https://www.nvidia.com/ko-kr/drivers/ 에서 그래픽 카드 모델에 맞는 드라이버 설치 후 PC 재시작
+- 확인: Windows PowerShell에서 `nvidia-smi` 입력, 결과 오른쪽 위 `CUDA Version` 12.1 이상
+- CUDA(GPU 연산 도구)는 4단계 PyTorch에 포함, 별도 설치 불필요
 
----
+</details>
 
-## 7. 검증 결과
+<details>
+<summary><b>2단계 · Git · Anaconda · Node.js 설치</b></summary>
 
-| 항목 | 결과 |
-|---|---|
-| 환경 점검 `scripts/check_env.py` | 18 / 18 통과: 패키지 버전, GPU, 모델 파일, DB 설정 |
-| 전체 흐름 | 로그인 → 이미지 선택·업로드 → 상의 분할 → 착용 합성 → 저장 → 사진첩 조회 |
-| 외부 접속 | Cloudflare Tunnel 경유 외부망 모바일 기기에서 로그인·합성·마이페이지 전 기능 확인 |
-| 상의 분할 응답 | 2.5~3초 |
-| 착용 합성 응답 | 요청부터 결과 수신까지 22~26초 |
-| SAM2 분할 정확도 | VITON-HD 테스트셋 무작위 30쌍, 클릭 1회 → 3회 평균 IoU: 상품 이미지 0.89 → 0.96, 착용 이미지 0.77 → 0.86 |
-| 마이페이지 API · 10/20 | 정상·예외 22개 사례 모두 기대 응답 일치: 형식 오류 400, 중복 이메일 409, 비밀번호 변경 후 타 기기 토큰 401 |
-| 마이페이지 화면 · 10/22 | 내 정보·사진첩·계정 설정 화면 전환, 크게 보기, 다운로드, 375px 폭 가로 스크롤 없음 |
+<br>
 
-- IoU: 정답 영역과 분할 영역의 교집합 ÷ 합집합, 1에 가까울수록 정확
-- 검증 환경: Windows 11, RTX 3080 10GB. 착용 합성 2026-10-21, SAM2 정확도 2026-10-17 측정
-
----
-
-## 8. 기술적 문제 해결
-
-### 합성 1건 11~15분 소요
-
-| 구분 | 내용 |
-|---|---|
-| 문제 | AnyDoor 공식 설정 기준 50스텝 합성 1건에 11~15분 소요 |
-| 원인 | 16.8GB 체크포인트의 GPU 직접 로드로 VRAM 10GB 용량 초과, 공유 GPU 메모리 사용에 따른 연산 지연 |
-| 해결 | CPU 메모리 경유 로드, float16 혼합 정밀도, 서버 기동 시 예열, 구성 요소별 GPU 순차 적재 단계 적용 |
-| 결과 | 합성 1건 약 25초, 결과 화질 동등. 단계별 수치는 [합성 속도 개선](#6-합성-속도-개선) |
-
-### 재생성 영역 경계의 seam
-
-| 구분 | 내용 |
-|---|---|
-| 문제 | 합성 결과에 AnyDoor 재생성 영역의 정사각형 테두리가 선 형태로 노출 |
-| 원인 | 착용 영역 주변 정사각형을 재생성해 원본에 붙이는 구조, 재생성 배경과 원본 사이의 미세한 밝기·색 차이 |
-| 해결 | 테두리의 원본·결과 색 차이에서 이상값을 제외해 보정량을 추정하고, 개선 포아송 방식으로 영역 내부에 부드럽게 전파. `features/composition/seam.py` |
-| 결과 | 100장 시험 기준 경계 밝기 차이 평균 2.49 → 0.57, 77% 감소 |
-
-### 착용 이미지의 인물 전체 분할
-
-| 구분 | 내용 |
-|---|---|
-| 문제 | 인물이 착용한 상의 이미지에서 상의에만 점을 지정해도 얼굴·머리를 포함한 인물 전체가 분할되는 사례 |
-| 원인 | 단일 점 프롬프트의 모호성으로 SAM2가 상의보다 큰 객체인 인물 전체를 선택 |
-| 해결 | 우클릭 제외 점 프롬프트 도입, 포함 점이 위치한 연결 영역만 유지하는 후처리, 마스크 편집기 기반 경계 보정 |
-| 결과 | 착용 이미지 평균 IoU 클릭 1회 0.77 → 클릭 3회 0.86, VITON-HD 무작위 30쌍 |
-
-### 착용 영역 밖의 얼굴·배경 변형
-
-| 구분 | 내용 |
-|---|---|
-| 문제 | 합성 결과에서 착용 영역 밖의 얼굴·머리·배경까지 함께 변형 |
-| 원인 | 착용 영역을 감싼 정사각형 전체를 재생성하는 AnyDoor 구조, 기본 재생성 범위 1.5~2.9배 무작위 |
-| 해결 | 재생성 범위 1.3배 고정, 착용 영역 상단 경계 위를 원본으로 되돌리는 원본 복원 후처리, 새 상의 영역은 경계 위라도 합성 결과 유지 |
-| 결과 | 얼굴·머리·배경의 원본 보존, 어깨선 잘림 방지. `features/composition/restore.py` |
-
----
-
-## 9. 설치 및 실행
-
-- 필요 조건: Windows 64비트, NVIDIA GPU, 모델 파일 약 21.7GB를 저장할 디스크 여유 공간
-- 검증 환경: RTX 3080 10GB, 메모리 32GB, Windows 11
-- 회원 데이터 저장: 기본은 MySQL 설치가 필요 없는 SQLite 체험판. 팀 공용 MySQL 구성은 [MySQL 데이터베이스 구축](docs/database.md)
-- 오류 조치: [설치 오류별 조치](docs/environment.md#2-설치-오류별-조치)
-
-### 설치 1. NVIDIA 그래픽 드라이버
-
-- PyTorch가 GPU로 모델을 실행하기 위한 드라이버. CUDA는 PyTorch에 포함되어 별도 설치 불필요
-- https://www.nvidia.com/ko-kr/drivers/ 에서 그래픽 카드 모델에 맞는 최신 드라이버를 받아 설치 후 PC 재시작
-- 확인: Windows PowerShell에서 `nvidia-smi` 실행, 오른쪽 위 `CUDA Version` 12.1 이상
-
-### 설치 2. Git · Anaconda · Node.js
-
-| 프로그램 | 용도 |
-|---|---|
-| Git | MOA Repository·AnyDoor 코드 받기, SAM2 패키지 설치 |
-| Anaconda | Python 3.10 전용 conda 환경 생성. Anaconda나 Miniconda가 이미 있으면 해당 줄 생략 |
-| Node.js 24 | React 웹 화면 개발 서버 실행 |
-
-- 실행 창: Windows PowerShell
+- 명령 입력 창: Windows PowerShell
 
 ```powershell
 winget install -e --id Git.Git
@@ -298,12 +450,23 @@ winget install -e --id Anaconda.Anaconda3
 winget install -e --id OpenJS.NodeJS.LTS --version 24.22.1
 ```
 
-- 원본 사용 약관 동의를 묻는 경우 `Y` 입력
-- 설치 후 열려 있는 PowerShell 창을 모두 닫기. 새 창에서 설치한 명령 인식
+| 프로그램 | 용도 |
+|---|---|
+| Git | 코드 다운로드 프로그램. MOA·AnyDoor 코드 다운로드, SAM2 패키지 설치에 사용 |
+| Anaconda | Python과 conda 환경 관리 프로그램. Anaconda·Miniconda 설치 PC는 두 번째 줄 생략 |
+| Node.js 24 | JavaScript 실행 프로그램. 프론트엔드 개발 서버 실행, `npm` 명령 포함 |
 
-### 설치 3. Repository와 conda 환경
+- 설치 중 약관 동의 질문 시 `Y` 입력
+- 설치 후 열린 PowerShell 창 모두 닫기 (새 창부터 설치한 프로그램 인식)
 
-- 실행 창: Anaconda Prompt, 설치 3부터 프론트엔드 실행까지 동일
+</details>
+
+<details>
+<summary><b>3단계 · MOA 코드 다운로드 · conda 환경 생성</b></summary>
+
+<br>
+
+- 명령 입력 창: Anaconda Prompt
 
 ```bat
 cd C:\
@@ -313,19 +476,26 @@ conda create -n CGI python=3.10 -c conda-forge --override-channels -y
 conda activate CGI
 ```
 
-- Repository 위치: `C:\CGI_MOA`. 다른 위치를 쓰는 경우 경로에 한글·공백이 없는 폴더 권장
-- conda 환경 `CGI`: MOA 전용 Python 3.10 실행 공간. PC의 다른 Python과 패키지 버전이 섞이지 않도록 격리
-- `conda activate CGI` 후 명령 줄 앞 표시가 `(CGI)`로 바뀌면 정상
-- 창을 새로 열 때마다 `cd C:\CGI_MOA`, `conda activate CGI` 1회 실행
-
-### 설치 4. Python 패키지
-
-| 패키지 | 용도 |
+| 명령 | 내용 |
 |---|---|
-| PyTorch 2.5.1, CUDA 12.1 빌드 | SAM2·AnyDoor를 GPU에서 실행하는 딥러닝 프레임워크 |
-| SAM2 | 클릭 지점 기반 상의 영역 분할 |
-| `requirements.txt` | AnyDoor 실행, FastAPI 서버, 데이터베이스 접속 패키지 |
-| xformers | 어텐션 연산 최적화, 합성 속도 향상·GPU 메모리 절감 |
+| `cd C:\` | C 드라이브 최상위 폴더로 이동 |
+| `git clone ...` | MOA Repository를 `C:\CGI_MOA` 폴더에 다운로드 |
+| `cd CGI_MOA` | 다운로드한 폴더로 이동 |
+| `conda create ...` | Python 3.10이 설치된 conda 환경 `CGI` 생성 |
+| `conda activate CGI` | conda 환경 `CGI` 사용 시작. 명령 줄 앞 `(base)`가 `(CGI)`로 바뀌면 정상 |
+
+- 다른 폴더 사용 시 경로에 한글·공백이 없는 폴더 권장
+- Anaconda Prompt를 새로 열 때마다 `cd C:\CGI_MOA`, `conda activate CGI` 입력 필요
+
+</details>
+
+<details>
+<summary><b>4단계 · Python 패키지 설치</b></summary>
+
+<br>
+
+- 목적: SAM2·AnyDoor·백엔드 서버 실행에 필요한 패키지를 conda 환경 `CGI`에 설치
+- 명령 입력 창: Anaconda Prompt, 명령 줄 앞 `(CGI)` 표시 상태
 
 ```bat
 python -m pip install --upgrade pip
@@ -337,19 +507,27 @@ python -m pip install xformers==0.0.28.post3 --index-url https://download.pytorc
 python -c "import torch; print(torch.cuda.is_available())"
 ```
 
-- 마지막 줄 결과 `True`: GPU 사용 가능
-- `setuptools<81`: pytorch-lightning 1.9.5가 사용하는 `pkg_resources` 포함 버전. 최신 setuptools는 `pkg_resources` 미포함으로 서버 예열 시 `ModuleNotFoundError`
-- 버전 고정 이유: SAM2 커밋과 xformers `--no-deps`는 설치한 PyTorch 2.5.1이 다른 버전으로 교체되지 않도록 고정
-- `Failed to build the SAM 2 CUDA extension` 안내는 일부 후처리 가속만 제외, 분할 결과에 영향 없음
+| 줄 | 설치 대상 | 용도 |
+|---|---|---|
+| 1 | pip | 패키지 설치 도구 최신화 |
+| 2 | setuptools 81 미만 | AnyDoor가 사용하는 pytorch-lightning 1.9.5의 필요 모듈 `pkg_resources` 포함 버전. 81 이상 설치 시 서버 예열 중 `ModuleNotFoundError` |
+| 3 | PyTorch 2.5.1, torchvision 0.20.1 | SAM2·AnyDoor를 GPU에서 실행하는 딥러닝 프레임워크, CUDA 12.1용 |
+| 4 | SAM2 | 점 지정 기반 영역 분할 모델 코드. 커밋 고정으로 PyTorch 버전 변경 방지 |
+| 5 | `requirements.txt` 목록 | AnyDoor 실행(pytorch-lightning, transformers, OpenCV 등), 백엔드 서버(FastAPI, Uvicorn), DB 접속(SQLAlchemy, PyMySQL) |
+| 6 | xformers 0.0.28.post3 | 어텐션 연산 최적화로 합성 속도 향상·GPU 메모리 절감. `--no-deps`로 PyTorch 버전 변경 방지 |
+| 7 | - | PyTorch의 GPU 인식 확인. 결과 `True` 시 정상 |
 
-### 설치 5. AI 모델 준비
+- `Failed to build the SAM 2 CUDA extension` 안내: SAM2 일부 후처리 가속 기능만 제외, 분할 결과 영향 없음
 
-| 파일 | 모델 | 용도 | 크기 |
-|---|---|---|---|
-| AnyDoor 코드 | AnyDoor 공식 Repository, 커밋 `44ca2b2` | 착용 합성 모델 코드 | - |
-| `sam2.1_hiera_base_plus.pt` | SAM 2.1 Base+ | 상의 영역 분할 가중치 | 약 309MB |
-| `epoch=1-step=8687.ckpt` | AnyDoor | 착용 합성 가중치 | 약 16.8GB |
-| `dinov2_vitg14_pretrain.pth` | DINOv2 ViT-g/14 | AnyDoor 내부 상의 이미지 특징 추출 가중치 | 약 4.5GB |
+</details>
+
+<details>
+<summary><b>5단계 · AI 모델 코드 · 가중치 파일 다운로드</b></summary>
+
+<br>
+
+- 목적: 합성 모델 AnyDoor의 코드와 SAM2·AnyDoor 가중치 파일 준비
+- 명령 입력 창: Anaconda Prompt, 명령 줄 앞 `(CGI)` 표시 상태
 
 ```bat
 git clone https://github.com/ali-vilab/AnyDoor checkpoints\AnyDoor
@@ -364,12 +542,33 @@ conda deactivate
 conda activate CGI
 ```
 
-- `checkout 44ca2b2`: MOA 합성 모듈이 AnyDoor `run_inference.py`의 특정 코드 줄을 바꿔 실행하므로 같은 버전으로 고정. `detached HEAD` 안내는 정상
-- `path` 폴더: AnyDoor 공식 설정 파일이 가리키는 가중치 위치. 이 위치에 받으면 설정 파일 수정 불필요
-- 마지막 3줄: 서버가 AnyDoor 폴더를 찾는 환경 변수 `ANYDOOR_DIR`을 conda 환경 `CGI`에 저장 후 재활성화. 이후 활성화마다 자동 적용. Repository를 `C:\CGI_MOA`가 아닌 위치에 받은 경우 경로 변경
-- 다운로드가 중단된 경우 해당 `curl.exe` 줄만 다시 실행. 파일 크기 확인과 다른 받는 곳: [모델 파일 확인](docs/environment.md#3-모델-파일-확인)
+| 줄 | 내용 |
+|---|---|
+| 1~2 | AnyDoor 코드를 `checkpoints\AnyDoor`에 다운로드, 검증한 커밋 `44ca2b2`로 고정. `detached HEAD` 안내는 정상 |
+| 3~4 | 가중치 파일 저장 폴더 생성 |
+| 5~7 | 가중치 파일 3개 다운로드 |
+| 8~10 | AnyDoor 폴더 위치를 환경 변수 `ANYDOOR_DIR`로 conda 환경 `CGI`에 등록 후 다시 활성화 |
 
-### 설치 6. 접속 설정 파일
+| 가중치 파일 | 모델 | 용도 | 크기 |
+|---|---|---|---|
+| `sam2.1_hiera_base_plus.pt` | SAM 2.1 Base+ | 상의·착용 영역 분할 | 약 309MB |
+| `epoch=1-step=8687.ckpt` | AnyDoor | 착용 합성 | 약 16.8GB |
+| `dinov2_vitg14_pretrain.pth` | DINOv2 ViT-g/14 | AnyDoor 내부 상의 특징 추출 | 약 4.5GB |
+
+- 커밋 고정 이유: MOA 합성 모듈이 실행 시 AnyDoor `run_inference.py`의 특정 코드 줄 교체, 다른 버전에서는 해당 줄 불일치
+- `path` 폴더: AnyDoor 공식 설정 파일이 가리키는 가중치 파일 위치, 설정 파일 수정 불필요
+- `ANYDOOR_DIR` 미등록 시 기본값 `Desktop\AnyDoor` 탐색. Repository를 다른 폴더에 받은 경우 8번째 줄 경로 변경
+- 다운로드 중단 시 해당 `curl.exe` 줄만 다시 입력. 파일 크기 확인·다른 다운로드 경로: [모델 파일 확인](docs/environment.md#3-모델-파일-확인)
+
+</details>
+
+<details>
+<summary><b>6단계 · 접속 설정 파일 생성</b></summary>
+
+<br>
+
+- 목적: 백엔드 서버의 DB 위치, 프론트엔드의 백엔드 서버 주소 지정
+- 명령 입력 창: Anaconda Prompt
 
 ```bat
 mkdir storage
@@ -377,23 +576,45 @@ copy backend\.env.sqlite.example backend\.env
 copy frontend\.env.mixed.example frontend\.env.local
 ```
 
-- `backend\.env`: 회원 데이터를 SQLite 파일 `storage\moa_trial.db`에 저장, MySQL 설치 불필요. 백엔드 첫 실행 시 파일과 테스트 계정 `test` / `test1234` 자동 생성
-- `frontend\.env.local`: 웹 화면이 로그인·추출·합성 요청을 localhost:8000 백엔드로 전송
-- 두 파일과 `storage/`는 `.gitignore` 등록 대상
-- 팀 공용 MySQL을 쓰는 경우 이 단계 대신 [MySQL 데이터베이스 구축](docs/database.md) 진행
+| 생성 대상 | 내용 |
+|---|---|
+| `storage\` | 업로드 사진·합성 결과·SQLite DB 파일 저장 폴더 |
+| `backend\.env` | DB 위치 `DATABASE_URL`. SQLite 파일 `storage\moa_trial.db` 사용 |
+| `frontend\.env.local` | API 요청 모드 `mixed`, 백엔드 서버 주소 `http://localhost:8000` |
 
-### 설치 7. 설치 확인
+- 백엔드 서버 첫 실행 시 DB 파일, 테스트 계정 `test` / `test1234` 자동 생성
+- `.env`, `.env.local`, `storage\`: 개인 설정·사용자 데이터로 Git 업로드 제외
+- 팀 공용 MySQL 사용 시 이 단계 대신 [MySQL 데이터베이스 구축](docs/database.md) 진행
+
+</details>
+
+<details>
+<summary><b>7단계 · 설치 확인</b></summary>
+
+<br>
+
+- 목적: 패키지 버전, GPU, AnyDoor 폴더, SAM2 가중치 파일, `backend\.env` 점검 (18개 항목)
+- 명령 입력 창: Anaconda Prompt, 명령 줄 앞 `(CGI)` 표시 상태
 
 ```bat
 python scripts\check_env.py
 ```
 
-- 정상: `가상환경 CGI` 항목을 제외한 모든 항목 `[OK]`
-- `가상환경 CGI` 항목: 점검 스크립트가 venv 방식만 인식해 conda 환경에서는 `[NG]` 표시. 실행 경로 끝이 `envs\CGI\python.exe`이면 정상
-- `AnyDoor 폴더` 항목 `[NG]`이고 경로가 `Desktop\AnyDoor`: `ANYDOOR_DIR` 미설정. 설치 5의 마지막 3줄 실행
-- `A matching Triton is not available` 경고: Windows에서 항상 출력되는 안내, 무시
+- 정상: 모든 항목 `[OK]`
 
-### 백엔드 실행
+| `[NG]` 항목 | 원인 · 조치 |
+|---|---|
+| 가상환경 CGI | 점검 스크립트의 venv 방식 환경만 인식, conda 환경에서는 항상 `[NG]`. 표시된 실행 경로 끝이 `envs\CGI\python.exe`이면 정상 |
+| AnyDoor 폴더 (경로 `Desktop\AnyDoor`) | `ANYDOOR_DIR` 미등록. 5단계 8~10번째 줄 다시 입력 |
+
+- AnyDoor·DINOv2 가중치 파일은 점검 대상 제외. 크기 확인: [모델 파일 확인](docs/environment.md#3-모델-파일-확인)
+- `A matching Triton is not available` 경고: Windows 환경 공통 안내, 무시
+
+</details>
+
+### 7-3. 백엔드 서버 실행
+
+- 명령 입력 창: Anaconda Prompt
 
 ```bat
 cd C:\CGI_MOA
@@ -401,14 +622,17 @@ conda activate CGI
 python -m uvicorn backend.main:app --port 8000
 ```
 
-- 모델 로드와 예열 약 2분
-- 확인: http://localhost:8000/api/health 의 `status`가 `ok`이면 서버 실행, `warmup`이 `done`이면 합성 준비 완료
-- API 테스트 페이지: http://localhost:8000/docs . 자물쇠 표시 API는 `POST /api/auth/login` 응답의 `token`을 Authorize 버튼에 입력 후 실행
-- 환경 변수: [백엔드 환경 변수 목록](backend/README.md#3-환경-변수)
+- 가중치 파일 로드·예열 약 2분
+- 상태 확인: 웹 브라우저에서 http://localhost:8000/api/health 접속
+  - `"status": "ok"`: 백엔드 서버 실행 중
+  - `"warmup": "done"`: 합성 준비 완료
+- API 테스트 페이지: http://localhost:8000/docs
+  - 자물쇠 표시 API: `POST /api/auth/login` 응답의 `token` 값을 `Authorize` 버튼에 입력 후 실행
+- 환경 변수 목록: [backend/README.md](backend/README.md#3-환경-변수)
 
-### 프론트엔드 실행
+### 7-4. 프론트엔드 개발 서버 실행
 
-- 실행 창: 새 Anaconda Prompt, 백엔드 창 유지
+- 명령 입력 창: 새 Anaconda Prompt (백엔드 서버 창 유지)
 
 ```bat
 cd C:\CGI_MOA\frontend
@@ -416,90 +640,114 @@ npm install
 npm run dev -- --port 5180 --strictPort
 ```
 
-- `npm install`: 웹 화면 의존 패키지 설치, 최초 1회
-- 접속: http://localhost:5180 → 테스트 계정 `test` / `test1234` 로그인
-- `--strictPort`: 5180번 사용 중이면 다른 포트로 옮기지 않고 종료, 터널 주소와 불일치 방지
+| 명령 | 내용 |
+|---|---|
+| `npm install` | 프론트엔드 패키지 설치, 최초 1회 |
+| `npm run dev ...` | 5180번 포트로 개발 서버 실행. 5180번 사용 중이면 다른 포트로 바꾸지 않고 종료 (터널 주소 불일치 방지) |
+
+- 접속: 웹 브라우저에서 http://localhost:5180 , 테스트 계정 `test` / `test1234`
 
 | 구성 | 포트 |
 |---|---|
-| 백엔드 FastAPI | 8000 |
-| 프론트엔드 개발 서버 | 5180 |
+| 백엔드 서버 (FastAPI) | 8000 |
+| 프론트엔드 개발 서버 (Vite) | 5180 |
 
-### 외부 접속 · Cloudflare 터널
+### 7-5. 외부 접속 · Cloudflare 터널
 
-- 용도: 휴대폰·외부 PC 시연, 계정 없이 임시 주소 발급. localhost 실행만으로는 불필요
-- 준비 사항: 백엔드·프론트엔드 실행
+- 용도: 휴대폰·외부 PC에서 시연
+- 조건: 백엔드 서버·프론트엔드 개발 서버 실행 중
+- 명령 입력 창: 새 Anaconda Prompt
 
 ```bat
 winget install --id Cloudflare.cloudflared
 cloudflared tunnel --no-autoupdate --url http://localhost:5180
 ```
 
-- 첫 줄은 최초 1회, 설치 후 Anaconda Prompt를 새로 열어 두 번째 줄 실행
-- 실행 로그의 `https://….trycloudflare.com` 주소로 접속
-- 백엔드 요청: 프론트엔드 개발 서버가 `/api`를 8000번으로 전달, 터널 하나로 전체 기능 사용
-- 접속 허용: `frontend/vite.config.js`의 `allowedHosts`에 `.trycloudflare.com` 등록
-- 주소 유지: 터널 창 종료 시 만료, 실행마다 새 주소
+- 첫 줄: cloudflared 설치, 최초 1회. 설치 후 Anaconda Prompt를 새로 열어 두 번째 줄 입력
+- 두 번째 줄 실행 로그의 `https://….trycloudflare.com` 주소로 접속
+- 프론트엔드 개발 서버의 `/api` 요청 백엔드 서버(8000번) 전달, 터널 1개로 전체 기능 사용
+- `frontend/vite.config.js`의 `allowedHosts`에 `.trycloudflare.com` 등록 완료
+- 터널 창 종료 시 주소 만료, 실행마다 새 주소 발급
 
 ---
 
-## 10. 디렉터리 구성
+## 8. 디렉터리 구성
 
 ```
 CGI_MOA/
-├── README.md                        프로젝트 개요
-├── docs/                            공용 문서
-│   ├── api.md                       API 명세
-│   ├── environment.md               개발 환경 참고: 오류별 조치, 패키지 버전
-│   ├── pip_freeze.txt               Python 패키지 목록
-│   ├── database.md                  MySQL 데이터베이스 구축
-│   ├── login_extend.md              로그인 세션 연장 정책
-│   └── readme/                      README 이미지
-├── frontend/                        프론트엔드: React
-│   ├── README.md                    프론트엔드 개요
-│   └── .env.example                 백엔드 연결 설정 예시
-├── backend/                         백엔드: FastAPI
-│   ├── README.md                    백엔드 구성
-│   └── .env.example                 데이터베이스 접속 설정 예시
-├── features/                        AI 모듈: SAM2, AnyDoor
-│   ├── object_extraction/README.md  상의 영역 분할 모듈: SAM2
-│   └── composition/README.md        이미지 합성 모듈: AnyDoor, 원본 복원, 크롭 경계 seam 보정
-└── scripts/README.md                AI 모듈 단위 테스트, 환경 점검 check_env.py
+├── README.md
+├── requirements.txt                 Python 의존 패키지
+├── frontend/                        React 웹 화면 (Vite)
+│   ├── README.md                    화면 구성, 합성 흐름, 사용 API
+│   ├── src/                         pages · studio · auth · mypage · api
+│   └── .env.example                 API 모드(mock·mixed·real) 설정 예시
+├── backend/                         FastAPI 서버
+│   ├── README.md                    파일 구성, 환경 변수
+│   ├── db.py                        DB 테이블 정의, 초기화
+│   ├── routers/                     auth · images · extract · compose · results · files
+│   ├── .env.example                 MySQL 접속 설정 예시
+│   └── .env.sqlite.example          SQLite 접속 설정 예시
+├── features/                        AI 모듈
+│   ├── object_extraction/           SAM2 영역 분할
+│   └── composition/                 AnyDoor 합성, 원본 복원, seam 보정
+├── scripts/                         단위 테스트, 환경 점검, 데이터 전처리, 예전 JSON 기록의 DB 이전
+│   └── retrain/                     AnyDoor 재학습 (B200 서버용)
+├── web/                             초기 정적 화면 시안 (AI·서버 미연동)
+└── docs/
+    ├── api.md                       API 명세
+    ├── database.md                  MySQL 데이터베이스 구축
+    ├── environment.md               설치 오류별 조치, 패키지 버전
+    ├── login_extend.md              로그인 세션 연장 정책
+    ├── B200_학습_*.md                AnyDoor 재학습 환경·절차·작업일지
+    ├── 작업일지.md                   개발 작업일지
+    └── readme/                      README 이미지
 ```
 
----
-
-## 11. 관련 기술 문서
-
-| 목적 | 참고 문서 |
-|---|---|
-| 설치 오류·패키지 버전 확인 | [environment.md](docs/environment.md), MySQL 구성: [database.md](docs/database.md) |
-| 프론트엔드 개발 | [api.md](docs/api.md), [login_extend.md](docs/login_extend.md), [frontend/README.md](frontend/README.md) |
-| API 사양 확인 | [api.md](docs/api.md), [backend/README.md](backend/README.md) |
-| 로그인 오류 조치 | [DB 연결 오류별 조치](docs/database.md#4-오류별-조치) |
-| AI 모듈 단위 테스트 | [scripts/README.md](scripts/README.md) |
-
----
-
-## 12. Repository 제외 항목
+### 8-1. Repository 제외 항목
 
 | 항목 | 내용 | 사유 |
 |---|---|---|
-| `CGI/` | Python 가상환경 | 개인 환경 |
-| `checkpoints/` | 모델 가중치 파일 | 대용량 |
-| `storage/` | 업로드 이미지, 합성 결과 | 사용자 데이터 |
+| `checkpoints/` | 모델 가중치 | 대용량 |
+| `storage/` | 업로드 사진, 합성 결과, SQLite DB | 사용자 데이터 |
 | `backend/.env`, `frontend/.env.local` | DB 비밀번호 등 개인 설정 | 보안 |
-| VITON-HD | 학습 데이터셋 | 연구용 라이선스 |
+| `Dataset/`, VITON-HD | 학습 데이터셋 | 대용량 · 연구용 라이선스 |
+| `CGI/`, `venv/` | Python 가상환경 | 개인 환경 |
 
 ---
 
-## 13. 향후 발전 방향
+## 9. 관련 문서
 
-- **합성 품질**: 원본 복원 범위를 착용 영역·새 상의 영역 내부로 한정, 상의 이미지 속 포즈 영향을 줄이는 입력 전처리, 착용 영역 비율 가이드
-- **품질 평가**: 특징 보존·자연스러움 지표 기반 30쌍 정량 평가
-- **상의 특화 학습**: AI Hub 쉐이프리스 의류 데이터 기반 AnyDoor 추가 학습 검토
-- **기능 확장**: 로그인 연장 안내, 사진첩 결과 삭제, 모바일 마스크 편집 지원
-- **배포**: GPU 서버 기반 서비스 배포
+| 목적 | 문서 |
+|---|---|
+| API 명세 | [docs/api.md](docs/api.md), [backend/README.md](backend/README.md) |
+| 프론트엔드 개발 | [frontend/README.md](frontend/README.md), [docs/login_extend.md](docs/login_extend.md) |
+| AI 모듈 | [object_extraction](features/object_extraction/README.md), [composition](features/composition/README.md) |
+| 설치 오류·패키지 버전 | [docs/environment.md](docs/environment.md) |
+| DB 구축·로그인 오류 | [docs/database.md](docs/database.md), [DB 연결 오류별 조치](docs/database.md#4-오류별-조치) |
+| 단위 테스트·환경 점검 | [scripts/README.md](scripts/README.md) |
+| AnyDoor 재학습 | [scripts/retrain/README.md](scripts/retrain/README.md) |
+
+---
+
+## 10. 참고 자료
+
+| 대상 | 출처 | 라이선스 | MOA 사용 범위 |
+|---|---|---|---|
+| AnyDoor | [ali-vilab/AnyDoor](https://github.com/ali-vilab/AnyDoor), [논문 arXiv:2307.09481](https://arxiv.org/abs/2307.09481) | MIT | 착용 합성 모델 코드·가중치. 커밋 `44ca2b2` 고정, 원본 파일 수정 없이 실행 시 설정값 일부 교체 |
+| SAM 2 | [facebookresearch/sam2](https://github.com/facebookresearch/sam2) | Apache-2.0 | 상의·착용 영역 분할 모델, `sam2.1_hiera_base_plus` 가중치 |
+| DINOv2 | [facebookresearch/dinov2](https://github.com/facebookresearch/dinov2) | Apache-2.0 | AnyDoor 내부 상의 특징 추출 가중치 |
+| VITON-HD | [shadow2496/VITON-HD](https://github.com/shadow2496/VITON-HD) | 연구용 | 분할 정확도 평가, AnyDoor 재학습 데이터. Repository 미포함 |
+
+- AnyDoor는 [ControlNet](https://github.com/lllyasviel/ControlNet) 코드 기반
+
+```bibtex
+@article{chen2023anydoor,
+  title={Anydoor: Zero-shot object-level image customization},
+  author={Chen, Xi and Huang, Lianghua and Liu, Yu and Shen, Yujun and Zhao, Deli and Zhao, Hengshuang},
+  journal={arXiv preprint arXiv:2307.09481},
+  year={2023}
+}
+```
 
 ---
 
@@ -507,7 +755,6 @@ CGI_MOA/
 
 ### MOA
 
-**내가 원하는 것, 그게 무엇이든 미리 만나보세요.**<br>
-사진 한 장으로 확인하는 새로운 착용 경험
+**내가 원하는 것, 그게 무엇이든 미리 만나보세요.**
 
 </div>
