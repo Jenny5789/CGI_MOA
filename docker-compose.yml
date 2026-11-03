@@ -7,8 +7,11 @@ services:
     build: .
     image: moa-backend
     container_name: moa-backend
+    # 서버를 다시 켜거나 Docker가 다시 시작해도 자동으로 켜짐 (docker compose stop·down 으로 멈춘 경우는 제외)
+    restart: unless-stopped
     ports:
-      - "8000:8000"
+      # 기본은 이 PC에서만 접속 (외부는 web 의 5180번으로 들어옴). 다른 PC가 8000번으로 직접 접속해야 하면 .env 에 BACKEND_BIND=0.0.0.0
+      - "${BACKEND_BIND:-127.0.0.1}:8000:8000"
     environment:
       # 처음에는 SQLite 파일 (storage 볼륨 안). MySQL은 이게 되고 난 뒤에 붙인다
       DATABASE_URL: sqlite:///storage/moa_trial.db
@@ -26,6 +29,19 @@ services:
         read_only: true
       # 올린 사진, 결과, SQLite 파일 (컨테이너를 지워도 남음)
       - storage:/app/storage
+    healthcheck:
+      # 서버가 응답하는지만 봄 (AnyDoor 예열 완료는 보지 않음, 예열은 약 8.5분). 이미지에 curl 이 없어 python 사용
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    logging:
+      # 로그 파일이 계속 커지지 않게 (파일당 10MB, 3개까지 보관)
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     deploy:
       resources:
         reservations:
@@ -43,11 +59,23 @@ services:
         VITE_API_MODE: ${VITE_API_MODE:-mixed}
     image: moa-web
     container_name: moa-web
+    restart: unless-stopped
     ports:
       # 화면과 /api 의 입구. Cloudflare 터널은 이 포트로 연결 (README 7-5: --url http://localhost:5180)
       - "${WEB_PORT:-5180}:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   storage:
