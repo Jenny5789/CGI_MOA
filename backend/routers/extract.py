@@ -12,9 +12,8 @@
   - bbox: 상의를 감싸는 사각형 (원본 픽셀 기준)
 - SAM2는 features/object_extraction의 extract_object를 그대로 쓴다 (처음 요청 때 모델을 불러와 이후 재사용)
 - 로그인 필요. 자기가 올린 사진만 추출 가능, 결과에 회원 번호(user_id) 기록
-- 결과는 storage/extractions에 파일로 저장
+- 윤곽·cutout 사진은 storage/extractions에, 정보는 DB extractions 표에 저장 (11/2)
 """
-import json
 import time
 import uuid
 from typing import List, Literal, Optional
@@ -23,14 +22,15 @@ import numpy as np
 from fastapi import APIRouter, Depends
 from PIL import Image
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
 from backend.auth import current_user
 from backend.config import EXTRACTIONS_DIR, IMAGES_DIR
-from backend.db import User
+from backend.db import Extraction, User, get_db, utcnow
 from backend.errors import ApiError
 from backend.file_keys import signed_url
 from backend.gpu import GPU_LOCK, release_cached_memory
-from backend.storage import load_image_info, now_kst
+from backend.storage import load_image_info
 from features.object_extraction import extract_object
 
 router = APIRouter()
@@ -61,7 +61,7 @@ def _to_pixel(ratio, size):
 
 
 @router.post("/api/extract")
-def extract(req: ExtractRequest, user: User = Depends(current_user)):
+def extract(req: ExtractRequest, user: User = Depends(current_user), db: Session = Depends(get_db)):
     info = load_image_info(req.image_id, user)
     w, h = info["width"], info["height"]
 
@@ -108,21 +108,13 @@ def extract(req: ExtractRequest, user: User = Depends(current_user)):
     cutout.putalpha(alpha)
     cutout.save(EXTRACTIONS_DIR / cutout_name)
 
-    record = {
-        "extraction_id": extraction_id,
-        "user_id": user.id,
-        "image_id": req.image_id,
-        "points": [p.model_dump() for p in req.points],
-        "box": req.box.model_dump() if req.box else None,
-        "bbox": bbox,
-        "width": w,
-        "height": h,
-        "mask": mask_name,
-        "cutout": cutout_name,
-        "seconds": round(elapsed, 3),
-        "created_at": now_kst(),
-    }
-    (EXTRACTIONS_DIR / f"{extraction_id}.json").write_text(json.dumps(record, ensure_ascii=False), encoding="utf-8")
+    db.add(Extraction(
+        extraction_id=extraction_id, user_id=user.id, image_id=req.image_id, width=w, height=h,
+        mask=mask_name, cutout=cutout_name, seconds=round(elapsed, 3),
+        detail={"points": [p.model_dump() for p in req.points], "box": req.box.model_dump() if req.box else None, "bbox": bbox},
+        created_at=utcnow(),
+    ))
+    db.commit()
 
     return {
         "extraction_id": extraction_id,

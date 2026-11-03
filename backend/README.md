@@ -13,7 +13,7 @@
 | `main.py` | 서버 시작, API 등록, AnyDoor 예열 | - |
 | `config.py` | 저장 위치, 업로드 제한 값, 프로필 사진 크기 | - |
 | `errors.py` | 오류 응답 형식 | [0. 공통 규칙](../docs/api.md#0-공통-규칙) |
-| `db.py` | MySQL 연결, 테이블·테스트 계정 생성, 예전 표에 새 칸 추가 | - |
+| `db.py` | MySQL 연결, 표 6개·테스트 계정 생성, 예전 표에 새 칸 추가, 요청 밖(합성 스레드)에서 쓰는 DB 세션 | [database.md 5. 테이블 구성](../docs/database.md#5-테이블-구성) |
 | `auth.py`, `routers/auth.py` | 로그인, 회원가입, 내 정보, 로그아웃, 로그인 시간 연장, 마이페이지 계정 설정 | [2. 계정 관리 API](../docs/api.md#2-계정-관리-api) |
 | `routers/images.py` | 이미지 업로드 | [3-1. 이미지 업로드](../docs/api.md#3-1-이미지-업로드) |
 | `routers/extract.py` | 상의 영역 추출 (SAM2) | [4-1. 상의 영역 추출](../docs/api.md#4-1-상의-영역-추출) |
@@ -21,7 +21,7 @@
 | `routers/results.py` | 결과 조회, 목록, 저장·좋아요 | [6. 합성 결과 관리 API](../docs/api.md#6-합성-결과-관리-api-작업-기록-사진첩) |
 | `routers/files.py` | 이미지 파일 조회 | [7. 이미지 파일 조회 API](../docs/api.md#7-이미지-파일-조회-api) |
 | `file_keys.py` | 이미지 파일 주소 열쇠 발급·확인 (3시간 유효) | [7. 이미지 파일 조회 API](../docs/api.md#7-이미지-파일-조회-api) |
-| `storage.py` | 저장 기록 읽기, 소유자 확인 | - |
+| `storage.py` | DB에서 이미지·추출 결과·작업 기록 읽기, 소유자 확인 | - |
 | `gpu.py` | GPU 작업 순서 제어 | - |
 
 ## 3. 환경 변수
@@ -48,3 +48,19 @@
 - 프로필 사진: 사진 업로드와 동일한 jpg·png, 10MB 이하 검사 → 휴대폰 회전 정보 반영 → 중앙 정사각형 256px로 `storage/avatars/avt_xxx.jpg` 저장. EXIF 미저장. 변경마다 새 파일명 부여로 브라우저 캐시의 이전 사진 표시 방지
 - 프로필 사진 주소: 다른 사진과 동일하게 `?key=` 열쇠가 붙은 `/api/files/avt_...` 주소. `config.py` `FILE_DIRS`의 `avt`
 - 시험: `MOA_WARMUP=0` 설정의 8001 포트 별도 서버에서 22개 사례 확인. 형식 오류 400, 비밀번호 불일치 400, 중복 이메일 409, 비밀번호 변경 후 타 기기 토큰 401, 사진 256×256·EXIF 없음
+
+## 5. 저장 방식
+
+- 정보: MySQL 표 6개 ([database.md 5. 테이블 구성](../docs/database.md#5-테이블-구성))
+- 이미지 파일: `storage/` (저장소 제외, PC마다 따로)
+  - `images`, `extractions`, `jobs`, `results`, `avatars` 폴더, 파일 주소 열쇠의 비밀값 `.file_key`
+- 메모리: 합성 대기열, 진행 중 작업 정보. 진행 상태가 바뀔 때마다 `jobs`에도 기록해 서버 재시작 뒤에도 조회 가능
+- 요청 밖(합성 스레드)에서 DB를 쓸 때는 `db.open_session()`으로 별도 세션 사용
+- DB 연결 실패: 서버는 실행, 로그인이 필요한 모든 API는 503 `DB_UNAVAILABLE`
+- DB 기록 실패 시 동작
+  - 합성 중 작업 상태를 DB에 적지 못함: 합성은 계속 진행, 서버 창에 로그
+  - 결과를 DB에 적지 못함: 방금 만든 결과 이미지를 지우고 작업을 `failed` (`COMPOSE_FAILED`)로 종료
+- 정리 (결과 목록 조회, 최근 사용한 이미지 목록 조회 때)
+  - 저장하지 않은 합성 결과: 24시간 후 `results` 기록과 이미지 파일 삭제 (`RESULT_KEEP_HOURS`)
+  - 업로드 이미지: 24시간 후 최근 사용한 이미지 목록에서만 제외, 기록과 파일 유지 (`RECENT_IMAGE_KEEP_HOURS`)
+- 예전 json 기록을 가져오는 방법: [database.md 6. 예전 기록 가져오기](../docs/database.md#6-예전-기록-가져오기)

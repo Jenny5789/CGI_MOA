@@ -3,14 +3,14 @@
 - 접속 정보: backend/.env 의 DATABASE_URL (각자 컴퓨터의 MySQL, GitHub에 올리지 않음). 만드는 법: docs/database.md
 - 서버가 켜질 때 init_db()가 표가 없으면 만들고, 시험용 회원 test / test1234 를 넣는다
 - 예전에 만든 표에 새 칸이 없으면 추가한다 (_add_missing_columns, 10/17 회원가입 전화번호 phone, 10/20 소개 글 bio·프로필 사진 avatar)
-- DB에 접속하지 못해도 서버는 켜진다 (추출·합성은 DB를 안 씀). 그때 로그인 관련 주소만 503
+- DB에 접속하지 못해도 서버는 켜진다. 그때 로그인이 필요한 주소는 모두 503
 """
 import logging
 import os
 from datetime import datetime, timezone
 
 from dotenv import load_dotenv
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, create_engine, inspect, select, text
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, create_engine, inspect, select, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
 from backend.config import ROOT
@@ -58,6 +58,64 @@ class UploadedImage(Base):
     height: Mapped[int] = mapped_column(Integer)
     content_hash: Mapped[str] = mapped_column(String(64))  # 올린 파일의 SHA-256. 같은 파일은 목록에 한 번만
     from_sample: Mapped[bool] = mapped_column(Boolean, default=False)  # 예시 사진에서 고른 것 (최근 목록에서 뺌)
+    created_at: Mapped[datetime] = mapped_column(DateTime, index=True)  # UTC
+
+
+class Extraction(Base):
+    """상의 추출 결과 기록 (명세 4-1, 11/2 json에서 옮김). 윤곽·cutout 사진 파일은 storage/extractions에 두고, 여기엔 정보만"""
+    __tablename__ = "extractions"
+
+    extraction_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    image_id: Mapped[str] = mapped_column(ForeignKey("images.image_id", ondelete="CASCADE"), index=True)  # 추출한 상의 사진
+    width: Mapped[int] = mapped_column(Integer)  # 상의 사진 크기 (합성에서 다듬은 윤곽의 크기를 맞출 때 씀)
+    height: Mapped[int] = mapped_column(Integer)
+    mask: Mapped[str] = mapped_column(String(64))  # 상의 윤곽 파일 이름 ext_xxx_mask.png
+    cutout: Mapped[str] = mapped_column(String(64))  # 배경을 지운 상의 파일 이름 ext_xxx_cutout.png
+    seconds: Mapped[float] = mapped_column(Float)  # SAM2 추출에 걸린 시간(초)
+    detail: Mapped[dict] = mapped_column(JSON)  # 재현·분석용: points(찍은 점), box(그린 박스, 없으면 null), bbox(상의를 감싸는 사각형)
+    created_at: Mapped[datetime] = mapped_column(DateTime)  # UTC
+
+
+class Job(Base):
+    """합성 작업 기록 (명세 5-1, 5-2, 11/2 json에서 옮김). 입힐 영역·다듬은 윤곽 그림 파일은 storage/jobs에 두고, 여기엔 진행 상태와 합성 설정만.
+    진행 중인 작업의 대기열 순서는 메모리(routers/compose.py)가 맡고, 여기는 서버를 다시 켠 뒤에도 남는 기록"""
+    __tablename__ = "jobs"
+
+    job_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    extraction_id: Mapped[str] = mapped_column(ForeignKey("extractions.extraction_id", ondelete="CASCADE"), index=True)
+    person_image_id: Mapped[str] = mapped_column(ForeignKey("images.image_id", ondelete="CASCADE"), index=True)
+    status: Mapped[str] = mapped_column(String(10))  # queued 대기 / running 진행 중 / done 완료 / failed 실패
+    progress: Mapped[float] = mapped_column(Float, default=0.0)  # 0~1
+    result_id: Mapped[str | None] = mapped_column(String(32), nullable=True)  # 완료되면 결과 번호 (res_...)
+    error: Mapped[dict | None] = mapped_column(JSON(none_as_null=True), nullable=True)  # 실패하면 { code, message }
+    area_mask: Mapped[str] = mapped_column(String(64))  # 입힐 영역 그림 파일 이름 job_xxx_area.png
+    garment_mask: Mapped[str | None] = mapped_column(String(64), nullable=True)  # 다듬은 상의 윤곽 파일 이름 (없으면 추출 단계의 윤곽)
+    refine: Mapped[bool] = mapped_column(Boolean, default=False)  # 합성 설정: 상의 경계 다듬기
+    shape_control: Mapped[bool] = mapped_column(Boolean, default=False)  # 합성 설정: 칠한 모양 그대로
+    seed: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime)  # UTC
+    started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class Result(Base):
+    """합성 결과 기록 (명세 5-3, 6-1, 6-2, 11/2 json에서 옮김). 결과 사진(res_xxx.png)과 작은 사진(res_xxx_thumb.jpg)은 storage/results에 두고,
+    여기엔 정보와 사진첩 상태(저장·좋아요)만. 사진 주소(image_url, thumb_url)는 저장하지 않고 결과 번호에서 만들어 응답한다"""
+    __tablename__ = "results"
+
+    result_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    job_id: Mapped[str | None] = mapped_column(ForeignKey("jobs.job_id", ondelete="SET NULL"), nullable=True, index=True)
+    extraction_id: Mapped[str | None] = mapped_column(ForeignKey("extractions.extraction_id", ondelete="SET NULL"), nullable=True, index=True)
+    # 사진 행이 지워지면 저장한 결과까지 사라지지 않도록 지우기를 막는다 (ondelete 없음)
+    garment_image_id: Mapped[str] = mapped_column(ForeignKey("images.image_id"), index=True)
+    person_image_id: Mapped[str] = mapped_column(ForeignKey("images.image_id"), index=True)
+    saved: Mapped[bool] = mapped_column(Boolean, default=False)  # 사진첩에 저장
+    favorite: Mapped[bool] = mapped_column(Boolean, default=False)  # 좋아요 (사진첩의 좋아요 탭은 저장한 것 중에서만)
+    seed: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    detail: Mapped[dict] = mapped_column(JSON, default=dict)  # 재현·분석용: seam_fix, crop_box, restore_original, garment_found (옛 기록엔 일부만)
     created_at: Mapped[datetime] = mapped_column(DateTime, index=True)  # UTC
 
 
@@ -123,3 +181,11 @@ def get_db():
         raise ApiError(503, "DB_UNAVAILABLE", "로그인 서버(DB)에 연결되어 있지 않습니다.")
     with _SessionLocal() as s:
         yield s
+
+
+def open_session():
+    """요청 밖(합성 일꾼 스레드, backend/storage.py 기록 읽기)에서 쓰는 DB 세션. `with open_session() as s:` 로 쓰면 끝날 때 닫힌다.
+    스레드끼리 세션을 나눠 쓰지 않도록 부를 때마다 새로 연다"""
+    if _SessionLocal is None:
+        raise ApiError(503, "DB_UNAVAILABLE", "로그인 서버(DB)에 연결되어 있지 않습니다.")
+    return _SessionLocal()
