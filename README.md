@@ -206,15 +206,21 @@ erDiagram
 
 ## 3. 처리 흐름
 
+- 단계별 화면과 요청 흐름. 번호는 요청 순서
+
+### 3-1. 사진 선택 · 업로드
+
+<p align="center">
+  <img src="docs/readme/flow_1.jpg" alt="상의 사진 선택, 인물 사진 선택 화면" width="100%">
+</p>
+
 ```mermaid
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#f4f2ee','primaryBorderColor':'#8c1d2b','primaryTextColor':'#222222','lineColor':'#444444','noteBkgColor':'#8c1d2b','noteTextColor':'#ffffff','noteBorderColor':'#8c1d2b','labelBoxBkgColor':'#8c1d2b','labelBoxBorderColor':'#8c1d2b','labelTextColor':'#ffffff','loopTextColor':'#8c1d2b','signalColor':'#444444','signalTextColor':'#222222'}}}%%
 sequenceDiagram
     participant U as 사용자
     participant F as Frontend
     participant B as Backend
-    participant A as AI 모듈
     participant S as DB · storage
-
-    Note over U,S: 1. 사진 선택 · 업로드
     F->>B: 1-1. GET /api/images/recent
     B->>S: 1-2. images 조회
     B-->>F: 1-3. 최근 사용한 사진 목록 (24시간)
@@ -226,8 +232,22 @@ sequenceDiagram
     else 최근 사용한 사진 선택
         Note over F: 기존 image_id 사용, 업로드 생략
     end
+```
 
-    Note over U,S: 2. 상의 영역 분할
+### 3-2. 상의 영역 분할
+
+<p align="center">
+  <img src="docs/readme/flow_2.jpg" alt="포함·제외 점 지정, 상의 영역 수정 화면" width="100%">
+</p>
+
+```mermaid
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#f4f2ee','primaryBorderColor':'#8c1d2b','primaryTextColor':'#222222','lineColor':'#444444','noteBkgColor':'#8c1d2b','noteTextColor':'#ffffff','noteBorderColor':'#8c1d2b','labelBoxBkgColor':'#8c1d2b','labelBoxBorderColor':'#8c1d2b','labelTextColor':'#ffffff','loopTextColor':'#8c1d2b','signalColor':'#444444','signalTextColor':'#222222'}}}%%
+sequenceDiagram
+    participant U as 사용자
+    participant F as Frontend
+    participant B as Backend
+    participant A as AI 모듈
+    participant S as DB · storage
     U->>F: 2-1. 상의 사진에 포함 · 제외 점 지정
     F->>B: 2-2. POST /api/extract
     B->>A: 2-3. SAM2 분할
@@ -235,8 +255,22 @@ sequenceDiagram
     B->>S: 2-5. 마스크 파일 저장, extractions 기록
     B-->>F: 2-6. 상의 마스크
     U->>F: 2-7. 마스크 편집기 보정
+```
 
-    Note over U,S: 3. 착용 영역 분할
+### 3-3. 착용 영역 분할
+
+<p align="center">
+  <img src="docs/readme/flow_3.jpg" alt="착용 영역 지정 화면" width="100%">
+</p>
+
+```mermaid
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#f4f2ee','primaryBorderColor':'#8c1d2b','primaryTextColor':'#222222','lineColor':'#444444','noteBkgColor':'#8c1d2b','noteTextColor':'#ffffff','noteBorderColor':'#8c1d2b','labelBoxBkgColor':'#8c1d2b','labelBoxBorderColor':'#8c1d2b','labelTextColor':'#ffffff','loopTextColor':'#8c1d2b','signalColor':'#444444','signalTextColor':'#222222'}}}%%
+sequenceDiagram
+    participant U as 사용자
+    participant F as Frontend
+    participant B as Backend
+    participant A as AI 모듈
+    participant S as DB · storage
     U->>F: 3-1. 인물 사진에 포함 · 제외 점 지정
     F->>B: 3-2. POST /api/extract
     B->>A: 3-3. SAM2 분할
@@ -244,9 +278,23 @@ sequenceDiagram
     B->>S: 3-5. 마스크 파일 저장, extractions 기록
     B-->>F: 3-6. 착용 영역 마스크
     U->>F: 3-7. 마스크 편집기 보정
+```
 
-    Note over U,S: 4. 착용 합성
-    U->>F: 4-1. 합성 요청
+### 3-4. 착용 합성
+
+<p align="center">
+  <img src="docs/readme/flow_4.jpg" alt="합성 설정, 합성 진행 화면" width="100%">
+</p>
+
+```mermaid
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#f4f2ee','primaryBorderColor':'#8c1d2b','primaryTextColor':'#222222','lineColor':'#444444','noteBkgColor':'#8c1d2b','noteTextColor':'#ffffff','noteBorderColor':'#8c1d2b','labelBoxBkgColor':'#8c1d2b','labelBoxBorderColor':'#8c1d2b','labelTextColor':'#ffffff','loopTextColor':'#8c1d2b','signalColor':'#444444','signalTextColor':'#222222'}}}%%
+sequenceDiagram
+    participant U as 사용자
+    participant F as Frontend
+    participant B as Backend
+    participant A as AI 모듈
+    participant S as DB · storage
+    U->>F: 4-1. 합성 옵션 선택, 합성 요청
     F->>B: 4-2. POST /api/compose
     B->>S: 4-3. 착용 영역 마스크 저장, jobs 기록
     B-->>F: 4-4. job_id, 대기 순번
@@ -257,14 +305,29 @@ sequenceDiagram
     end
     A-->>B: 4-8. 합성 결과
     B->>S: 4-9. 결과 파일 저장, results 기록, jobs 완료 처리
+```
 
-    Note over U,S: 5. 결과 확인 · 저장
+### 3-5. 결과 확인 · 저장
+
+<p align="center">
+  <img src="docs/readme/flow_5.jpg" alt="합성 결과 화면" width="100%">
+</p>
+
+```mermaid
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#f4f2ee','primaryBorderColor':'#8c1d2b','primaryTextColor':'#222222','lineColor':'#444444','noteBkgColor':'#8c1d2b','noteTextColor':'#ffffff','noteBorderColor':'#8c1d2b','labelBoxBkgColor':'#8c1d2b','labelBoxBorderColor':'#8c1d2b','labelTextColor':'#ffffff','loopTextColor':'#8c1d2b','signalColor':'#444444','signalTextColor':'#222222'}}}%%
+sequenceDiagram
+    participant U as 사용자
+    participant F as Frontend
+    participant B as Backend
+    participant S as DB · storage
     F->>B: 5-1. GET /api/results/{result_id}
     B-->>F: 5-2. 결과 사진
     U->>F: 5-3. 사진첩 저장 · 좋아요
     F->>B: 5-4. PATCH /api/results/{result_id}
     B->>S: 5-5. results 저장·좋아요 갱신
 ```
+
+### 3-6. API 요약
 
 | 단계 | 메서드 | 경로 | 요청 내용 |
 |---|---|---|---|
