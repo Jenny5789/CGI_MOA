@@ -3,7 +3,7 @@
 ## 1. 개요
 
 - 대상: 백엔드 (FastAPI + SAM2 + AnyDoor)와 화면 (`frontend/` 빌드 결과를 nginx로 제공). 화면 코드는 바꾸지 않고 그대로 빌드
-- 구성: 브라우저 → `web` (nginx, 5180번) → `/api` 요청은 `backend` (FastAPI, 8000번)로 전달. 화면과 `/api`가 같은 주소라 CORS 설정이 필요 없음
+- 구성: 브라우저 → `web` (nginx, 5180번) → `/api` 요청은 `backend` (FastAPI, 8000번)로 전달. 화면과 `/api`가 같은 주소라 CORS 설정이 필요 없음. backend 8000번은 기본으로 이 PC에서만 접속되고 (`BACKEND_BIND`), 외부에는 web 5180번만 열림
 - 파일 (프로젝트 맨 위 폴더)
   - `Dockerfile`: backend 이미지 만드는 순서
   - `web.Dockerfile`: 화면 이미지 만드는 순서 (Node로 빌드 → nginx에 복사)
@@ -51,6 +51,7 @@
 | `MOA_WARMUP` | - | `1` | `0`이면 서버 시작 시 AnyDoor 로딩·예열 생략 |
 | `VITE_API_MODE` | - | `mixed` | 화면의 API 모드. 빌드할 때 굳으므로 바꾸면 `docker compose up --build -d`로 다시 빌드. `mock` 가짜 서버, `mixed` 실제+가짜, `real` 전부 실제 |
 | `WEB_PORT` | - | `5180` | 화면이 열리는 PC 쪽 포트 |
+| `BACKEND_BIND` | - | `127.0.0.1` | backend 8000번에 접속할 수 있는 주소. 기본은 이 PC에서만. 다른 PC에서 8000번으로 직접 접속해야 하면 `0.0.0.0` |
 
 ## 4. 확인
 
@@ -77,6 +78,11 @@
 | 코드 변경 반영 | `docker compose up --build -d` |
 | 화면만 다시 빌드 | `docker compose up --build -d --no-deps web` (backend는 재시작되지 않아 예열을 다시 기다리지 않음) |
 | 데이터까지 삭제 | `docker compose down -v` (볼륨 `moa_storage`의 올린 사진·결과·DB 삭제) |
+| 설정 변경 반영 | `docker compose up -d` (`docker-compose.yml`·`.env`를 바꾼 뒤. 컨테이너가 다시 만들어지고 backend는 AnyDoor 예열을 다시 함, 볼륨 데이터는 유지) |
+| 헬스체크 상태 | `docker ps`의 `STATUS`에 `healthy` 표시. backend는 서버 응답만 보고, 합성 준비 여부는 `/api/health`의 `warmup` |
+
+- 자동 시작: backend·web 모두 `restart: unless-stopped`. 컨테이너가 스스로 종료되거나 Docker가 다시 시작되면 자동으로 켜짐. `docker compose stop·down`이나 `docker stop·kill`로 멈춘 것은 사람이 멈춘 것으로 보고 다시 켜지 않음
+- 로그: 컨테이너마다 10MB 파일 3개까지 보관 (`docker logs`로 확인)
 
 ## 6. 저장 위치와 DB
 
@@ -94,6 +100,7 @@
 | `warmup`이 `running`에서 오래 머묾 | AnyDoor 가중치(16.8GB)를 읽는 중 | `docker logs -f moa-backend`로 진행 확인 |
 | 화면이 가짜 데이터(`mock`)로 동작 | 화면을 빌드할 때 `VITE_API_MODE`가 `mock`이었음 | `.env`의 `VITE_API_MODE` 확인 후 `docker compose up --build -d --no-deps web` |
 | 5180번 포트가 이미 사용 중이라는 오류 | 다른 프로그램(예: `npm run dev`)이 5180번 사용 | 그 프로그램 종료 또는 `.env`의 `WEB_PORT` 변경 (터널 주소도 함께 변경) |
+| 다른 PC에서 8000번으로 접속이 안 됨 | 기본값이 `127.0.0.1`이라 이 PC에서만 열림 (다른 PC는 5180번으로 접속) | 8000번 직접 접속이 필요하면 `.env`에 `BACKEND_BIND=0.0.0.0` 적고 `docker compose up -d` |
 | 사진을 올리면 "요청을 처리하지 못했습니다" | 20MB를 넘는 파일을 nginx가 거절 (413). 10~20MB는 "사진은 10MB 이하만 올릴 수 있습니다."가 표시됨 | 사진을 10MB 이하로 줄여 올림 |
 
 ## 8. 확인한 범위
@@ -101,4 +108,5 @@
 - 환경: Windows 11, Docker Desktop 29.8.0 (WSL2), RTX 3080 10GB, 도커 메모리 `memory=24GB`
 - 확인한 것: backend·web 이미지 빌드, 컨테이너 실행, `/api/health`, `/docs`, 로그인, 사진 올리기, SAM2 추출, AnyDoor 합성 (API로 호출, backend 8000번과 web 5180번 경유 모두), 합성 중 로그 오류 없음
 - 화면 (5180번) 확인: 홈 화면 열림, 브라우저에서 `test` 로그인 (`/api/auth/login`, `/api/me` 요청 확인), 마이페이지 주소 직접 열기, 업로드 상한 (12MB는 backend 응답, 25MB는 nginx 413)
-- 확인하지 않은 것: 화면에서 마우스로 하는 전체 합성 흐름, Cloudflare 터널 연결, 컨테이너를 껐다 켠 뒤 데이터 유지, 요청 동시 처리, 리눅스·학교 서버 실행
+- 운영 설정 확인: 컨테이너를 삭제하고 다시 만든 뒤 데이터 유지 (결과 번호, 사진·추출·작업·결과 파일 개수, DB 크기, `.file_key` 해시가 재생성 전과 같음), backend 8000번 제한 (이 PC의 4개 주소 모두 거절, 5180번은 모두 접속됨), 헬스체크 `healthy`, 재시작 정책 (web의 nginx를 종료하자 3초 안에 자동 재시작, `docker kill`로 종료한 경우는 재시작하지 않음)
+- 확인하지 않은 것: 화면에서 마우스로 하는 전체 합성 흐름, Cloudflare 터널 연결, 다른 PC에서 5180번 접속 (Windows 방화벽 설정 포함), 서버 재부팅 후 자동 시작, backend 자동 재시작 (예열을 다시 함), 요청 동시 처리, 리눅스·학교 서버 실행
