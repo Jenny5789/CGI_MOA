@@ -28,6 +28,9 @@ storage/
 # 서버 DB 접속 정보 (각자 비밀번호, 본보기는 backend/.env.example)
 backend/.env
 
+# 도커 실행 설정 (각자 PC의 가중치 폴더 경로, 본보기는 .env.docker.example)
+/.env
+
 # 개인 작업 메모 (팀 공유 안 함)
 docs/작업메모.md
 

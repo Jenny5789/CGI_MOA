@@ -1,0 +1,38 @@
+# MOA 백엔드 실행 (GPU)
+# 처음: .env.docker.example 을 .env 로 복사하고 가중치 폴더 경로를 고친다
+# 실행: docker compose up --build   (확인: http://localhost:8000/api/health)
+name: moa
+services:
+  backend:
+    build: .
+    image: moa-backend
+    container_name: moa-backend
+    ports:
+      - "8000:8000"
+    environment:
+      # 처음에는 SQLite 파일 (storage 볼륨 안). MySQL은 이게 되고 난 뒤에 붙인다
+      DATABASE_URL: sqlite:///storage/moa_trial.db
+      MOA_WARMUP: ${MOA_WARMUP:-1}
+    volumes:
+      # AnyDoor 가중치 2개: epoch=1-step=8687.ckpt, dinov2_vitg14_pretrain.pth
+      - type: bind
+        source: ${ANYDOOR_WEIGHTS_DIR:?.env 에 ANYDOOR_WEIGHTS_DIR 를 적어 주세요 (.env.docker.example 참고)}
+        target: /opt/AnyDoor/path
+        read_only: true
+      # SAM2 가중치: sam2.1_hiera_base_plus.pt (기본값은 프로젝트 안 checkpoints/sam2)
+      - type: bind
+        source: ${SAM2_WEIGHTS_DIR:-./checkpoints/sam2}
+        target: /models/sam2
+        read_only: true
+      # 올린 사진, 결과, SQLite 파일 (컨테이너를 지워도 남음)
+      - storage:/app/storage
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+volumes:
+  storage:
