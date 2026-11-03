@@ -8,7 +8,7 @@
   - `docker-compose.yml`: 실행 방법 (포트, 가중치 연결, GPU, 저장 위치)
   - `.dockerignore`: 이미지에 넣지 않을 것 (`backend/.env`, `storage/`, `checkpoints/`, `frontend/`, `docs/` 등)
   - `.env.docker.example`: 설정 본보기
-- 이미지: `nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04` 기반, Python 3.10, PyTorch 2.5.1 (CUDA 12.1), AnyDoor 공식 코드 커밋 `44ca2b2` ([README 설치 4](../README.md#설치-4-python-패키지)·[설치 5](../README.md#설치-5-ai-모델-준비)와 같은 버전)
+- 이미지: `nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04` 기반, Python 3.10, PyTorch 2.5.1 (CUDA 12.1), AnyDoor 공식 코드 커밋 `44ca2b2` ([README 7-2. 설치](../README.md#7-2-설치)와 같은 버전)
 - 모델 가중치는 이미지에 넣지 않고 실행 시 PC 폴더를 읽기 전용으로 연결 (합계 약 21.7GB)
 
 ## 2. 준비물
@@ -19,7 +19,7 @@
 | GPU | VRAM 10GB 이상 (RTX 3080 10GB에서 확인) |
 | 도커 메모리 | 24GB 이상. AnyDoor 가중치를 읽는 동안 컨테이너 최고 22.6GiB (한도 23.47GiB에서 확인, 여유 거의 없음). Windows는 `%USERPROFILE%\.wslconfig`의 `memory`로 지정 |
 | 디스크 | 이미지 약 15.7GB |
-| 가중치 | 아래 3개 파일 ([README 설치 5](../README.md#설치-5-ai-모델-준비)로 받음) |
+| 가중치 | 아래 3개 파일 ([README 7-2. 설치](../README.md#7-2-설치)로 받음) |
 
 | 파일 | 크기 | 폴더 설정 |
 |---|---|---|
@@ -27,7 +27,7 @@
 | `dinov2_vitg14_pretrain.pth` | 약 4.5GB | `ANYDOOR_WEIGHTS_DIR` |
 | `sam2.1_hiera_base_plus.pt` | 약 309MB | `SAM2_WEIGHTS_DIR` (기본 `./checkpoints/sam2`) |
 
-- README 설치 5대로 받았다면 `ANYDOOR_WEIGHTS_DIR`은 `checkpoints/AnyDoor/path` 폴더 (컨테이너 `/opt/AnyDoor/path`에 연결)
+- README 7-2대로 받았다면 `ANYDOOR_WEIGHTS_DIR`은 `checkpoints/AnyDoor/path` 폴더 (컨테이너 `/opt/AnyDoor/path`에 연결)
 
 ## 3. 실행
 
