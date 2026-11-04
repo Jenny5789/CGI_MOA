@@ -3,7 +3,7 @@
 ## 1. 개요
 
 - 구성: 팀원마다 자기 PC의 MySQL에 같은 이름으로 구축
-- 대상: 정식 설치. MySQL 없이 체험하는 경우 [README 설치 6. 접속 설정 파일](../README.md#설치-6-접속-설정-파일)
+- 대상: 정식 설치. MySQL 없이 체험하는 경우 [README 7-2. 설치 6단계 접속 설정 파일 생성](../README.md#7-2-설치)
 - 구축 결과
 
 | 항목 | 이름 | 설명 |
@@ -45,7 +45,7 @@ GRANT ALL PRIVILEGES ON cgi.* TO 'cgi_app'@'localhost';
 
 ### 2-3. 접속 설정 파일 생성
 
-1. PowerShell에서 Repository 최상위 디렉터리 `CGI_MOA`로 이동. [README 설치 3. Repository와 conda 환경](../README.md#설치-3-repository와-conda-환경)에서 받은 위치
+1. PowerShell에서 Repository 최상위 디렉터리 `CGI_MOA`로 이동. [README 7-2. 설치 3단계 MOA 코드 다운로드, conda 환경 생성](../README.md#7-2-설치)에서 받은 위치
 
 ```powershell
 cd CGI_MOA

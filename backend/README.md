@@ -4,7 +4,7 @@
 
 - 역할: 프론트엔드 요청 처리 (로그인, 이미지 업로드, 상의 영역 추출 SAM2, 이미지 합성 AnyDoor, 합성 결과 관리)
 - API 명세: [docs/api.md](../docs/api.md)
-- 실행 방법: [README 백엔드 실행](../README.md#백엔드-실행)
+- 실행 방법: [README 7-3. 백엔드 서버 실행](../README.md#7-3-백엔드-서버-실행)
 - 도커로 실행: [docs/docker.md](../docs/docker.md)
 
 ## 2. 파일 구성
@@ -30,7 +30,7 @@
 | 이름 | 용도 | 기본값 | 설정 위치 |
 |---|---|---|---|
 | `DATABASE_URL` | MySQL 접속 정보 | 없음 (필수) | `backend/.env` ([database.md 2-3. 접속 설정 파일 생성](../docs/database.md#2-3-접속-설정-파일-생성)) |
-| `ANYDOOR_DIR` | AnyDoor 폴더 위치 | `Desktop\AnyDoor` | conda 환경에 저장: `conda env config vars set ANYDOOR_DIR=경로 -n CGI`, [README 설치 5](../README.md#설치-5-ai-모델-준비) |
+| `ANYDOOR_DIR` | AnyDoor 폴더 위치 | `Desktop\AnyDoor` | conda 환경에 저장: `conda env config vars set ANYDOOR_DIR=경로 -n CGI`, [README 7-2. 설치 5단계](../README.md#7-2-설치) |
 | `MOA_WARMUP` | `0`이면 서버 시작 시 AnyDoor 모델 로딩(1~2분) 생략 | `1` (로딩함) | 실행 전 PowerShell `$env:MOA_WARMUP="0"` |
 | `MOA_SEAM_FIX` | `0`이면 합성 후 박스 선 보정 생략 ([features/composition/README.md](../features/composition/README.md#박스-선-보정-seampy)) | `1` (보정함) | 실행 전 PowerShell `$env:MOA_SEAM_FIX="0"` |
 
