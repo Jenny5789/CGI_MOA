@@ -742,7 +742,7 @@ cloudflared tunnel --no-autoupdate --url http://localhost:5180
 CGI_MOA/
 ├── README.md
 ├── requirements.txt                 Python 의존 패키지
-├── Dockerfile · web.Dockerfile      Docker 이미지 (backend, web)
+├── Dockerfile · frontend.Dockerfile Docker 이미지 (backend, frontend)
 ├── docker-compose.yml · nginx.conf  Docker 실행 구성 (docs/docker.md)
 ├── frontend/                        React 웹 화면 (Vite)
 │   ├── README.md                    화면 구성, 합성 흐름, 사용 API
