@@ -27,8 +27,14 @@ RUN python3 -m pip install -r requirements.txt
 RUN python3 -m pip install xformers==0.0.28.post3 --no-deps \
     --index-url https://download.pytorch.org/whl/cu121
 
+RUN git clone https://github.com/ali-vilab/AnyDoor /opt/AnyDoor \
+    && git -C /opt/AnyDoor checkout 44ca2b2
+
 COPY backend backend
 COPY features features
+
+ENV ANYDOOR_DIR=/opt/AnyDoor \
+    SAM2_CHECKPOINT=/models/sam2/sam2.1_hiera_base_plus.pt
 
 EXPOSE 8000
 
