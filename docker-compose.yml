@@ -1,47 +1,25 @@
-# MOA 실행: backend (FastAPI, GPU) + web (화면, nginx)
-# 처음: .env.docker.example 을 .env 로 복사하고 가중치 폴더 경로를 고친다
-# 실행: docker compose up --build -d   (확인: 화면 http://localhost:5180 , 서버 http://localhost:8000/api/health)
-name: moa
+# MOA 실행 묶음: backend (서버, GPU) + mysql (DB) + frontend (화면)
+# 처음: .env.docker.example 을 .env 로 복사하고 값을 채운다
+# 실행: docker compose up --build -d
+
+name: cgimoa
+
 services:
   backend:
     build: .
-    image: moa-backend
-    container_name: moa-backend
-    # 서버를 다시 켜거나 Docker가 다시 시작해도 자동으로 켜짐 (docker compose stop·down 으로 멈춘 경우는 제외)
-    restart: unless-stopped
+    image: cgimoa-backend
+    container_name: cgimoa-backend
     ports:
-      # 기본은 이 PC에서만 접속 (외부는 web 의 5180번으로 들어옴). 다른 PC가 8000번으로 직접 접속해야 하면 .env 에 BACKEND_BIND=0.0.0.0
-      - "${BACKEND_BIND:-127.0.0.1}:8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
-      # 처음에는 SQLite 파일 (storage 볼륨 안). MySQL은 이게 되고 난 뒤에 붙인다
-      DATABASE_URL: sqlite:///storage/moa_trial.db
-      MOA_WARMUP: ${MOA_WARMUP:-1}
+      DATABASE_URL: mysql+pymysql://${MYSQL_USER}:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE}
     volumes:
-      # AnyDoor 가중치 2개: epoch=1-step=8687.ckpt, dinov2_vitg14_pretrain.pth
-      - type: bind
-        source: ${ANYDOOR_WEIGHTS_DIR:?.env 에 ANYDOOR_WEIGHTS_DIR 를 적어 주세요 (.env.docker.example 참고)}
-        target: /opt/AnyDoor/path
-        read_only: true
-      # SAM2 가중치: sam2.1_hiera_base_plus.pt (기본값은 프로젝트 안 checkpoints/sam2)
-      - type: bind
-        source: ${SAM2_WEIGHTS_DIR:-./checkpoints/sam2}
-        target: /models/sam2
-        read_only: true
-      # 올린 사진, 결과, SQLite 파일 (컨테이너를 지워도 남음)
+      - ${ANYDOOR_WEIGHTS_DIR}:/opt/AnyDoor/path:ro
+      - ${SAM2_WEIGHTS_DIR}:/models/sam2:ro
       - storage:/app/storage
-    healthcheck:
-      # 서버가 응답하는지만 봄 (AnyDoor 예열 완료는 보지 않음, 예열은 약 8.5분). 이미지에 curl 이 없어 python 사용
-      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 60s
-    logging:
-      # 로그 파일이 계속 커지지 않게 (파일당 10MB, 3개까지 보관)
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
+    depends_on:
+      mysql:
+        condition: service_healthy
     deploy:
       resources:
         reservations:
@@ -50,32 +28,34 @@ services:
               count: all
               capabilities: [gpu]
 
-  web:
+  mysql:
+    image: mysql:8.0.46
+    container_name: cgimoa-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  frontend:
     build:
       context: .
-      dockerfile: web.Dockerfile
-      args:
-        # 화면의 API 모드 (빌드할 때 굳음, 바꾸면 다시 빌드): mock 가짜 서버 / mixed 실제+가짜 / real 전부 실제
-        VITE_API_MODE: ${VITE_API_MODE:-mixed}
-    image: moa-web
-    container_name: moa-web
-    restart: unless-stopped
+      dockerfile: frontend.Dockerfile
+    image: cgimoa-frontend
+    container_name: cgimoa-frontend
     ports:
-      # 화면과 /api 의 입구. Cloudflare 터널은 이 포트로 연결 (README 7-5: --url http://localhost:5180)
-      - "${WEB_PORT:-5180}:80"
+      - "127.0.0.1:5180:80"
     depends_on:
-      backend:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
+      - backend
 
 volumes:
   storage:
+  mysql-data:
