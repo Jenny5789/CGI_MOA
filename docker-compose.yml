@@ -1,0 +1,50 @@
+# MOA 실행 묶음: backend (서버, GPU) + mysql (DB)
+# 처음: .env.docker.example 을 .env 로 복사하고 값을 채운다
+# 실행: docker compose up --build -d
+
+name: cgimoa
+
+services:
+  backend:
+    build: .
+    image: cgimoa-backend
+    container_name: cgimoa-backend
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      DATABASE_URL: mysql+pymysql://${MYSQL_USER}:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE}
+    volumes:
+      - ${ANYDOOR_WEIGHTS_DIR}:/opt/AnyDoor/path:ro
+      - ${SAM2_WEIGHTS_DIR}:/models/sam2:ro
+      - storage:/app/storage
+    depends_on:
+      mysql:
+        condition: service_healthy
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  mysql:
+    image: mysql:8.0.46
+    container_name: cgimoa-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+volumes:
+  storage:
+  mysql-data:
