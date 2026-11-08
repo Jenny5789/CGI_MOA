@@ -27,4 +27,9 @@ RUN python3 -m pip install -r requirements.txt
 RUN python3 -m pip install xformers==0.0.28.post3 --no-deps \
     --index-url https://download.pytorch.org/whl/cu121
 
-CMD ["python3", "--version"]
+COPY backend backend
+COPY features features
+
+EXPOSE 8000
+
+CMD ["python3", "-m", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
