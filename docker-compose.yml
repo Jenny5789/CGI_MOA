@@ -1,4 +1,4 @@
-# MOA 실행 묶음: backend (서버, GPU) + mysql (DB)
+# MOA 실행 묶음: backend (서버, GPU) + mysql (DB) + frontend (화면)
 # 처음: .env.docker.example 을 .env 로 복사하고 값을 채운다
 # 실행: docker compose up --build -d
 
@@ -44,6 +44,17 @@ services:
       timeout: 5s
       retries: 12
       start_period: 30s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend.Dockerfile
+    image: cgimoa-frontend
+    container_name: cgimoa-frontend
+    ports:
+      - "127.0.0.1:5180:80"
+    depends_on:
+      - backend
 
 volumes:
   storage:
