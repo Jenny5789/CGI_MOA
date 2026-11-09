@@ -1,0 +1,6 @@
+# model_server/Dockerfile 전용 제외 목록. 필요한 폴더만 허용
+# 가중치·가상 환경·데이터 폴더가 빌드 자료로 전송되지 않게 전부 제외 후 허용
+*
+!features/**
+!model_server/**
+**/__pycache__
