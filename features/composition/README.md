@@ -33,11 +33,15 @@ result = compose(ref_rgb, ref_mask, tar_rgb, tar_mask, seed=1234, on_progress=fn
 - 다시 그리는 범위: `tar_mask` 사각형(1.1배)을 다시 1.3배 넓힌 정사각형 (AnyDoor 기본 1.5~2.9배 무작위 대신 고정, `AnyDoorComposer(crop_ratio=...)`로 변경)
 - `warmup()`: 모델 로딩 + 2스텝 시험 합성 (백엔드 시작 시 자동 실행)
 - 모델은 첫 호출 시 1회 로딩 후 재사용
-- 계산 방식: float16, save_memory (화질 차이 없음, 2026-10-11 확인)
-- GPU 적재 방식: 2026-10-21부터 부품 단위 적재
-  - 모델 적재 시 큰 부품 네 개 CPU 유지, 사용 중인 묶음만 GPU 적재
+- 계산 방식: 16비트 연산·가중치. 32비트 가중치 대비 평균 픽셀 차이 0.033/255, 2026-11-09 확인
+- 가중치 적재 방식: 2026-11-09부터 적용
+  - mmap 적재: 가중치 파일을 RAM에 통째로 복사하지 않고 필요한 부분만 읽음
+  - 16비트 가중치: U-Net·ControlNet·VAE·DINOv2 네 부품을 16비트로 변환, 확산 일정 값은 32비트 유지
+  - DINOv2 중복 적재 생략: 합성 가중치 파일에 같은 값이 모두 있어 `dinov2_vitg14_pretrain.pth`를 읽지 않음
+  - 네 부품 GPU 상주: 16비트 기준 SAM2와 함께 올려도 VRAM 10GB 이내
+- `AnyDoorComposer(save_memory=True)`: VRAM이 더 작은 GPU용 부품 단위 적재, 2026-10-21 도입
+  - 큰 부품 네 개를 CPU에 두고 사용 중인 묶음만 GPU 적재
   - 묶음 교체 순서: 기존 묶음 해제 후 새 묶음 적재. `_shift_out_first`가 AnyDoor `low_vram_shift` 대체
-  - 가중치 · 연산 방식 동일, 결과 이미지 픽셀 단위 동일
 
 ### 원본 복원 후처리 (`restore.py`)
 
@@ -73,6 +77,7 @@ result = fix_seam(tar_rgb, result, last_crop_box())   # RGB uint8, 인물 이미
 | 이름 | 용도 | 기본값 |
 |---|---|---|
 | `ANYDOOR_DIR` | AnyDoor 폴더 위치 | `Desktop\AnyDoor` |
+| `ANYDOOR_CKPT` | 합성 가중치 파일, 16비트 추론용 파일 지정 권장 | AnyDoor `configs/inference.yaml`의 원본 파일 |
 | `MOA_RESTORE_ORIGINAL` | 서버의 원본 복원 후처리 켜기(1)·끄기(0) | `1` |
 | `MOA_SEAM_FIX` | 서버의 박스 선 보정 켜기(1)·끄기(0) | `1` |
 
@@ -84,18 +89,21 @@ result = fix_seam(tar_rgb, result, last_crop_box())   # RGB uint8, 인물 이미
 |---|---|
 | AnyDoor 공식 저장소 폴더 | 실행 코드 |
 | `epoch=1-step=8687.ckpt` (약 16.8GB) | AnyDoor 가중치 |
-| `dinov2_vitg14_pretrain.pth` (약 4.5GB) | DINOv2 가중치 |
+| `dinov2_vitg14_pretrain.pth` (약 4.5GB) | DINOv2 가중치, 학습용. 합성에서는 읽지 않음 |
+| 16비트 추론용 가중치 약 4.9GB | 선택. `python scripts\convert_weights_fp16.py 원본.ckpt 새파일.ckpt`로 생성 후 `ANYDOOR_CKPT`에 지정 |
 
-## 5. 성능 · RTX 3080 10GB, 2026-10-21
+## 5. 성능 · RTX 3080 10GB
 
-| 항목 | 기존 일괄 적재 | 부품 단위 적재 |
-|---|---|---|
-| 합성 1건, 50스텝 | 36.9~41.1초 | 24.4~25.4초 |
-| 모델 적재 · 예열 | 152.1초 | 100.8초 |
-| PyTorch 최대 할당 메모리 | 9.70GB | 8.25GB |
-| 공유 GPU 메모리 최대 사용량 | 3,199MB | 218MB |
+| 항목 | 기존 일괄 적재 | 부품 단위 적재 2026-10-21 | 16비트 가중치·전 부품 GPU 상주 2026-11-09 |
+|---|---|---|---|
+| 합성 1건, 50스텝 | 36.9~41.1초 | 24.4~25.4초 | 15.3~17.0초 |
+| 모델 적재 · 예열 | 152.1초 | 100.8초 | 74.6초 |
+| PyTorch 최대 할당 메모리 | 9.70GB | 8.25GB | 5.94GB |
+| 공유 GPU 메모리 최대 사용량 | 3,199MB | 218MB | 84MB |
 
-- 비교 조건: 서버 종료 상태, 같은 입력과 seed, 상의 경계 보정 적용, 예열 → SAM2 추출 → 합성 2회
+- 2026-10-21 비교 조건: 서버 종료 상태, 같은 입력과 seed, 상의 경계 보정 적용, 예열 → SAM2 추출 → 합성 2회
+- 2026-11-09 비교 조건: 서버 종료 상태, SAM2 적재·추출 6회 → 예열 → 서로 다른 3쌍 합성, 16비트 추론용 파일 사용.
+  같은 3쌍의 32비트 부품 단위 적재 결과 대비 평균 픽셀 차이 0.047~0.109/255
 - 비교 표 전체: [README.md 6. 합성 속도 개선](../../README.md#구성-요소별-gpu-순차-적재--2026-10-21)
 
 ## 6. 단위 테스트

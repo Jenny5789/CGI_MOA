@@ -31,6 +31,7 @@
 |---|---|---|---|
 | `DATABASE_URL` | MySQL 접속 정보 | 없음 (필수) | `backend/.env` ([database.md 2-3. 접속 설정 파일 생성](../docs/database.md#2-3-접속-설정-파일-생성)) |
 | `ANYDOOR_DIR` | AnyDoor 폴더 위치 | `Desktop\AnyDoor` | conda 환경에 저장: `conda env config vars set ANYDOOR_DIR=경로 -n CGI`, [README 7-2. 설치 5단계](../README.md#7-2-설치) |
+| `ANYDOOR_CKPT` | AnyDoor 합성 가중치 파일. `scripts/convert_weights_fp16.py`로 만든 16비트 추론용 파일 4.9GB 지정 시 적재 시간·RAM 감소 | 비움, AnyDoor `configs/inference.yaml`의 원본 16.8GB | conda 환경에 저장: `conda env config vars set ANYDOOR_CKPT=경로 -n CGI` |
 | `MOA_WARMUP` | `0`이면 서버 시작 시 AnyDoor 모델 로딩(1~2분) 생략 | `1` (로딩함) | 실행 전 PowerShell `$env:MOA_WARMUP="0"` |
 | `MOA_SEAM_FIX` | `0`이면 합성 후 박스 선 보정 생략 ([features/composition/README.md](../features/composition/README.md#박스-선-보정-seampy)) | `1` (보정함) | 실행 전 PowerShell `$env:MOA_SEAM_FIX="0"` |
 | `MOA_RESTORE_ORIGINAL` | `0`이면 합성 후 원본 복원(얼굴·머리·배경을 원본으로 되돌림) 생략 ([features/composition/README.md](../features/composition/README.md#원본-복원-후처리-restorepy)) | `1` (복원함) | 실행 전 PowerShell `$env:MOA_RESTORE_ORIGINAL="0"` |
