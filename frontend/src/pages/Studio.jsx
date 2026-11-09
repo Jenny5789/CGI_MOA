@@ -9,7 +9,7 @@
    - 3단계: 점만 찍어 둔다. "확인"을 누르면 서버 SAM2로 실제 윤곽을 받아 다듬기 팝업을 연다(4-1)
    - 4단계: 3단계와 같이 인물 사진에 점을 찍고 "확인"을 누르면 SAM2로 지금 입은 상의 영역을 받아 다듬기 팝업을 연다(4-1).
      "합성 시작"에서 서버 AnyDoor 합성 요청 → 2초마다 진행 확인 → 결과(5-1~5-3)
-   - 합성 요청에는 3단계에서 다듬은 상의 윤곽(garment_mask)과 합성 설정 두 개(refine, shape_control)를 함께 보낸다
+   - 합성 요청에는 합성 설정 refine, shape_control을 보내고, 3단계 다듬기에서 고친 경우에만 상의 윤곽 garment_mask도 보낸다
    - 결과 "저장": 서버에 저장 표시(6-2)
    - 1·2단계 "더보기" 창 맨 위: 최근 24시간 동안 올린 사진(3-2)
    - 내 작업 기록을 누르면 그 결과의 재료로 1~4단계를 채운다(GET /results/{id}/source, 명세 6-4)
@@ -65,6 +65,8 @@ const PICK_TEXT = {
 
 // 버튼 상태가 그대로면 화면을 다시 그리지 않는다 (영역 추가로 칠하는 동안 매번 다시 그리는 것을 막음)
 const sameUi = (a, b) => Object.keys(b).every((k) => a[k] === b[k]);
+
+const LEAVE_MS = 200; // 단계 화면이 사라지는 시간, 아래 go 설명 참고
 
 const PANEL_KEYS ={ left: 'moa_panel_left', right: 'moa_panel_right' };
 const readPanel = (side) => {
@@ -161,7 +163,7 @@ export default function Studio() {
   const [pick, setPick] = useState({ 1: { src: null, fromSample: false, confirm: false }, 2: { src: null, fromSample: false, confirm: false } });
   const [dragover, setDragover] = useState({ 1: false, 2: false });
   // ready: 지금 점 그대로 다듬어 둔 영역이 있음 (작업 기록에서 불러오면 점 없이도 '확인'으로 다듬기를 연다)
-  const [c3ui, setC3ui] = useState({ total: 0, neg: 0, pos: 0, canUndo: false, ready: false });
+  const [c3ui, setC3ui] = useState({ neg: 0, pos: 0, canUndo: false, ready: false });
   const [c4ui, setC4ui] = useState({ neg: 0, pos: 0, canUndo: false, ready: false });
   const [editor, setEditor] = useState(null); // 다듬기 팝업: { kind: 'extract' | 'area', image, mask }
   const [sampleBrowser, setSampleBrowser] = useState(null); // 예시 더보기 창: 1 상의 사진 / 2 인물 사진
@@ -179,7 +181,7 @@ export default function Studio() {
   const [panels, setPanels] = useState(() => ({ left: readPanel('left'), right: readPanel('right') }));
 
   /* ---------- 그리기용 데이터 (화면에 바로 보이지 않는 값은 ref에 둔다) ---------- */
-  const data = useRef({ obj: null, bg: null, cutout: null, result: null });
+  const data = useRef({ obj: null, bg: null, cutout: null });
   const s3 = useRef({ src: null, w: 0, h: 0, work: null, pts: [], hist: [], dw: 0, dh: 0 });
   const s4 = useRef({ src: null, w: 0, h: 0, work: null, pts: [], hist: [], dw: 0, dh: 0 });
   const stepRef = useRef(0);
@@ -196,7 +198,8 @@ export default function Studio() {
   const inputRef = { 1: useRef(null), 2: useRef(null) };
 
   /* ---------- 화면 전환 ---------- */
-  // 나가는 화면이 살짝 위로 사라진 뒤, 다음 화면이 아래에서 부드럽게 떠오른다
+  // 나가는 화면이 살짝 위로 사라진 뒤, 다음 화면이 아래에서 부드럽게 떠오른다.
+  // LEAVE_MS는 styles/studio-guide.css .sg-view.leaving 전환 0.18초보다 길어야 사라지는 효과가 끝난 뒤 화면이 바뀐다
   const go = (next) => new Promise((resolve) => {
     if (navigating.current) { resolve(); return; }
     if (stepRef.current !== next) {
@@ -208,7 +211,7 @@ export default function Studio() {
         setStep(next);
         navigating.current = false;
         resolve();
-      }, 200);
+      }, LEAVE_MS);
     } else {
       setEnterTick((t) => t + 1);
       resolve();
@@ -340,13 +343,13 @@ export default function Studio() {
   const resetAll = async () => {
     setConfirmReset(false);
     restoreTok.current += 1; // 불러오던 작업 기록은 버린다
-    data.current = { obj: null, bg: null, cutout: null, result: null };
+    data.current = { obj: null, bg: null, cutout: null };
     s3.current = { src: null, w: 0, h: 0, work: null, pts: [], hist: [], dw: 0, dh: 0 };
     s4.current = { src: null, w: 0, h: 0, work: null, pts: [], hist: [], dw: 0, dh: 0 };
     setDone({ 1: false, 2: false, 3: false, 4: false });
     setSlots({ 1: null, 2: null, 3: null });
     setPick({ 1: { src: null, fromSample: false, confirm: false }, 2: { src: null, fromSample: false, confirm: false } });
-    setC3ui({ total: 0, neg: 0, pos: 0, canUndo: false, ready: false });
+    setC3ui({ neg: 0, pos: 0, canUndo: false, ready: false });
     setC4ui({ neg: 0, pos: 0, canUndo: false, ready: false });
     setZoom({ 3: 1, 4: 1 });
     setEditor(null);
@@ -385,7 +388,7 @@ export default function Studio() {
       drawDot(ctx, c.x, c.y, p.neg ? '#e11d48' : '#16171b');
     });
     const pos = s.pts.filter((p) => !p.neg).length;
-    const next = { total: s.pts.length, neg: s.pts.length - pos, pos, canUndo: s.hist.length > 0, ready: !!s.edited && s.editedKey === JSON.stringify(s.pts) };
+    const next = { neg: s.pts.length - pos, pos, canUndo: s.hist.length > 0, ready: !!s.edited && s.editedKey === JSON.stringify(s.pts) };
     setC3ui((prev) => (sameUi(prev, next) ? prev : next));
   };
 
@@ -465,11 +468,14 @@ export default function Studio() {
     }
   };
 
-  // 다듬기 완료: 다듬은 영역으로 상의를 오려 내고 4단계로 간다
-  const finish3 = async (mask) => {
+  // 다듬기 완료: 다듬은 영역으로 상의를 오려 내고 4단계로 간다.
+  // changed는 이번 다듬기에서 고쳤는지. 지난번에 다듬은 영역에서 이어서 열었으면 그때 손으로 고친 표시를 이어받는다
+  const finish3 = async (mask, changed) => {
     const s = s3.current;
     const bb = maskBBox(mask);
     if (!bb) return;
+    const fromEdited = !!editor && editor.mask === s.edited;
+    s.handEdited = changed || (fromEdited && !!s.handEdited);
     s.edited = newCanvas(s.w, s.h);
     s.edited.getContext('2d').drawImage(mask, 0, 0);
     s.editedKey = JSON.stringify(s.pts);
@@ -600,7 +606,7 @@ export default function Studio() {
   };
 
   // 합성 설정 팝업의 "합성 시작": 서버에 합성을 요청하고(명세 5-1), 2초마다 진행을 확인한 뒤(5-2) 결과를 받는다(5-3).
-  // 3단계에서 다듬은 상의 윤곽과 고른 설정(opts)을 함께 보낸다.
+  // 고른 설정 opts를 보내고, 상의 윤곽은 다듬기에서 손으로 고쳤을 때만 보낸다. 보내지 않으면 서버가 3단계 SAM2 윤곽을 원본 해상도로 쓴다.
   const startCompose = async () => {
     if (!s4.current.edited || !data.current.cutout) return;
     const ext = data.current.extraction;
@@ -611,7 +617,7 @@ export default function Studio() {
     try {
       const { image_id: personId } = await data.current.bg.upload;
       const area = await areaMaskBlob(s4.current.edited);
-      const garmentMask = s3.current.edited ? await areaMaskBlob(s3.current.edited) : null;
+      const garmentMask = s3.current.edited && s3.current.handEdited ? await areaMaskBlob(s3.current.edited) : null;
       const job = await requestCompose(ext.extraction_id, personId, area, { garmentMask, refine: opts.refine, shapeControl: opts.shape });
       const resultId = await waitForJob(job.job_id, setProgress);
       data.current.resultId = resultId; // "저장" 때 서버에 알릴 결과 번호
@@ -619,7 +625,6 @@ export default function Studio() {
       const img = await loadImage(res.image_url);
       const out = newCanvas(img.naturalWidth, img.naturalHeight);
       out.getContext('2d').drawImage(img, 0, 0);
-      data.current.result = out;
       setSaved(false);
       // 합성이 끝나면 저장하지 않아도 내 작업 기록 맨 위에 붙인다
       setHistory((h) => [
@@ -676,7 +681,7 @@ export default function Studio() {
   // 재합성: 1~4단계가 채워져 있으면 4단계로, 재료를 못 불러온 기록이면 1단계부터
   const redo = () => { go(result && result.fromHistory && !result.restored ? 1 : 4); };
 
-  // 내 작업 기록에서 연 결과의 재료(상의·인물 사진, 상의 윤곽, 입힐 영역, 합성 설정)로 1~4단계를 채운다 (명세 외, GET /results/{id}/source).
+  // 내 작업 기록에서 연 결과의 재료(상의·인물 사진, 상의 윤곽, 입힐 영역, 합성 설정)로 1~4단계를 채운다 (명세 6-4, GET /results/{id}/source).
   // 하던 작업은 이 결과의 재료로 바뀐다. 재료를 받지 못하면(예: 지워진 파일) 결과만 보여 준다
   const restoreFrom = async (resultId) => {
     const tok = ++restoreTok.current;
@@ -692,10 +697,11 @@ export default function Studio() {
       const bg = { img: pImg, src: src.person.url, upload: Promise.resolve(src.person) };
       data.current = { ...data.current, obj, bg, cutout, extraction: { extraction_id: src.extraction_id }, resultId };
       // 찍었던 점은 남지 않으므로 '점 없음' 상태에 다듬은 영역을 붙여 둔다 (3·4단계 '확인'으로 바로 다듬기를 연다)
-      s3.current = { src: obj.src, work: w3.work, w: w3.w, h: w3.h, pts: [], hist: [], dw: 0, dh: 0, view: fullView(), edited: gMask, editedKey: '[]' };
+      // 불러온 상의 윤곽은 손으로 고친 것일 수 있어, 다시 합성할 때 그대로 보낸다
+      s3.current = { src: obj.src, work: w3.work, w: w3.w, h: w3.h, pts: [], hist: [], dw: 0, dh: 0, view: fullView(), edited: gMask, editedKey: '[]', handEdited: true };
       s4.current = { src: bg.src, work: w4.work, w: w4.w, h: w4.h, pts: [], hist: [], dw: 0, dh: 0, view: fullView(), edited: aMask, editedKey: '[]' };
       setZoom({ 3: 1, 4: 1 });
-      setC3ui({ total: 0, neg: 0, pos: 0, canUndo: false, ready: true });
+      setC3ui({ neg: 0, pos: 0, canUndo: false, ready: true });
       setC4ui({ neg: 0, pos: 0, canUndo: false, ready: true });
       setPick({ 1: { src: obj.src, fromSample: false, confirm: false }, 2: { src: bg.src, fromSample: false, confirm: false } });
       setSlots({ 1: obj.src, 2: bg.src, 3: cutout });
@@ -953,7 +959,7 @@ export default function Studio() {
               </div>
               <div className="sg-actions sg-actions-center">
                 <button type="button" className="sg-confirm" disabled={saved} onClick={save}>{saved ? '저장 완료' : '저장'}</button>
-                {saved && <button type="button" className="sg-confirm" onClick={() => navigate('/mypage')}>마이페이지로 이동</button>}
+                {saved && <button type="button" className="sg-confirm" onClick={() => navigate('/mypage#album')}>사진첩으로 이동</button>}
                 <button type="button" className="sg-ghost" onClick={redo}>{fromHistory && !result.restored ? '신규 합성' : '재합성'}</button>
               </div>
             </section>

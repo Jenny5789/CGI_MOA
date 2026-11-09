@@ -3,7 +3,7 @@
 - GET   /api/results            : 결과 목록 (명세 6-1). 사진첩 탭, 내 작업 기록
 - GET   /api/results/{id}       : 결과 하나 (명세 5-3)
 - PATCH /api/results/{id}       : 저장 / 좋아요 (명세 6-2)
-- GET   /api/results/{id}/source: 결과를 만든 재료 (명세 외 추가 제안). 합성하기 "내 작업 기록"에서 결과를 열 때 1~4단계를 채운다
+- GET   /api/results/{id}/source: 결과를 만든 재료 (명세 6-4). 합성하기 "내 작업 기록"에서 결과를 열 때 1~4단계를 채운다
 - 저장하지 않은 결과는 만든 지 24시간 뒤 지운다 (명세 5-3, 10/16 결정: 3일 → 24시간). 목록을 볼 때 지난 것을 정리한다
 - 로그인 필요. 자기 결과만 보이고 바꿀 수 있음 (남의 결과는 404). 결과 정보는 DB results 표(11/2), 결과 사진은 storage/results에 파일로 저장
 - 사진 주소(image_url, thumb_url)는 응답할 때 열쇠를 붙여 줌 (명세 7장, backend/file_keys.py). 사진 파일 이름은 결과 번호에서 만든다 (res_xxx.png, res_xxx_thumb.jpg)

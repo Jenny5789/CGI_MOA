@@ -41,5 +41,5 @@ export function requestCompose(extractionId, personImageId, areaMask, { garmentM
 export const getJob = (jobId) => request('GET', `/jobs/${encodeURIComponent(jobId)}`);
 export const getResult = (resultId) => request('GET', `/results/${encodeURIComponent(resultId)}`);
 
-// 결과를 만든 재료 (명세 외 추가 제안): 상의·인물 사진, 상의 윤곽, 입힐 영역, 합성 설정. 내 작업 기록에서 1~4단계를 채울 때 쓴다
+// 명세 6-4. 결과를 만든 재료: 상의·인물 사진, 상의 윤곽, 입힐 영역, 합성 설정. 내 작업 기록에서 1~4단계를 채울 때 쓴다
 export const getResultSource = (resultId) => request('GET', `/results/${encodeURIComponent(resultId)}/source`);

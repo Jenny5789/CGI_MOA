@@ -13,6 +13,9 @@
 | `test_compose.py` | 이미지 합성 단독 실행 | AnyDoor |
 | `compress_web_images.py` | 화면 예시 생성 이미지를 웹용 JPG로 줄이기 | - |
 | `preprocess_shapeless.py` | 쉐이프리스 데이터를 AnyDoor 학습용으로 변환 | - |
+| `shapeless_to_viton.py` | 쉐이프리스 변환본에 관절 점·agnostic-mask를 더해 VITON-HD 폴더 형식으로 변환 | - |
+| `agnostic_pose.py` | 관절 점으로 상체·팔 영역 그리기, VITON-HD 제공 마스크와 비교해 재현 정도 확인 | - |
+| `build_retrain_mix.py` | VITON-HD와 쉐이프리스 상의류를 한 폴더로 합치고 재학습 쌍 목록 생성 | - |
 
 ## 2. check_env.py (개발 환경 점검)
 
@@ -75,7 +78,7 @@ python scripts\preprocess_shapeless.py --limit 200
 python scripts\preprocess_shapeless.py
 ```
 
-- 입력: `Downloads\011.쉐이프리스 의류 및 포즈 데이터\01-1.정식개방데이터\Training` (원천데이터 jpg 압축 해제본, 라벨링데이터 zip 그대로). 경로가 다르면 `--src`
+- 입력: `Downloads\011.쉐이프리스 의류 및 포즈 데이터\01-1.정식개방데이터\Training`. 원천데이터·라벨링데이터 모두 zip에서 바로 읽고, 압축을 푼 폴더가 있으면 그 폴더도 읽음. 경로가 다르면 `--src`
 - 결과: `Dataset\Shapeless_AnyDoor\Training\` 아래 VITON-HD와 같은 구조 (768×1024)
   - `cloth` 제품 사진, `cloth-mask` 제품 마스크, `image` 착용 사진, `image-parse-v3` 옷 영역 (옷=5)
   - `pairs.jsonl` 쌍별 정보(모델·포즈·각도·옷 비율), `report.json` 처리·건너뜀 집계

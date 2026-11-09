@@ -9,15 +9,24 @@ import * as authApi from '../api/auth.js';
 import { getMe } from '../api/me.js';
 import SignupModal from './SignupModal.jsx';
 import ExpiryNotice from './ExpiryNotice.jsx';
+import { setToken } from '../api/client.js';
 import { getToken, UNAUTHORIZED_EVENT } from '../api/client.js';
 
 const WELCOME = 'MOA에 오신 것을 환영합니다.';
 const EXPIRED = '로그인이 만료되었습니다. 다시 로그인해 주세요.';
 // 로그인해야 들어갈 수 있는 화면과, 막혔을 때 팝업에 보여 줄 문구
-export const GATED = {
+const GATED = {
   '/studio': '합성하기는 로그인 후 이용할 수 있습니다.',
   '/mypage': '마이페이지는 로그인 후 이용할 수 있습니다.',
 };
+
+// 연장 알림의 남은 시간 글자: 분 단위 반올림 → "3시간", "2시간 30분", "45분"
+function formatLeftMinutes(ms) {
+  const m = Math.max(0, Math.round(ms / 60000));
+  const h = Math.floor(m / 60);
+  if (!h) return `${m}분`;
+  return m % 60 ? `${h}시간 ${m % 60}분` : `${h}시간`;
+}
 
 const AuthContext = createContext(null);
 export const useAuth = () => useContext(AuthContext);
@@ -68,7 +77,8 @@ export function AuthProvider({ children }) {
 
   // 만료 시각이 되면 로그아웃하고 로그인 창을 연다 (docs/login_extend.md 3장)
   const expireLogin = useCallback(() => {
-    authApi.logout();
+    // 이미 만료된 토큰이라 서버에 로그아웃을 보내도 401만 돌아온다. 이 브라우저의 토큰과 만료 시각만 지운다
+    setToken(null);
     setLoggedIn(false);
     setExpiresAt(null);
     setModal({ open: true, sub: EXPIRED, next: location.pathname });
@@ -77,8 +87,9 @@ export function AuthProvider({ children }) {
   // 로그인 시간 연장: 성공하면 연장한 시각부터 다시 3시간. 이미 만료됐으면 401 → client.js가 로그인 만료로 처리
   const extendLogin = useCallback(async () => {
     try {
-      setExpiresAt(await authApi.extendLogin());
-      showToast('로그인 시간이 연장되었습니다.');
+      const until = await authApi.extendLogin();
+      setExpiresAt(until);
+      showToast(`로그인 시간이 연장되었습니다. (남은 시간 ${formatLeftMinutes(until.getTime() - Date.now())})`);
       return true;
     } catch (e) {
       if (e.status !== 401) showToast(e.message);

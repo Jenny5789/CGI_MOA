@@ -40,14 +40,7 @@ export function boxFit(canvas, w, h) {
   return fit(w, h, Math.max(160, aw), Math.max(160, ah));
 }
 
-// 원본 영역(sx, sy, sw, sh)을 비율을 유지하며 dw x dh 가득 채워 그린다
-export function drawCover(ctx, src, sx, sy, sw, sh, dw, dh) {
-  const sc = Math.max(dw / sw, dh / sh);
-  const w = sw * sc;
-  const h = sh * sc;
-  ctx.drawImage(src, sx, sy, sw, sh, (dw - w) / 2, (dh - h) / 2, w, h);
-}
-
+// 원본 영역을 비율을 유지하며 dw x dh 안에 모두 보이게 그린다
 export function drawContain(ctx, src, sx, sy, sw, sh, dw, dh) {
   const sc = Math.min(dw / sw, dh / sh);
   const w = sw * sc;
@@ -155,11 +148,9 @@ export function pointer(e, canvas) {
   return { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height, px: e.clientX - r.left, py: e.clientY - r.top };
 }
 
-export function nowText() {
-  const n = new Date();
-  const p = (v) => String(v).padStart(2, '0');
-  return n.getFullYear() + '.' + p(n.getMonth() + 1) + '.' + p(n.getDate()) + ' ' + p(n.getHours()) + ':' + p(n.getMinutes());
-}
+// 날아가는 효과의 시간. CSS 시간보다 짧으면 효과가 끝나기 전에 칸 내용이 바뀌므로, CSS를 바꾸면 함께 바꾼다
+const FLY_MS = 900; // styles/studio-guide.css .sg-fly 전환 0.85초
+const POP_MS = 650; // styles/studio-guide.css .sg-slot-thumb.pop 애니메이션 0.55초
 
 // 선택한 사진이 작아지면서 왼쪽 칸으로 이동하는 효과. 끝나면 finish()로 칸 내용을 바꾼다.
 export function fly(fromEl, toEl, finish) {
@@ -190,9 +181,9 @@ export function fly(fromEl, toEl, finish) {
       fromEl.style.visibility = '';
       finish();
       toEl.classList.add('pop');
-      setTimeout(() => toEl.classList.remove('pop'), 650);
+      setTimeout(() => toEl.classList.remove('pop'), POP_MS);
       clone.remove();
       resolve();
-    }, 900);
+    }, FLY_MS);
   });
 }

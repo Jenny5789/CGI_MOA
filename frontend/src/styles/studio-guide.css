@@ -727,12 +727,13 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 }
 .sg-fly.landing { box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08); }
 
+/* 화면 가운데 표시 (아래쪽에 두면 결과 화면의 저장·사진첩으로 이동 버튼을 가림) */
 .sg-toast {
   position: fixed;
   left: 50%;
-  bottom: 28px;
+  top: 50%;
   z-index: 120;
-  transform: translateX(-50%) translateY(20px);
+  transform: translate(-50%, calc(-50% + 20px));
   padding: 10px 18px;
   background: var(--ink);
   color: #fff;
@@ -741,7 +742,7 @@ body { display: flex; flex-direction: column; overflow: hidden; }
   pointer-events: none;
   transition: opacity .25s ease, transform .35s var(--ease);
 }
-.sg-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.sg-toast.show { opacity: 1; transform: translate(-50%, -50%); }
 
 /* ---------- 좁은 화면에서는 한 화면 고정을 풀고 일반 흐름으로 ---------- */
 @media (max-width: 1100px) {

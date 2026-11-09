@@ -128,9 +128,7 @@ export default function MyPage() {
 
         <main className="as-mypage-main">
             {/* 내 정보: 상자 하나에 프로필과 계정 설정 탭 */}
-            {page.view === 'info' && (loggedIn
-              ? <AccountPanel items={ACCOUNT_ITEMS} item={page.item} me={me} onMe={setMe} showToast={showToast} />
-              : <p className="as-empty">로그인하면 내 정보를 확인할 수 있습니다.</p>)}
+            {page.view === 'info' && <AccountPanel items={ACCOUNT_ITEMS} item={page.item} me={me} onMe={setMe} showToast={showToast} />}
             {page.view === 'settings' && <ServiceSettings showToast={showToast} />}
             {page.view === 'support' && <Support />}
             <section className="as-panel as-album" id="album" hidden={page.view !== 'album'}>
