@@ -66,6 +66,8 @@ const PICK_TEXT = {
 // 버튼 상태가 그대로면 화면을 다시 그리지 않는다 (영역 추가로 칠하는 동안 매번 다시 그리는 것을 막음)
 const sameUi = (a, b) => Object.keys(b).every((k) => a[k] === b[k]);
 
+const LEAVE_MS = 200; // 단계 화면이 사라지는 시간, 아래 go 설명 참고
+
 const PANEL_KEYS ={ left: 'moa_panel_left', right: 'moa_panel_right' };
 const readPanel = (side) => {
   try { return localStorage.getItem(PANEL_KEYS[side]) === 'closed' ? 'closed' : 'open'; } catch { return 'open'; }
@@ -196,7 +198,8 @@ export default function Studio() {
   const inputRef = { 1: useRef(null), 2: useRef(null) };
 
   /* ---------- 화면 전환 ---------- */
-  // 나가는 화면이 살짝 위로 사라진 뒤, 다음 화면이 아래에서 부드럽게 떠오른다
+  // 나가는 화면이 살짝 위로 사라진 뒤, 다음 화면이 아래에서 부드럽게 떠오른다.
+  // LEAVE_MS는 styles/studio-guide.css .sg-view.leaving 전환 0.18초보다 길어야 사라지는 효과가 끝난 뒤 화면이 바뀐다
   const go = (next) => new Promise((resolve) => {
     if (navigating.current) { resolve(); return; }
     if (stepRef.current !== next) {
@@ -208,7 +211,7 @@ export default function Studio() {
         setStep(next);
         navigating.current = false;
         resolve();
-      }, 200);
+      }, LEAVE_MS);
     } else {
       setEnterTick((t) => t + 1);
       resolve();
@@ -675,7 +678,7 @@ export default function Studio() {
   // 재합성: 1~4단계가 채워져 있으면 4단계로, 재료를 못 불러온 기록이면 1단계부터
   const redo = () => { go(result && result.fromHistory && !result.restored ? 1 : 4); };
 
-  // 내 작업 기록에서 연 결과의 재료(상의·인물 사진, 상의 윤곽, 입힐 영역, 합성 설정)로 1~4단계를 채운다 (명세 외, GET /results/{id}/source).
+  // 내 작업 기록에서 연 결과의 재료(상의·인물 사진, 상의 윤곽, 입힐 영역, 합성 설정)로 1~4단계를 채운다 (명세 6-4, GET /results/{id}/source).
   // 하던 작업은 이 결과의 재료로 바뀐다. 재료를 받지 못하면(예: 지워진 파일) 결과만 보여 준다
   const restoreFrom = async (resultId) => {
     const tok = ++restoreTok.current;

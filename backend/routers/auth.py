@@ -48,7 +48,7 @@ class LoginBody(BaseModel):
 class RegisterBody(BaseModel):
     username: str
     password: str
-    email: Optional[str] = None  # 필수. 비어 있으면 422 대신 우리 오류(INVALID_EMAIL)로 알려 주려고 Optional
+    email: Optional[str] = None  # 필수. 빠졌을 때 INVALID_REQUEST 대신 INVALID_EMAIL로 알려 주려고 Optional
     phone: Optional[str] = None  # 선택
     name: Optional[str] = None
 

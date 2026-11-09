@@ -215,6 +215,7 @@ class AnyDoorComposer:
         import cv2
         import torch
 
+        # 보정 모델은 refine을 처음 쓸 때 한 번만 불러와 self._iseg에 보관한다. __init__에서 만들지 않으므로 getattr로 확인
         if getattr(self, "_iseg", None) is None:
             if str(self.anydoor_dir) not in sys.path:
                 sys.path.insert(0, str(self.anydoor_dir))
