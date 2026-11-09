@@ -6,8 +6,9 @@
 
 처리 방식
 - 합성 전담 일꾼(스레드) 하나가 들어온 순서대로 한 번에 한 장씩 처리
-- GPU는 추출과 같은 GPU_LOCK으로 차례를 지킨다 (합성 중에 들어온 추출 요청은 합성이 끝날 때까지 기다림)
-- AnyDoor는 features/composition의 compose를 그대로 쓴다. 50스텝, 16비트 연산·가중치
+- 모델 호출은 backend/model_client.py를 거친다. MODEL_SERVER_URL이 있으면 모델 추론 서버로 HTTP 요청, 없으면 이 서버에서 직접 실행
+- 직접 실행 시 GPU는 추출과 같은 GPU_LOCK으로 차례를 지킨다 (합성 중에 들어온 추출 요청은 합성이 끝날 때까지 기다림)
+- 이미지 합성은 features/composition의 compose와 같은 설정. 50스텝, 16비트 연산·가중치
 - 상의 윤곽: 화면 "다듬기"에서 고친 윤곽(garment_mask, 추가 제안)을 보내면 그것으로, 안 보내면 4-1 SAM2 윤곽으로 합성
 - 합성 설정 (10/17): refine="1" 상의 경계 다듬기(Reference Mask Refine), shape_control="1" 칠한 모양 그대로
   (Enable Shape Control). 생략하면 둘 다 끔. 작업 기록(DB jobs 표)에 함께 남긴다
@@ -34,7 +35,7 @@ from backend.auth import current_user
 from backend.config import EXTRACTIONS_DIR, IMAGES_DIR, JOBS_DIR, MAX_UPLOAD_BYTES, RESTORE_ORIGINAL, RESULTS_DIR, SEAM_FIX
 from backend.db import Job, Result, User, get_db, open_session, utcnow
 from backend.errors import ApiError
-from backend.gpu import GPU_LOCK, release_cached_memory
+from backend import model_client
 from backend.storage import is_owner, load_extraction_info, load_image_info, load_job_info
 
 router = APIRouter()
@@ -87,7 +88,7 @@ def _public(job):
 # ---------- 서버 켤 때 예열 ----------
 
 # 예열 상태 (/api/health로 화면에 알림, 10/17): off 예열 안 함 / running 진행 중 / done 끝 / failed 실패
-# 진행 중에는 추출·합성이 GPU_LOCK에서 기다리므로, 화면은 이 값을 보고 "합성 준비 중" 안내를 띄운다
+# 진행 중에는 추출·합성이 GPU_LOCK 또는 모델 서버에서 기다리므로, 화면은 이 값을 보고 "합성 준비 중" 안내를 띄운다
 _warmup_state = "off"
 
 
@@ -97,18 +98,25 @@ def warmup_state():
 
 def start_warmup():
     """AnyDoor를 미리 불러오고 2스텝 합성을 한 번 돌린다 (뒤에서 진행, 서버는 바로 응답).
-    예열 중에 들어온 합성·추출은 GPU_LOCK에서 기다렸다가 예열이 끝나면 처리된다."""
-    def run():
+    모델 서버 방식이면 모델 서버의 준비 완료를 기다린다.
+    예열 중에 들어온 합성·추출은 GPU_LOCK 또는 모델 서버에서 기다렸다가 예열이 끝나면 처리된다."""
+    def set_state(state):
         global _warmup_state
-        from features.composition import warmup
-        print("[MOA] AnyDoor 예열 시작 (모델 불러오기 + 2스텝 합성, 1~2분)", flush=True)  # 서버 창에서 바로 보이게 print
-        try:
-            with GPU_LOCK:
-                warmup()
-            _warmup_state = "done"
+        _warmup_state = state
+        if state == "done":
             print("[MOA] AnyDoor 예열 끝: 합성 준비 완료", flush=True)
+
+    def run():
+        if model_client.REMOTE:
+            print(f"[MOA] 모델 서버 준비 대기: {model_client.MODEL_SERVER_URL}", flush=True)
+        else:
+            print("[MOA] AnyDoor 예열 시작 (모델 불러오기 + 2스텝 합성, 1~2분)", flush=True)  # 서버 창에서 바로 보이게 print
+        try:
+            model_client.warmup(set_state)
+            if _warmup_state == "failed":
+                log.error("모델 서버 준비 실패 또는 대기 시간 초과: %s", model_client.MODEL_SERVER_URL)
         except Exception:  # 예열이 실패해도 서버는 계속 돈다 (첫 합성 때 다시 불러온다)
-            _warmup_state = "failed"
+            set_state("failed")
             log.exception("AnyDoor 예열 실패")
 
     global _warmup_state
@@ -139,8 +147,6 @@ def _work_loop():
 
 
 def _run(job_id):
-    from features.composition import compose  # AnyDoor는 서버 켤 때 예열에서 불러온다 (예열을 껐으면 첫 합성 때)
-
     with _lock:
         _waiting.remove(job_id)
         job = dict(_jobs[job_id])
@@ -159,25 +165,22 @@ def _run(job_id):
 
     garment_found = None
     crop_box = None
-    with GPU_LOCK:
-        try:
-            result = compose(ref, ref_mask, tar, tar_mask, seed=job["seed"], on_progress=on_progress,
-                             shape_control=job.get("shape_control", False), refine=job.get("refine", False))
-            if SEAM_FIX:
-                # 박스 선 보정: 다시 그린 정사각형을 붙인 테두리의 밝기·색 차이를 원본에 맞춤 (features/composition/seam.py)
-                from features.composition import fix_seam, last_crop_box
+    # 이미지 합성: 직접 실행 또는 모델 서버 요청. 다시 그린 정사각형 위치를 함께 받음 (backend/model_client.py)
+    result, model_crop = model_client.compose(ref, ref_mask, tar, tar_mask, seed=job["seed"], on_progress=on_progress,
+                                              shape_control=job.get("shape_control", False), refine=job.get("refine", False))
+    if SEAM_FIX:
+        # 박스 선 보정: 다시 그린 정사각형을 붙인 테두리의 밝기·색 차이를 원본에 맞춤 (features/composition/seam.py, CPU)
+        from features.composition import fix_seam
 
-                crop_box = last_crop_box()
-                result = fix_seam(tar, result, crop_box)
-            if RESTORE_ORIGINAL:
-                # 원본 복원 후처리: 얼굴·머리·배경은 원본, 새 상의(SAM2로 찾음)는 어깨 끝까지 유지
-                from features.composition import find_garment, restore_original
+        crop_box = model_crop
+        result = fix_seam(tar, result, crop_box)
+    if RESTORE_ORIGINAL:
+        # 원본 복원 후처리: 얼굴·머리·배경은 원본, 새 상의(SAM2로 찾음)는 어깨 끝까지 유지
+        from features.composition import restore_original
 
-                new_garment = find_garment(result, tar_mask)
-                garment_found = new_garment is not None
-                result = restore_original(tar, result, tar_mask, new_garment)
-        finally:
-            release_cached_memory()  # 다 쓴 GPU 메모리를 돌려준다 (backend/gpu.py)
+        new_garment = model_client.find_garment(result, tar_mask)
+        garment_found = new_garment is not None
+        result = restore_original(tar, result, tar_mask, new_garment)
 
     result_id = "res_" + uuid.uuid4().hex[:12]
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)

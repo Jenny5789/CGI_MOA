@@ -5,8 +5,10 @@ SAM2 이미지 분할과 AnyDoor 기반 이미지 합성 모델을 HTTP로 제�
 
 - GET  /health  : 적재 상태, 가중치 파일, GPU 정보
 - POST /extract : 이미지 분할. 이미지 파일 + 포함 점·제외 점·상자 → 0/255 마스크 PNG
+                  image_key가 직전 요청과 같으면 SAM2 이미지 인코딩 생략. 빈 마스크는 422 EMPTY_MASK
 - POST /compose : 이미지 합성. 상품 사진·상품 마스크·모델 사진·합성 영역 → 결과 PNG
                   헤더 X-Crop-Box에 다시 그린 정사각형 위치 위·아래·왼쪽·오른쪽
+- GET  /progress: 진행 중인 합성의 DDIM 스텝 진행률 0~1, 합성 중이 아니면 null
 - 서버 시작 시 별도 스레드에서 SAM2·이미지 합성 모델 적재와 예열 진행, 완료 전 요청은 503
 - GPU 작업은 GPU_LOCK으로 한 번에 하나씩 처리. 요청 처리 함수는 동기 함수라 별도 작업 스레드에서 실행되어 합성 중에도 /health 응답 가능
 - 환경 변수
@@ -31,6 +33,7 @@ SAVE_MEMORY = os.environ.get("MODEL_SAVE_MEMORY", "0") == "1"
 GPU_LOCK = threading.Lock()
 STATE = {"status": "loading", "error": None, "load_sec": None}
 MODELS = {}
+PROGRESS = {"progress": None}  # 진행 중인 합성의 스텝 진행률, 웹 서비스 서버가 주기적으로 조회
 
 
 
@@ -121,13 +124,17 @@ def health():
 
 @app.post("/extract", dependencies=[Depends(check_token), Depends(require_ready)])
 def extract(image: UploadFile = File(...), points: str = Form(None), neg_points: str = Form(None),
-                  box: str = Form(None)):
+            box: str = Form(None), image_key: str = Form(None)):
     rgb = read_rgb(image)
     t0 = time.time()
     with GPU_LOCK:
         try:
             mask = MODELS["sam2"].extract(rgb, points=parse_points(points), neg_points=parse_points(neg_points),
-                                          box=tuple(json.loads(box)) if box else None)
+                                          box=tuple(json.loads(box)) if box else None, image_key=image_key)
+        except ValueError as e:  # 점·상자 좌표 오류
+            raise HTTPException(status_code=400, detail=str(e))
+        except RuntimeError:  # SAM2 결과 빈 마스크
+            raise HTTPException(status_code=422, detail="EMPTY_MASK")
         finally:
             _release()
     return Response(png(mask.astype(np.uint8) * 255, rgb=False), media_type="image/png",
@@ -136,8 +143,8 @@ def extract(image: UploadFile = File(...), points: str = Form(None), neg_points:
 
 @app.post("/compose", dependencies=[Depends(check_token), Depends(require_ready)])
 def compose(garment: UploadFile = File(...), garment_mask: UploadFile = File(...), person: UploadFile = File(...),
-                  area: UploadFile = File(...), seed: int = Form(None), steps: int = Form(50),
-                  shape_control: bool = Form(False), refine: bool = Form(False)):
+            area: UploadFile = File(...), seed: int = Form(None), steps: int = Form(50),
+            shape_control: bool = Form(False), refine: bool = Form(False)):
     ref = read_rgb(garment)
     tar = read_rgb(person)
     ref_mask = read_mask(garment_mask, (ref.shape[1], ref.shape[0]))
@@ -148,10 +155,18 @@ def compose(garment: UploadFile = File(...), garment_mask: UploadFile = File(...
     t0 = time.time()
     with GPU_LOCK:
         try:
+            PROGRESS["progress"] = 0.0
             result = composer.compose(ref, ref_mask, tar, tar_mask, seed=seed, steps=steps,
-                                      shape_control=shape_control, refine=refine)
+                                      shape_control=shape_control, refine=refine,
+                                      on_progress=lambda v: PROGRESS.update(progress=round(min(v, 1.0), 3)))
             crop = composer.last_crop_box
         finally:
+            PROGRESS["progress"] = None
             _release()
     return Response(png(result), media_type="image/png",
                     headers={"X-Crop-Box": ",".join(map(str, crop)), "X-Elapsed-Sec": f"{time.time() - t0:.2f}"})
+
+
+@app.get("/progress", dependencies=[Depends(check_token)])
+def progress():
+    return PROGRESS

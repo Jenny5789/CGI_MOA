@@ -17,10 +17,13 @@ SAM2 이미지 분할과 AnyDoor 기반 이미지 합성 모델을 HTTP로 제�
 | 주소 | 입력 | 출력 |
 |---|---|---|
 | `GET /health` | 없음 | 적재 상태 `loading`·`ready`·`failed`, 가중치 파일, GPU 이름·VRAM |
-| `POST /extract` | 파일 `image`, 문자 `points`·`neg_points`·`box` JSON | 0/255 마스크 PNG, 헤더 `X-Elapsed-Sec` |
+| `POST /extract` | 파일 `image`, 문자 `points`·`neg_points`·`box` JSON, `image_key` | 0/255 마스크 PNG, 헤더 `X-Elapsed-Sec`. 빈 마스크는 422 `EMPTY_MASK` |
 | `POST /compose` | 파일 `garment`·`garment_mask`·`person`·`area`, 값 `seed`·`steps`·`shape_control`·`refine` | 결과 PNG, 헤더 `X-Crop-Box`·`X-Elapsed-Sec` |
+| `GET /progress` | 없음 | 진행 중인 합성의 스텝 진행률 0~1, 합성 중이 아니면 null |
 
 - `X-Crop-Box`: 다시 그린 정사각형 위치 위,아래,왼쪽,오른쪽. 웹 서비스 서버의 박스 선 보정에 사용
+- `image_key`: 직전 요청과 같은 값이면 SAM2 이미지 인코딩 생략. 같은 사진에서 점만 바꿔 다시 분할할 때 시간 단축
+- 웹 서비스 서버 연결: 웹 서비스 서버에 `MODEL_SERVER_URL` 설정, `backend/model_client.py`가 요청 담당
 - 적재 완료 전 `/extract`·`/compose` 요청은 503
 - 환경 변수 `MODEL_TOKEN` 설정 시 헤더 `X-Model-Token` 불일치 요청은 401
 

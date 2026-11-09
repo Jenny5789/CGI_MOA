@@ -30,17 +30,19 @@ def _ramp(area, offset, band):
     return np.clip((ys - (edge - band)) / band, 0, 1).astype(np.float32)
 
 
-def find_garment(result, area):
+def find_garment(result, area, extract=None):
     """합성 결과에서 새 상의 영역(0/1)을 SAM2로 찾는다. 착용 영역을 감싼 박스(3% 여유)를 프롬프트로 사용.
-    찾은 크기가 GARMENT_RATIO 범위 밖이면 None (찾기 실패 → 상단 경계만으로 원본 복원)"""
-    from features.object_extraction import extract_object
+    찾은 크기가 GARMENT_RATIO 범위 밖이면 None (찾기 실패 → 상단 경계만으로 원본 복원)
+    extract: 이미지 분할 함수. 비우면 이 프로세스의 SAM2, 웹 서비스 서버는 모델 서버 호출 함수 전달"""
+    if extract is None:
+        from features.object_extraction import extract_object as extract
 
     h, w = area.shape
     ys, xs = np.where(area)
     pad = int(0.03 * max(h, w))
     box = (max(xs.min() - pad, 0), max(ys.min() - pad, 0), min(xs.max() + pad, w), min(ys.max() + pad, h))
     try:
-        garment = extract_object(result, box=box)
+        garment = extract(result, box=box)
     except RuntimeError:  # 빈 마스크
         return None
     ratio = garment.sum() / max(area.sum(), 1)
