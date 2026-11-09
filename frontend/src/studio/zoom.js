@@ -4,7 +4,7 @@
    - 점 찍기: 끌지 않고 누르기만 하면 onTap (오른쪽 버튼이면 제외 점)
    보기 상태 view = { z: 배율, x0, y0: 화면 왼쪽 위가 가리키는 사진 위치 }. 좌표는 모두 사진 기준 0~1. */
 
-export const ZOOM_MAX = 6;
+const ZOOM_MAX = 6;
 const DRAG_PX = 5; // 이만큼 움직이면 점 찍기가 아니라 끌기로 본다
 
 export const fullView = () => ({ z: 1, x0: 0, y0: 0 });

@@ -161,7 +161,7 @@ export default function Studio() {
   const [pick, setPick] = useState({ 1: { src: null, fromSample: false, confirm: false }, 2: { src: null, fromSample: false, confirm: false } });
   const [dragover, setDragover] = useState({ 1: false, 2: false });
   // ready: 지금 점 그대로 다듬어 둔 영역이 있음 (작업 기록에서 불러오면 점 없이도 '확인'으로 다듬기를 연다)
-  const [c3ui, setC3ui] = useState({ total: 0, neg: 0, pos: 0, canUndo: false, ready: false });
+  const [c3ui, setC3ui] = useState({ neg: 0, pos: 0, canUndo: false, ready: false });
   const [c4ui, setC4ui] = useState({ neg: 0, pos: 0, canUndo: false, ready: false });
   const [editor, setEditor] = useState(null); // 다듬기 팝업: { kind: 'extract' | 'area', image, mask }
   const [sampleBrowser, setSampleBrowser] = useState(null); // 예시 더보기 창: 1 상의 사진 / 2 인물 사진
@@ -179,7 +179,7 @@ export default function Studio() {
   const [panels, setPanels] = useState(() => ({ left: readPanel('left'), right: readPanel('right') }));
 
   /* ---------- 그리기용 데이터 (화면에 바로 보이지 않는 값은 ref에 둔다) ---------- */
-  const data = useRef({ obj: null, bg: null, cutout: null, result: null });
+  const data = useRef({ obj: null, bg: null, cutout: null });
   const s3 = useRef({ src: null, w: 0, h: 0, work: null, pts: [], hist: [], dw: 0, dh: 0 });
   const s4 = useRef({ src: null, w: 0, h: 0, work: null, pts: [], hist: [], dw: 0, dh: 0 });
   const stepRef = useRef(0);
@@ -340,13 +340,13 @@ export default function Studio() {
   const resetAll = async () => {
     setConfirmReset(false);
     restoreTok.current += 1; // 불러오던 작업 기록은 버린다
-    data.current = { obj: null, bg: null, cutout: null, result: null };
+    data.current = { obj: null, bg: null, cutout: null };
     s3.current = { src: null, w: 0, h: 0, work: null, pts: [], hist: [], dw: 0, dh: 0 };
     s4.current = { src: null, w: 0, h: 0, work: null, pts: [], hist: [], dw: 0, dh: 0 };
     setDone({ 1: false, 2: false, 3: false, 4: false });
     setSlots({ 1: null, 2: null, 3: null });
     setPick({ 1: { src: null, fromSample: false, confirm: false }, 2: { src: null, fromSample: false, confirm: false } });
-    setC3ui({ total: 0, neg: 0, pos: 0, canUndo: false, ready: false });
+    setC3ui({ neg: 0, pos: 0, canUndo: false, ready: false });
     setC4ui({ neg: 0, pos: 0, canUndo: false, ready: false });
     setZoom({ 3: 1, 4: 1 });
     setEditor(null);
@@ -385,7 +385,7 @@ export default function Studio() {
       drawDot(ctx, c.x, c.y, p.neg ? '#e11d48' : '#16171b');
     });
     const pos = s.pts.filter((p) => !p.neg).length;
-    const next = { total: s.pts.length, neg: s.pts.length - pos, pos, canUndo: s.hist.length > 0, ready: !!s.edited && s.editedKey === JSON.stringify(s.pts) };
+    const next = { neg: s.pts.length - pos, pos, canUndo: s.hist.length > 0, ready: !!s.edited && s.editedKey === JSON.stringify(s.pts) };
     setC3ui((prev) => (sameUi(prev, next) ? prev : next));
   };
 
@@ -619,7 +619,6 @@ export default function Studio() {
       const img = await loadImage(res.image_url);
       const out = newCanvas(img.naturalWidth, img.naturalHeight);
       out.getContext('2d').drawImage(img, 0, 0);
-      data.current.result = out;
       setSaved(false);
       // 합성이 끝나면 저장하지 않아도 내 작업 기록 맨 위에 붙인다
       setHistory((h) => [
@@ -695,7 +694,7 @@ export default function Studio() {
       s3.current = { src: obj.src, work: w3.work, w: w3.w, h: w3.h, pts: [], hist: [], dw: 0, dh: 0, view: fullView(), edited: gMask, editedKey: '[]' };
       s4.current = { src: bg.src, work: w4.work, w: w4.w, h: w4.h, pts: [], hist: [], dw: 0, dh: 0, view: fullView(), edited: aMask, editedKey: '[]' };
       setZoom({ 3: 1, 4: 1 });
-      setC3ui({ total: 0, neg: 0, pos: 0, canUndo: false, ready: true });
+      setC3ui({ neg: 0, pos: 0, canUndo: false, ready: true });
       setC4ui({ neg: 0, pos: 0, canUndo: false, ready: true });
       setPick({ 1: { src: obj.src, fromSample: false, confirm: false }, 2: { src: bg.src, fromSample: false, confirm: false } });
       setSlots({ 1: obj.src, 2: bg.src, 3: cutout });
