@@ -1,7 +1,7 @@
 """AnyDoor 재학습 결과 확인: 새 입력으로 유형 B 5장 합성 (원래 가중치 / 재학습 가중치).
 
 - 합성: 서버 features.composition.AnyDoorComposer 그대로 (float16, save_memory, 크롭 1.3배, 50스텝)
-- 새 입력: AnyDoor의 process_pairs만 이 스크립트 안에서 교체 (retrain_dataset.py 학습 재료와 같은 계산, 서버·AnyDoor 코드 수정 없음)
+- 새 입력: AnyDoor의 process_pairs만 교체 (retrain_dataset.inference_item, 학습 재료와 같은 계산, 서버·AnyDoor 코드 수정 없음)
   - 생성 영역 = agnostic-mask (상체 옷 + 팔) + 원래 상의 (상의 라벨, 5px 넓힘, 학습 재료와 같음), 네 번째 인자 ag면 상체 + 팔만
   - 조건 이미지 = 옷 사진 비율 그대로 어깨 기준 배치 (VITON-HD 관절 점)
 - 대상: VITON-HD 시험용 유형 B 5장 (아래 CASES), seed 3개씩, 이미 만든 결과는 건너뜀
@@ -26,7 +26,7 @@ sys.path.insert(0, str(HERE.parents[1]))  # 저장소 최상위 (features 패키
 sys.path.insert(1, str(HERE))
 import cv2  # noqa: E402
 
-from retrain_dataset import AD, DIL, UPPER, du, placed_hint  # noqa: E402
+from retrain_dataset import AD, DIL, UPPER, inference_item, placed_hint  # noqa: E402
 from retrain_ids import font  # noqa: E402
 
 OUT, NAME, CKPT = Path(sys.argv[1]), sys.argv[2], sys.argv[3]
@@ -39,7 +39,6 @@ VT = Path(os.environ.get("VITON_TEST_DIR", AD / "data" / "zalando-hd-resized" / 
 CASES = [("V02", "03906_00.jpg", "09303_00.jpg", 1001), ("V28", "07395_00.jpg", "03731_00.jpg", 1027),
          ("V37", "14097_00.jpg", "02649_00.jpg", 1036), ("V50", "00095_00.jpg", "09396_00.jpg", 1049),
          ("V62", "04957_00.jpg", "04523_00.jpg", 1061)]
-CROP = 1.3
 
 
 def load(person_name, cloth_name):
@@ -52,35 +51,6 @@ def load(person_name, cloth_name):
     k = json.loads((VT / "openpose_json" / person_name.replace(".jpg", "_keypoints.json")).read_text())
     p = np.array(k["people"][0]["pose_keypoints_2d"], np.float32).reshape(-1, 3)
     return person, cloth, cmask, ag, area, p
-
-
-def new_input(ref_image, ref_mask, tar_image, tar_mask, p):
-    """새 입력 process_pairs: run_inference.py와 같은 출력 키, 생성 영역·조건 이미지만 새 방식"""
-    y1, y2, x1, x2 = du.get_bbox_from_mask(ref_mask)
-    m3 = np.stack([ref_mask] * 3, -1)
-    ref = (ref_image * m3 + 255 * (1 - m3))[y1:y2, x1:x2]
-    ref, _ = du.expand_image_mask(ref, ref_mask[y1:y2, x1:x2], ratio=1.2)  # run_inference.py와 같은 1.2배
-    ref = cv2.resize(du.pad_to_square(ref, 255).astype(np.uint8), (224, 224))
-    H, W = tar_mask.shape
-    by1, by2, bx1, bx2 = du.get_bbox_from_mask(tar_mask)
-    yc, xc, h, w = 0.5 * (by1 + by2), 0.5 * (bx1 + bx2), CROP * (by2 - by1 + 1), CROP * (bx2 - bx1 + 1)
-    crop = du.box2squre(tar_image, (max(0, int(yc - h / 2)), min(H, int(yc + h / 2)), max(0, int(xc - w / 2)), min(W, int(xc + w / 2))))
-    hint_big, sil = placed_hint(ref_image, ref_mask, p, H, W)
-    collage = tar_image.copy()
-    collage[tar_mask > 0] = 0
-    collage[sil > 0] = hint_big[sil > 0]
-    cy1, cy2, cx1, cx2 = crop
-    H1, W1 = cy2 - cy1, cx2 - cx1
-    tgt = du.pad_to_square(tar_image[cy1:cy2, cx1:cx2], pad_value=0).astype(np.uint8)
-    col = du.pad_to_square(collage[cy1:cy2, cx1:cx2], pad_value=0).astype(np.uint8)
-    cm = du.pad_to_square(np.stack([tar_mask[cy1:cy2, cx1:cx2]] * 3, -1).astype(np.uint8), pad_value=2).astype(np.uint8)
-    H2, W2 = col.shape[:2]
-    tgt = cv2.resize(tgt, (512, 512)).astype(np.float32)
-    col = cv2.resize(col, (512, 512)).astype(np.float32)
-    cm = cv2.resize(cm, (512, 512), interpolation=cv2.INTER_NEAREST).astype(np.float32)
-    cm[cm == 2] = -1  # 학습과 같게 정사각형 빈칸은 −1
-    return dict(ref=ref.astype(np.float32) / 255, jpg=tgt / 127.5 - 1.0, hint=np.concatenate([col / 127.5 - 1.0, cm[:, :, :1]], -1),
-                extra_sizes=np.array([H1, W1, H2, W2]), tar_box_yyxx_crop=np.array(crop))
 
 
 plan = [(tag, s0, *load(pn, cn)) for tag, pn, cn, s0 in CASES]
@@ -99,7 +69,7 @@ if todo:
         del sd
         gc.collect()
     cur = {}
-    ns["process_pairs"] = lambda ref_image, ref_mask, tar_image, tar_mask: new_input(ref_image, ref_mask, tar_image, tar_mask, cur["p"])
+    ns["process_pairs"] = lambda ref_image, ref_mask, tar_image, tar_mask: inference_item(ref_image, ref_mask, tar_image, tar_mask, cur["p"])
     for tag, s0, person, cloth, cmask, ag, area, p in plan:
         cur["p"] = p
         for s in (s0, s0 + 1000, s0 + 2000):

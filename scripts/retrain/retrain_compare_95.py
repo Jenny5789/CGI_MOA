@@ -32,7 +32,7 @@ sys.path.insert(0, str(HERE.parents[1]))  # 저장소 최상위 (features 패키
 sys.path.insert(1, str(HERE))
 import cv2  # noqa: E402
 
-from retrain_dataset import AD, DIL, UPPER, du, placed_hint  # noqa: E402
+from retrain_dataset import AD, DIL, UPPER, inference_item, server_crop  # noqa: E402
 from retrain_ids import font  # noqa: E402
 
 ap = argparse.ArgumentParser()
@@ -53,7 +53,9 @@ OUT.mkdir(parents=True, exist_ok=True)
 (OUT / "compare").mkdir(exist_ok=True)
 VT = Path(os.environ.get("VITON_TEST_DIR", AD / "data" / "zalando-hd-resized" / "test"))
 OFFICIAL = AD / "checkpoints" / "epoch=1-step=8687.ckpt"
-CROP, M, KEEP_DIL = 1.3, 5, 10  # 크롭 배율 (서버), crop_back 테두리, 밝기 측정에서 뺄 생성 영역 둘레 (px)
+M, KEEP_DIL = 5, 10  # crop_back 테두리, 밝기 측정에서 뺄 생성 영역 둘레 (px). 크롭 배율은 서버와 같은 retrain_dataset.SERVER_CROP
+TW, TH, GAP = 200, 267, 8  # 쌍별 비교 그림 한 칸 (px)
+CW, CH, COLS, PER = 150, 200, 2, 12  # 모음 그림: 한 칸 크기, 열 수, 한 장에 넣는 쌍 수
 LUM = np.array([0.299, 0.587, 0.114], np.float32)
 NA = "측정 불가"
 pairs = list(enumerate(json.loads((HERE / "pairs_95.json").read_text(encoding="utf-8")), 1))
@@ -77,40 +79,9 @@ def load(m):
     return person, cloth, cmask, ag, wide, p
 
 
-def crop_of(tar_image, tar_mask):
-    """AnyDoor가 다시 그리는 정사각형 (위, 아래, 왼쪽, 오른쪽)"""
-    H, W_ = tar_mask.shape
-    by1, by2, bx1, bx2 = du.get_bbox_from_mask(tar_mask)
-    yc, xc, h, w = 0.5 * (by1 + by2), 0.5 * (bx1 + bx2), CROP * (by2 - by1 + 1), CROP * (bx2 - bx1 + 1)
-    return tuple(int(v) for v in du.box2squre(tar_image, (max(0, int(yc - h / 2)), min(H, int(yc + h / 2)),
-                                                           max(0, int(xc - w / 2)), min(W_, int(xc + w / 2)))))
-
-
-def new_input(ref_image, ref_mask, tar_image, tar_mask, p):
-    """새 입력 process_pairs: run_inference.py와 같은 출력 키, 생성 영역·조건 이미지만 새 방식 (학습 재료와 같은 계산)"""
-    y1, y2, x1, x2 = du.get_bbox_from_mask(ref_mask)
-    m3 = np.stack([ref_mask] * 3, -1)
-    ref = (ref_image * m3 + 255 * (1 - m3))[y1:y2, x1:x2]
-    ref, _ = du.expand_image_mask(ref, ref_mask[y1:y2, x1:x2], ratio=1.2)  # run_inference.py와 같은 1.2배
-    ref = cv2.resize(du.pad_to_square(ref, 255).astype(np.uint8), (224, 224))
-    H, W_ = tar_mask.shape
-    crop = crop_of(tar_image, tar_mask)
-    hint_big, sil = placed_hint(ref_image, ref_mask, p, H, W_)
-    collage = tar_image.copy()
-    collage[tar_mask > 0] = 0
-    collage[sil > 0] = hint_big[sil > 0]
-    cy1, cy2, cx1, cx2 = crop
-    H1, W1 = cy2 - cy1, cx2 - cx1
-    tgt = du.pad_to_square(tar_image[cy1:cy2, cx1:cx2], pad_value=0).astype(np.uint8)
-    col = du.pad_to_square(collage[cy1:cy2, cx1:cx2], pad_value=0).astype(np.uint8)
-    cm = du.pad_to_square(np.stack([tar_mask[cy1:cy2, cx1:cx2]] * 3, -1).astype(np.uint8), pad_value=2).astype(np.uint8)
-    H2, W2 = col.shape[:2]
-    tgt = cv2.resize(tgt, (512, 512)).astype(np.float32)
-    col = cv2.resize(col, (512, 512)).astype(np.float32)
-    cm = cv2.resize(cm, (512, 512), interpolation=cv2.INTER_NEAREST).astype(np.float32)
-    cm[cm == 2] = -1  # 학습과 같게 정사각형 빈칸은 −1
-    return dict(ref=ref.astype(np.float32) / 255, jpg=tgt / 127.5 - 1.0, hint=np.concatenate([col / 127.5 - 1.0, cm[:, :, :1]], -1),
-                extra_sizes=np.array([H1, W1, H2, W2]), tar_box_yyxx_crop=np.array(crop))
+def shrink(im, size):
+    """그림에 쓸 크기로 줄인 사진. 원래 크기 사진을 쌓아 두면 95쌍 x 가중치 3개에 약 1.8GB라, 줄인 것만 보관한다"""
+    return np.array(Image.fromarray(im).resize(size))
 
 
 def strength(img, box):
@@ -149,7 +120,7 @@ if any(todo.values()):
     from cldm.model import load_state_dict
 
     cur = {}
-    ns["process_pairs"] = lambda ref_image, ref_mask, tar_image, tar_mask: new_input(ref_image, ref_mask, tar_image, tar_mask, cur["p"])
+    ns["process_pairs"] = lambda ref_image, ref_mask, tar_image, tar_mask: inference_item(ref_image, ref_mask, tar_image, tar_mask, cur["p"])
     loaded = "original"
     for name, path in W:
         if not todo[name]:
@@ -180,7 +151,7 @@ rows, pics = [], {}
 done = [(n, m) for n, m in pairs if all(out_path(n, m, name).exists() for name in names)]
 for n, m in done:
     person, cloth, cmask, ag, wide, p = load(m)
-    cb = crop_of(person, wide)
+    cb = server_crop(person, wide)
     H, W_ = person.shape[:2]
     box = (max(cb[0] + M, 0), min(cb[1] - M, H), max(cb[2] + M, 0), min(cb[3] - M, W_))  # 실제로 붙인 범위
     keep = np.zeros((H, W_), bool)
@@ -200,7 +171,9 @@ for n, m in done:
     add = (wide > 0) & (ag == 0)
     view[ag > 0] = (view[ag > 0] * 0.45 + np.array([0, 90, 255]) * 0.55).astype(np.uint8)
     view[add] = (view[add] * 0.3 + np.array([255, 0, 0]) * 0.7).astype(np.uint8)
-    pics[n] = (person, cloth, view, res, seam)
+    # 그림에는 줄인 사진만 쓰므로 원래 크기 사진은 두지 않는다: 쌍별 그림용(TW x TH)과 모음 그림용(CW x CH)을 각각 원본에서 바로 줄여 보관
+    pics[n] = ([shrink(im, (TW, TH)) for im in [person, cloth, view] + [res[x] for x in names] + [seam[x] for x in names if x != "original"]],
+               [shrink(im, (CW, CH)) for im in [person, cloth] + [res[x] for x in names]])
 if not rows:
     sys.exit(f"비교할 결과 없음 (실패 {len(fails)}건)")
 
@@ -221,7 +194,6 @@ for t in lines:
 
 # ---- 그림 ----
 F, FS, FB, FT = font(15), font(17), font(19), font(24)
-TW, TH, GAP = 200, 267, 8
 HEADS = ["원래 사진", "입힐 옷", "다시 그리는 영역"] + names + [f"{x} + 포아송" for x in names if x != "original"]
 LEGEND = ["같은 새 입력·같은 seed로 그림 → 결과 차이는 가중치 때문, original = AnyDoor 공식 가중치 (재학습 전, 새 입력을 배운 적 없음)",
           "다시 그리는 영역: 파랑 = 상체 + 팔, 빨강 = 더한 원래 상의",
@@ -257,8 +229,7 @@ row_of = {r["번호"]: r for r in rows}
 
 
 def tile(n, m, with_legend=True):
-    person, cloth, view, res, seam = pics[n]
-    ims = [person, cloth, view] + [res[x] for x in names] + [seam[x] for x in names if x != "original"]
+    ims = pics[n][0]  # 이미 (TW, TH)로 줄여 둔 사진
     width = len(ims) * (TW + GAP)
     leg = legend_lines(F, width - 8) if with_legend else []
     t = Image.new("RGB", (width, TH + 64 + 24 * len(leg)), "white")
@@ -268,7 +239,7 @@ def tile(n, m, with_legend=True):
         f"{x} {r[f'박스 선 세기 {x} (포아송 전)']}→{r[f'박스 선 세기 {x} (포아송 후)']}" for x in names), fill="black", font=FB)
     for j, (h, im) in enumerate(zip(HEADS, ims)):
         d.text((j * (TW + GAP) + 2, 30), h, fill="black", font=F)
-        t.paste(Image.fromarray(im).resize((TW, TH)), (j * (TW + GAP), 52))
+        t.paste(Image.fromarray(im), (j * (TW + GAP), 52))
     y = TH + 60
     for ln in leg:
         d.text((4, y), ln, fill=(60, 60, 60), font=F)
@@ -280,7 +251,6 @@ for n, m in done:
     tile(n, m).save(OUT / "compare" / f"V{n:02d}.jpg", quality=90)
 
 # 모음 그림: 12쌍씩, 한 칸 = 원래 사진 | 입힐 옷 | 가중치별 결과 (포아송 전)
-CW, CH, COLS, PER = 150, 200, 2, 12
 CELL = (2 + len(names)) * (CW + 2) + 24
 for page in range(0, len(done), PER):
     chunk = done[page:page + PER]
@@ -293,9 +263,8 @@ for page in range(0, len(done), PER):
     for k, (n, m) in enumerate(chunk):
         x, y = (k % COLS) * CELL, 70 + (k // COLS) * (CH + 30)
         d.text((x + 2, y), f"V{n:02d}", fill="black", font=FB)
-        person, cloth, view, res, seam = pics[n]
-        for j, im in enumerate([person, cloth] + [res[x_] for x_ in names]):
-            sheet.paste(Image.fromarray(im).resize((CW, CH)), (x + j * (CW + 2), y + 26))
+        for j, im in enumerate(pics[n][1]):  # 이미 (CW, CH)로 줄여 둔 사진
+            sheet.paste(Image.fromarray(im), (x + j * (CW + 2), y + 26))
     y = 76 + nrow * (CH + 30)
     for ln in leg:
         d.text((4, y), ln, fill=(60, 60, 60), font=F)
