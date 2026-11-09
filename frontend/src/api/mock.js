@@ -1,5 +1,6 @@
-/* 가짜 서버. 실제 서버처럼 조금 기다린 뒤 { status, data } 를 돌려준다.
-   기능을 하나씩 옮길 때마다 아래 routes에 주소를 추가한다. 주소 안의 {이름} 부분은 params로, ?뒤 조건은 query로 넘어온다.
+/* 가짜 서버. 서버 없이 화면만 만들 때(VITE_API_MODE=mock, client.js) 쓴다. 실제 서버처럼 조금 기다린 뒤 { status, data } 를 돌려준다.
+   실제 서버(backend/)에 있는 주소는 모두 아래 routes에도 같은 모양으로 있다. 서버에 주소가 늘면 여기에도 추가해 둔다.
+   주소 안의 {이름} 부분은 params로, ?뒤 조건은 query로 넘어온다. 로그인은 test / test (실제 서버는 test / test1234).
    데이터는 메모리에만 있어서 새로고침하면 처음 상태로 돌아간다. */
 import { normalizeEmail, normalizePhone, passwordOk, usernameOk } from '../auth/signupRules.js';
 
