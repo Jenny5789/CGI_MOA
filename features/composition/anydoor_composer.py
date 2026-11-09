@@ -4,7 +4,7 @@
 출력: 합성된 인물 사진 (RGB uint8, 인물 사진과 같은 크기)
 
 - AnyDoor 폴더(기본 Desktop\\AnyDoor)의 run_inference.py는 고치지 않는다.
-  scripts/anydoor_compose_test.py와 같은 방식으로 모델 로딩과 inference_single_image 부분만 읽어서 쓴다.
+  모델 로딩과 inference_single_image 부분만 읽어서 쓴다 (docs/작업일지.md 2026-10-12 ⑤).
 - 설정: 50스텝, float16 + save_memory (2026-10-11 확인: 화질 차이 없음)
 - 인물 사진에서 잘라 다시 그리는 정사각형: AnyDoor 기본 1.5~2.9배 무작위 → 1.3배 고정
   (2026-10-12 결정: 배율 비교 실험에서 머리카락·귀걸이 유지가 낫고 옷 변형이 가장 적음, run_inference.py는 그대로)
@@ -127,7 +127,7 @@ class AnyDoorComposer:
         src = src.replace("ddim_steps = 50", "ddim_steps = _MOA_DDIM_STEPS", 1)
         if self.crop_ratio is not None:
             # 정사각형 배율: expand_bbox가 randint(앞×10, 뒤×10)/10으로 뽑으므로 [1.3, 1.4]면 항상 1.3
-            # (scripts/anydoor_crop_sweep.py와 같은 값. 뽑기 횟수는 그대로라 같은 seed면 배율만 다른 결과)
+            # (크롭 배율 비교 실험과 같은 값, docs/작업일지.md 2026-10-17 ②. 뽑기 횟수는 그대로라 같은 seed면 배율만 다른 결과)
             if "ratio=[1.5, 3]" not in src:
                 raise RuntimeError("run_inference.py에서 ratio=[1.5, 3]을 찾지 못했습니다. AnyDoor 코드가 바뀌었는지 확인하세요.")
             r = round(float(self.crop_ratio), 1)
@@ -151,7 +151,7 @@ class AnyDoorComposer:
 
         if self.fp16:
             # autocast에서는 복원 이미지가 float16으로 나오는데 AnyDoor의 crop_back(cv2.resize)이 처리하지 못한다.
-            # AnyDoor 코드는 그대로 두고 복원 결과만 float32로 바꾼다 (scripts/anydoor_compose_test.py와 같음)
+            # AnyDoor 코드는 그대로 두고 복원 결과만 float32로 바꾼다
             model = ns["model"]
             decode = model.decode_first_stage
             model.decode_first_stage = lambda *a, **k: decode(*a, **k).float()

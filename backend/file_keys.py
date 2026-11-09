@@ -33,6 +33,7 @@ def _get_secret() -> bytes:
 
 
 def _sign(name: str, expires: int) -> str:
+    # HMAC-SHA256 결과 64자 중 앞 32자(128비트)만 쓴다: 사진 주소가 길어지지 않게. 해시 길이의 절반 이상이면 충분하다고 HMAC 표준(RFC 2104)이 정함
     return hmac.new(_get_secret(), f"{name}.{expires}".encode(), hashlib.sha256).hexdigest()[:32]
 
 

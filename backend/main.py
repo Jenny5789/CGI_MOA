@@ -7,7 +7,7 @@
 합성을 안 쓰는 작업이라 예열을 끄려면: set MOA_WARMUP=0 후 실행.
 
 주소와 주고받는 값은 팀 API 명세(docs/api.md)를 따른다. 모든 주소는 /api로 시작한다.
-기능별로 routers/ 아래 파일을 하나씩 만들어 여기서 붙인다. 누가 어느 칸을 채우는지는 backend/README.md 참고.
+기능별로 routers/ 아래 파일을 하나씩 만들어 여기서 붙인다. 파일별 역할은 backend/README.md 2장 참고.
 """
 import os
 

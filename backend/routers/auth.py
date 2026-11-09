@@ -18,17 +18,17 @@ import io
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, Request, UploadFile
+from fastapi import APIRouter, Depends, File, UploadFile
 from PIL import Image, ImageOps, UnidentifiedImageError
 from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from backend.auth import (bearer_token, current_user, expires_text, extend_token, find_user, find_user_by_email,
-                          hash_password, issue_token, normalize_email, normalize_phone, password_ok, revoke_other_tokens,
-                          revoke_token, username_ok, verify_password)
+from backend.auth import (current_session, current_user, extend_token, find_user, find_user_by_email, hash_password,
+                          issue_token, normalize_email, normalize_phone, password_ok, revoke_other_tokens, revoke_token,
+                          username_ok, verify_password)
 from backend.config import ALLOWED_FORMATS, AVATAR_SIDE, AVATARS_DIR, MAX_UPLOAD_BYTES
-from backend.db import User, get_db, utcnow
+from backend.db import User, get_db, kst_text, utcnow
 from backend.errors import ApiError
 from backend.file_keys import signed_url
 
@@ -55,7 +55,7 @@ class RegisterBody(BaseModel):
 
 def _login_response(db: Session, user: User):
     token, expires_at = issue_token(db, user)
-    return {"token": token, "expires_at": expires_text(expires_at), "user": {"id": user.id, "username": user.username, "name": user.name}}
+    return {"token": token, "expires_at": kst_text(expires_at), "user": {"id": user.id, "username": user.username, "name": user.name}}
 
 
 @router.post("/api/auth/login")
@@ -204,7 +204,8 @@ class PasswordBody(BaseModel):
 
 
 @router.patch("/api/me/password")
-def change_password(body: PasswordBody, request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def change_password(body: PasswordBody, session: tuple[User, str] = Depends(current_session), db: Session = Depends(get_db)):
+    user, token = session
     if not verify_password(body.current_password, user.password_hash):
         raise ApiError(400, "WRONG_PASSWORD", "지금 비밀번호가 올바르지 않습니다.")
     if not password_ok(body.new_password):
@@ -213,17 +214,17 @@ def change_password(body: PasswordBody, request: Request, user: User = Depends(c
         raise ApiError(400, "SAME_PASSWORD", "지금 비밀번호와 다른 비밀번호를 입력해 주세요.")
     user.password_hash = hash_password(body.new_password)
     db.commit()
-    revoke_other_tokens(db, user, bearer_token(request))  # 다른 기기에서 로그인한 것은 끊는다
+    revoke_other_tokens(db, user, token)  # 다른 기기에서 로그인한 것은 끊는다
     return {}
 
 
 @router.post("/api/auth/logout")
-def logout(request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
-    revoke_token(db, bearer_token(request))
+def logout(session: tuple[User, str] = Depends(current_session), db: Session = Depends(get_db)):
+    revoke_token(db, session[1])
     return {}
 
 
 @router.post("/api/auth/extend")
-def extend(request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
-    # 이미 만료된 토큰은 current_user에서 401 → 연장 불가, 다시 로그인
-    return {"expires_at": expires_text(extend_token(db, bearer_token(request)))}
+def extend(session: tuple[User, str] = Depends(current_session), db: Session = Depends(get_db)):
+    # 이미 만료된 토큰은 current_session에서 401 → 연장 불가, 다시 로그인
+    return {"expires_at": kst_text(extend_token(db, session[1]))}

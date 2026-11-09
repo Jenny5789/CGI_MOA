@@ -7,7 +7,7 @@
 """
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from dotenv import load_dotenv
 from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, create_engine, inspect, select, text
@@ -71,7 +71,7 @@ class Extraction(Base):
     width: Mapped[int] = mapped_column(Integer)  # 상의 사진 크기 (합성에서 다듬은 윤곽의 크기를 맞출 때 씀)
     height: Mapped[int] = mapped_column(Integer)
     mask: Mapped[str] = mapped_column(String(64))  # 상의 윤곽 파일 이름 ext_xxx_mask.png
-    cutout: Mapped[str] = mapped_column(String(64))  # 배경을 지운 상의 파일 이름 ext_xxx_cutout.png
+    cutout: Mapped[str] = mapped_column(String(64))  # 배경을 지운 상의 파일 이름 ext_xxx_cutout.png (파일은 추출 때 만들지 않고 /api/files로 처음 요청할 때 만든다, storage.ensure_cutout)
     seconds: Mapped[float] = mapped_column(Float)  # SAM2 추출에 걸린 시간(초)
     detail: Mapped[dict] = mapped_column(JSON)  # 재현·분석용: points(찍은 점), box(그린 박스, 없으면 null), bbox(상의를 감싸는 사각형)
     created_at: Mapped[datetime] = mapped_column(DateTime)  # UTC
@@ -132,9 +132,17 @@ class AuthSession(Base):
 _SessionLocal = None
 
 
+KST = timezone(timedelta(hours=9))
+
+
 def utcnow():
     """DB에는 시간대 없는 UTC로 저장"""
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def kst_text(utc_time) -> str:
+    """DB의 UTC 시각(시간대 없음) → 응답용 한국 시간 글자 (예: 2026-10-15T18:20:00+09:00)"""
+    return utc_time.replace(tzinfo=timezone.utc).astimezone(KST).isoformat(timespec="seconds")
 
 
 def init_db():

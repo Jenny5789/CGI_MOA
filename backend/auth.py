@@ -4,26 +4,25 @@
 - 토큰: 무작위 글자. DB에는 토큰의 SHA-256 해시만 저장 (DB가 새어도 토큰으로 로그인 못 하게)
 - 토큰 유효 기간: TOKEN_HOURS (3시간, 10/15 결정). 로그인한 시각부터 셈, 쓰는 중에 저절로 늘지 않음
 - 연장: 화면이 만료 전에 사용자에게 묻고, 연장하면 POST /api/auth/extend → 그 시각부터 다시 3시간 (docs/login_extend.md)
-- 로그인 필요한 주소: 함수 인자에 user: User = Depends(current_user)
+- 로그인 필요한 주소: 함수 인자에 user: User = Depends(current_user). 이 요청의 토큰도 필요하면 session = Depends(current_session) → (회원, 토큰)
 """
 import hashlib
 import hmac
 import re
 import secrets
-from datetime import timedelta, timezone
+from datetime import timedelta
 
-from fastapi import Depends, Request
+from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from backend.db import AuthSession, User, get_db, utcnow
 from backend.errors import ApiError
-from backend.storage import KST
 
 TOKEN_HOURS = 3
 USERNAME_MAX = 12  # 아이디 최대 글자 수 (화면 frontend/src/auth/signupRules.js와 같게)
-_ITERATIONS = 600_000
+_ITERATIONS = 600_000  # OWASP 비밀번호 저장 안내(2023)가 PBKDF2-HMAC-SHA256에 권하는 반복 횟수. 저장 형식에 반복 수가 적혀 있어, 값을 바꿔도 이미 저장된 비밀번호는 그 값으로 확인된다
 _PASSWORD_RULE = re.compile(r"^(?=.*\d).{8,}$")  # 명세 2-2: 8자 이상, 숫자 포함
 # 명세 2-2 이메일: 인증 메일은 보내지 않지만, 형식이 맞아야 하고 한 이메일로 한 번만 가입 (무분별한 가입 방지)
 _EMAIL_RULE = re.compile(r"^[a-z0-9._%+-]+@[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$")
@@ -72,11 +71,6 @@ def _token_hash(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-def expires_text(expires_at) -> str:
-    """DB의 UTC 시각 → 응답용 한국 시간 글자 (예: 2026-10-15T18:20:00+09:00)"""
-    return expires_at.replace(tzinfo=timezone.utc).astimezone(KST).isoformat(timespec="seconds")
-
-
 def issue_token(db: Session, user: User):
     """새 토큰을 만들어 DB에 기록하고 (토큰, 만료 시각)을 돌려준다. 그 김에 만료된 토큰은 지운다"""
     now = utcnow()
@@ -107,29 +101,26 @@ def revoke_other_tokens(db: Session, user: User, keep_token: str):
     db.commit()
 
 
-def bearer_token(request: Request) -> str | None:
-    """요청 머리 Authorization: Bearer <토큰> 에서 토큰만 꺼낸다"""
-    value = request.headers.get("Authorization", "")
-    scheme, _, token = value.partition(" ")
-    if scheme.lower() != "bearer" or not token.strip():
-        return None
-    return token.strip()
-
-
 # /docs에 Authorize 버튼과 자물쇠 표시를 띄우는 용도. 토큰이 없거나 형식이 틀려도 여기서 막지 않고(auto_error=False) 아래에서 명세 형식 401
 _bearer = HTTPBearer(auto_error=False, description="로그인 응답의 token 값 (Bearer는 빼고 입력)")
 
 
-def current_user(credentials: HTTPAuthorizationCredentials | None = Depends(_bearer), db: Session = Depends(get_db)) -> User:
-    """로그인한 회원. 토큰이 없거나 틀리거나 만료되면 401"""
+def current_session(credentials: HTTPAuthorizationCredentials | None = Depends(_bearer), db: Session = Depends(get_db)) -> tuple[User, str]:
+    """로그인한 회원과 이 요청에 쓴 토큰 (회원, 토큰). 토큰이 없거나 틀리거나 만료되면 401.
+    토큰도 필요한 주소(로그아웃, 시간 연장, 비밀번호 변경)가 쓴다"""
     token = credentials.credentials.strip() if credentials else None
     if token:
         row = db.get(AuthSession, _token_hash(token))
         if row is not None and row.expires_at > utcnow():
             user = db.get(User, row.user_id)
             if user is not None:
-                return user
+                return user, token
     raise ApiError(401, "UNAUTHORIZED", "로그인이 필요합니다.")
+
+
+def current_user(session: tuple[User, str] = Depends(current_session)) -> User:
+    """로그인한 회원. 토큰이 없거나 틀리거나 만료되면 401"""
+    return session[0]
 
 
 def find_user(db: Session, username: str) -> User | None:
