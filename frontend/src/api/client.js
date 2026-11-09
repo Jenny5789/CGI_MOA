@@ -1,19 +1,15 @@
 /* 서버 요청은 모두 여기를 거친다.
-   주소와 데이터 모양은 팀 API 명세 초안(2026-10-12)을 따른다. 명세의 주소는 모두 /api로 시작하고, 여기 path에는 /api 뒤만 적는다.
+   주소와 데이터 모양은 팀 API 명세(docs/api.md)를 따른다. 명세의 주소는 모두 /api로 시작하고, 여기 path에는 /api 뒤만 적는다.
 
    어느 서버에 보낼지 (.env.local의 VITE_API_MODE)
-   - mock  (기본): 모두 가짜 서버(mock.js)가 대답
-   - mixed       : 실제 서버(backend/)에 있는 기능만 실제 서버로, 나머지는 가짜 서버로
-                   실제 서버에 있는 것: 로그인·회원가입·아이디 중복확인·내 정보·로그아웃, 사진 올리기·최근 사진, 상의 추출,
-                   합성 요청·진행 확인, 결과·결과 재료·사진첩 목록·저장/좋아요 (REAL_ROUTES, 지금은 전부).
-                   실제 서버 시험 회원: test / test1234
-   - real        : 모두 실제 서버로
-   예전 설정 VITE_USE_MOCK=false 는 real 과 같다. */
+   - mock  (기본): 모두 가짜 서버(mock.js)가 대답. 서버 없이 화면만 만들 때 쓴다
+   - real        : 모두 실제 서버(backend/)로. 실제 서버 시험 회원: test / test1234
+   - mixed       : REAL_ROUTES에 적은 주소만 실제 서버로, 나머지는 가짜 서버로.
+                   지금은 목록이 서버의 모든 주소를 덮고 있어서 real과 같게 동작한다 (도커 화면 이미지는 mixed로 빌드: frontend.Dockerfile) */
 import { mockRequest } from './mock.js';
 
 const env = import.meta.env;
-export const API_MODE = env.VITE_API_MODE || (env.VITE_USE_MOCK === 'false' ? 'real' : 'mock');
-export const USE_MOCK = API_MODE === 'mock';
+export const API_MODE = env.VITE_API_MODE || 'mock';
 const BASE = '/api'; // 개발 중에는 vite.config.js의 프록시가 실제 서버로 넘긴다
 
 // mixed 모드에서 실제 서버로 보낼 요청 ("방식 주소" 모양으로 검사)
@@ -42,13 +38,14 @@ const goesToRealServer = (method, path) => {
 };
 
 const TOKEN_KEY = 'moa_token';
+export const EXPIRES_KEY = 'moa_token_expires'; // 로그인 만료 시각 (저장은 api/auth.js, 지우는 것은 아래 setToken(null)이 토큰과 함께 한다)
 export const UNAUTHORIZED_EVENT = 'moa:unauthorized';
 
 export const getToken = () => { try { return localStorage.getItem(TOKEN_KEY); } catch { return null; } };
 export const setToken = (token) => {
   try {
     if (token) localStorage.setItem(TOKEN_KEY, token);
-    else { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem('moa_token_expires'); } // 만료 시각(api/auth.js)도 함께 지움
+    else { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(EXPIRES_KEY); } // 만료 시각도 함께 지움
   } catch { /* 저장 불가 시 무시 */ }
 };
 

@@ -1,12 +1,13 @@
-import { getToken, request, setToken } from './client.js';
+import { EXPIRES_KEY, getToken, request, setToken } from './client.js';
 
 // 로그인 만료 시각 (서버가 준 expires_at, 한국 시간 글자). 연장 안내 창의 타이머 기준 → docs/login_extend.md
-export const EXPIRES_KEY = 'moa_token_expires';
+// 저장 키(EXPIRES_KEY)는 client.js에 있고, 지우는 것은 setToken(null)이 토큰과 함께 한다
+export { EXPIRES_KEY }; // AuthContext가 다른 탭의 변경을 알아챌 때 쓴다
 export const getExpiresAt = () => {
   try { const v = localStorage.getItem(EXPIRES_KEY); return v ? new Date(v) : null; } catch { return null; }
 };
 const setExpiresAt = (v) => {
-  try { if (v) localStorage.setItem(EXPIRES_KEY, v); else localStorage.removeItem(EXPIRES_KEY); } catch { /* 저장 불가 시 무시 */ }
+  try { localStorage.setItem(EXPIRES_KEY, v); } catch { /* 저장 불가 시 무시 */ }
 };
 
 // 명세 2-1. 성공하면 토큰을 저장하고 사용자 정보를 돌려준다. 실패하면 ApiError를 던진다
@@ -54,8 +55,7 @@ export async function extendLogin() {
 // 명세 8-6. 토큰을 바로 지우고 서버에도 알린다. 서버 요청이 실패해도 화면에서는 로그아웃된다
 export async function logout() {
   const token = getToken();
-  setToken(null);
-  setExpiresAt(null);
+  setToken(null); // 만료 시각도 함께 지워진다
   if (!token) return;
   try {
     await request('POST', '/auth/logout', undefined, { notifyExpired: false, token });

@@ -12,7 +12,7 @@
 import hashlib
 import io
 import uuid
-from datetime import timedelta, timezone
+from datetime import timedelta
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 from PIL import Image, ImageOps, UnidentifiedImageError
@@ -22,12 +22,11 @@ from sqlalchemy.orm import Session
 from backend.auth import current_user
 from backend.config import (ALLOWED_FORMATS, IMAGE_KINDS, IMAGES_DIR, MAX_UPLOAD_BYTES, RECENT_IMAGE_KEEP_HOURS,
                             RECENT_IMAGE_LIMIT)
-from backend.db import UploadedImage, User, get_db, utcnow
+from backend.db import UploadedImage, User, get_db, kst_text, utcnow
 from backend.errors import ApiError
 from backend.file_keys import signed_url
 
 router = APIRouter()
-KST = timezone(timedelta(hours=9))
 
 
 THUMB_SIDE = 240
@@ -103,7 +102,7 @@ def recent_images(kind: str, user: User = Depends(current_user), db: Session = D
         items.append({
             "image_id": r.image_id, "url": url, "thumb_url": signed_url(r.thumb) if has_thumb else url,
             "width": r.width, "height": r.height,
-            "created_at": r.created_at.replace(tzinfo=timezone.utc).astimezone(KST).isoformat(timespec="seconds"),
+            "created_at": kst_text(r.created_at),
         })
         if len(items) >= RECENT_IMAGE_LIMIT:
             break

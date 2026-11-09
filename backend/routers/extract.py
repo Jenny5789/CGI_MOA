@@ -5,14 +5,15 @@
   - label: 1 포함(왼쪽 클릭), 0 제외(오른쪽 클릭)
   - box (선택, 명세 외 추가 제안 2026-10-13): 상의를 감싸는 사각형. 왼쪽 위(x1, y1)·오른쪽 아래(x2, y2)를 0~1 비율로
     - 점만 / 박스만 / 박스 + 점 모두 가능. 포함 점이나 박스 중 하나는 있어야 함
-    - 기록(object_extraction_log, 2026-10-11)상 "박스 + 보정 점 1개"가 가장 정확 (IoU 0.966, 점만 0.950)
+    - 시험 결과(2026-10-11, docs/작업일지.md 10/13 ③)상 "박스 + 보정 점 1개"가 가장 정확 (IoU 0.966, 점만 0.950)
 - 돌려주는 값: { extraction_id, mask_url, cutout_url, bbox: { x, y, w, h } }
   - mask: 원본과 같은 크기 흑백 PNG (상의 255, 나머지 0)
-  - cutout: 상의만 남기고 배경을 투명하게 한 PNG
+  - cutout: 상의만 남기고 배경을 투명하게 한 PNG. 추출 때는 만들지 않고 이 주소를 처음 열 때 만든다
+    (화면이 쓰지 않는 파일을 원본 크기로 저장하느라 응답이 늦어지지 않게, backend/storage.py ensure_cutout)
   - bbox: 상의를 감싸는 사각형 (원본 픽셀 기준)
 - SAM2는 features/object_extraction의 extract_object를 그대로 쓴다 (처음 요청 때 모델을 불러와 이후 재사용)
 - 로그인 필요. 자기가 올린 사진만 추출 가능, 결과에 회원 번호(user_id) 기록
-- 윤곽·cutout 사진은 storage/extractions에, 정보는 DB extractions 표에 저장 (11/2)
+- 윤곽 사진은 storage/extractions에, 정보는 DB extractions 표에 저장 (11/2). cutout 사진은 처음 열 때 같은 폴더에 만든다
 """
 import time
 import uuid
@@ -86,7 +87,8 @@ def extract(req: ExtractRequest, user: User = Depends(current_user), db: Session
     try:
         with GPU_LOCK:
             try:
-                mask = extract_object(image_rgb, points=pos, neg_points=neg, box=box)
+                # image_key: 같은 사진을 연달아 다시 추출하면(점을 바꿔 확인) SAM2의 이미지 인코딩을 건너뛴다
+                mask = extract_object(image_rgb, points=pos, neg_points=neg, box=box, image_key=req.image_id)
             finally:
                 release_cached_memory()  # 다 쓴 GPU 메모리를 돌려준다 (backend/gpu.py)
     except RuntimeError:
@@ -99,14 +101,10 @@ def extract(req: ExtractRequest, user: User = Depends(current_user), db: Session
 
     extraction_id = "ext_" + uuid.uuid4().hex[:12]
     mask_name = f"{extraction_id}_mask.png"
-    cutout_name = f"{extraction_id}_cutout.png"
+    cutout_name = f"{extraction_id}_cutout.png"  # 파일은 여기서 만들지 않고 주소를 처음 열 때 만든다 (backend/storage.py ensure_cutout)
     EXTRACTIONS_DIR.mkdir(parents=True, exist_ok=True)
 
-    alpha = Image.fromarray(mask * 255)
-    alpha.save(EXTRACTIONS_DIR / mask_name)
-    cutout = Image.fromarray(image_rgb).convert("RGBA")
-    cutout.putalpha(alpha)
-    cutout.save(EXTRACTIONS_DIR / cutout_name)
+    Image.fromarray(mask * 255).save(EXTRACTIONS_DIR / mask_name)
 
     db.add(Extraction(
         extraction_id=extraction_id, user_id=user.id, image_id=req.image_id, width=w, height=h,

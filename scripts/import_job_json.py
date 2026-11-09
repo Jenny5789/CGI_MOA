@@ -13,32 +13,19 @@
     CGI\\Scripts\\python.exe scripts\\import_job_json.py
     CGI\\Scripts\\python.exe scripts\\import_job_json.py --apply
 """
-import argparse
 import json
-import sys
-from datetime import datetime, timezone
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _import_common import parse_args, report, to_utc  # 저장소 맨 위 폴더를 import 경로에 넣는 일도 여기서 한다 (backend 패키지를 쓰려고)
 
-from sqlalchemy import create_engine, inspect, select  # noqa: E402
-from sqlalchemy.orm import sessionmaker  # noqa: E402
+from sqlalchemy import create_engine, inspect, select
+from sqlalchemy.orm import sessionmaker
 
-from backend.config import JOBS_DIR  # noqa: E402
-from backend.db import DATABASE_URL, Extraction, Job, UploadedImage, User  # noqa: E402
-
-
-def to_utc(text):
-    return datetime.fromisoformat(text).astimezone(timezone.utc).replace(tzinfo=None)
+from backend.config import JOBS_DIR
+from backend.db import DATABASE_URL, Extraction, Job, UploadedImage, User
 
 
 def main():
-    parser = argparse.ArgumentParser(description="옛 합성 작업 기록(json)을 DB jobs 표로 옮기기")
-    parser.add_argument("--apply", action="store_true", help="실제로 DB에 넣는다 (없으면 확인만)")
-    parser.add_argument("--jobs-dir", type=Path, default=JOBS_DIR, help="작업 json과 그림이 있는 폴더 (기본 storage/jobs)")
-    args = parser.parse_args()
-    if not DATABASE_URL:
-        sys.exit("DATABASE_URL이 없습니다 (backend/.env). 설정: docs/database.md")
+    args = parse_args("옛 합성 작업 기록(json)을 DB jobs 표로 옮기기", "--jobs-dir", JOBS_DIR, "작업 json과 그림이 있는 폴더 (기본 storage/jobs)")
 
     engine = create_engine(DATABASE_URL)
     skipped = {"이미 DB에 있음": [], "읽을 수 없는 기록": [], "그림 파일 없음": [], "추출 결과가 DB에 없음": [],
@@ -49,7 +36,7 @@ def main():
         images = set(s.scalars(select(UploadedImage.image_id)))
         extractions = set(s.scalars(select(Extraction.extraction_id)))
         have = set(s.scalars(select(Job.job_id))) if inspect(engine).has_table(Job.__tablename__) else set()
-        for path in sorted(args.jobs_dir.glob("job_*.json")):
+        for path in sorted(args.src_dir.glob("job_*.json")):
             try:
                 rec = json.loads(path.read_text(encoding="utf-8"))
                 job_id, user_id, extraction_id, person_image_id = rec["job_id"], rec["user_id"], rec["extraction_id"], rec["person_image_id"]
@@ -67,7 +54,7 @@ def main():
             files = [values["area_mask"]] + ([values["garment_mask"]] if values["garment_mask"] else [])
             if job_id in have:
                 skipped["이미 DB에 있음"].append(job_id)
-            elif not all((args.jobs_dir / name).is_file() for name in files):
+            elif not all((args.src_dir / name).is_file() for name in files):
                 skipped["그림 파일 없음"].append(job_id)
             elif extraction_id not in extractions:
                 skipped["추출 결과가 DB에 없음"].append(job_id)
@@ -82,11 +69,7 @@ def main():
             s.add_all(rows)
             s.commit()
 
-    print(f"{'넣음' if args.apply else '넣을 예정 (확인만, DB에 쓰지 않음)'}: {len(rows)}개")
-    for reason, ids in skipped.items():
-        print(f"건너뜀 - {reason}: {len(ids)}개" + (f" {ids}" if ids and reason != "이미 DB에 있음" else ""))
-    if not args.apply and rows:
-        print("실제로 넣으려면 --apply 를 붙여 다시 실행하세요.")
+    report(args.apply, len(rows), skipped)
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@
 
 - 역할: 프론트엔드 요청 처리 (로그인, 이미지 업로드, 상의 영역 추출 SAM2, 이미지 합성 AnyDoor, 합성 결과 관리)
 - API 명세: [docs/api.md](../docs/api.md)
-- 실행 방법: [README 백엔드 실행](../README.md#백엔드-실행)
+- 실행 방법: [README 7-3. 백엔드 서버 실행](../README.md#7-3-백엔드-서버-실행)
 - 도커로 실행: [docs/docker.md](../docs/docker.md)
 
 ## 2. 파일 구성
@@ -30,9 +30,10 @@
 | 이름 | 용도 | 기본값 | 설정 위치 |
 |---|---|---|---|
 | `DATABASE_URL` | MySQL 접속 정보 | 없음 (필수) | `backend/.env` ([database.md 2-3. 접속 설정 파일 생성](../docs/database.md#2-3-접속-설정-파일-생성)) |
-| `ANYDOOR_DIR` | AnyDoor 폴더 위치 | `Desktop\AnyDoor` | conda 환경에 저장: `conda env config vars set ANYDOOR_DIR=경로 -n CGI`, [README 설치 5](../README.md#설치-5-ai-모델-준비) |
+| `ANYDOOR_DIR` | AnyDoor 폴더 위치 | `Desktop\AnyDoor` | conda 환경에 저장: `conda env config vars set ANYDOOR_DIR=경로 -n CGI`, [README 7-2. 설치 5단계](../README.md#7-2-설치) |
 | `MOA_WARMUP` | `0`이면 서버 시작 시 AnyDoor 모델 로딩(1~2분) 생략 | `1` (로딩함) | 실행 전 PowerShell `$env:MOA_WARMUP="0"` |
 | `MOA_SEAM_FIX` | `0`이면 합성 후 박스 선 보정 생략 ([features/composition/README.md](../features/composition/README.md#박스-선-보정-seampy)) | `1` (보정함) | 실행 전 PowerShell `$env:MOA_SEAM_FIX="0"` |
+| `MOA_RESTORE_ORIGINAL` | `0`이면 합성 후 원본 복원(얼굴·머리·배경을 원본으로 되돌림) 생략 ([features/composition/README.md](../features/composition/README.md#원본-복원-후처리-restorepy)) | `1` (복원함) | 실행 전 PowerShell `$env:MOA_RESTORE_ORIGINAL="0"` |
 
 - SAM2 관련 설정: [features/object_extraction/README.md](../features/object_extraction/README.md)
 
@@ -55,13 +56,14 @@
 - 정보: MySQL 표 6개 ([database.md 5. 테이블 구성](../docs/database.md#5-테이블-구성))
 - 이미지 파일: `storage/` (저장소 제외, PC마다 따로)
   - `images`, `extractions`, `jobs`, `results`, `avatars` 폴더, 파일 주소 열쇠의 비밀값 `.file_key`
-- 메모리: 합성 대기열, 진행 중 작업 정보. 진행 상태가 바뀔 때마다 `jobs`에도 기록해 서버 재시작 뒤에도 조회 가능
+  - 추출 결과의 배경 제거 사진(`ext_xxx_cutout.png`)은 추출 때 만들지 않고 `/api/files`로 처음 요청할 때 만듦 (화면이 쓰지 않아 추출 응답을 늦추지 않으려는 것)
+- 메모리: 합성 대기열, 진행 중 작업 정보. 진행 중·완료·실패로 상태가 바뀔 때만 `jobs`에도 기록해 서버 재시작 뒤에도 조회 가능. 스텝마다 바뀌는 진행률은 메모리에만 둠 (재시작하면 진행 중이던 작업은 실패로 보여 줌)
 - 요청 밖(합성 스레드)에서 DB를 쓸 때는 `db.open_session()`으로 별도 세션 사용
 - DB 연결 실패: 서버는 실행, 로그인이 필요한 모든 API는 503 `DB_UNAVAILABLE`
 - DB 기록 실패 시 동작
   - 합성 중 작업 상태를 DB에 적지 못함: 합성은 계속 진행, 서버 창에 로그
   - 결과를 DB에 적지 못함: 방금 만든 결과 이미지를 지우고 작업을 `failed` (`COMPOSE_FAILED`)로 종료
-- 정리 (결과 목록 조회, 최근 사용한 이미지 목록 조회 때)
-  - 저장하지 않은 합성 결과: 24시간 후 `results` 기록과 이미지 파일 삭제 (`RESULT_KEEP_HOURS`)
-  - 업로드 이미지: 24시간 후 최근 사용한 이미지 목록에서만 제외, 기록과 파일 유지 (`RECENT_IMAGE_KEEP_HOURS`)
+- 정리
+  - 저장하지 않은 합성 결과: 결과 목록 조회 때 24시간이 지난 것의 `results` 기록과 이미지 파일 삭제 (`RESULT_KEEP_HOURS`). 전체 회원이 대상이라 10분에 한 번만 실행 (`RESULT_CLEANUP_SECONDS`)
+  - 업로드 이미지: 삭제하지 않음. 24시간이 지나면 최근 사용한 이미지 목록에서만 제외하고 기록과 파일은 유지 (`RECENT_IMAGE_KEEP_HOURS`)
 - 예전 json 기록을 가져오는 방법: [database.md 6. 예전 기록 가져오기](../docs/database.md#6-예전-기록-가져오기)

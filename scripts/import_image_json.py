@@ -13,41 +13,32 @@
     CGI\\Scripts\\python.exe scripts\\import_image_json.py
     CGI\\Scripts\\python.exe scripts\\import_image_json.py --apply
 """
-import argparse
 import hashlib
 import json
-import sys
-from datetime import datetime, timezone
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _import_common import parse_args, report, to_utc  # 저장소 맨 위 폴더를 import 경로에 넣는 일도 여기서 한다 (backend 패키지를 쓰려고)
 
-from sqlalchemy import create_engine, select  # noqa: E402
-from sqlalchemy.orm import sessionmaker  # noqa: E402
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import sessionmaker
 
-from backend.config import IMAGE_KINDS, IMAGES_DIR  # noqa: E402
-from backend.db import DATABASE_URL, UploadedImage, User  # noqa: E402
+from backend.config import IMAGE_KINDS, IMAGES_DIR
+from backend.db import DATABASE_URL, UploadedImage, User
 
 
 def main():
-    parser = argparse.ArgumentParser(description="옛 사진 기록(json)을 DB images 표로 옮기기")
-    parser.add_argument("--apply", action="store_true", help="실제로 DB에 넣는다 (없으면 확인만)")
-    parser.add_argument("--images-dir", type=Path, default=IMAGES_DIR, help="사진 json이 있는 폴더 (기본 storage/images)")
-    args = parser.parse_args()
-    if not DATABASE_URL:
-        sys.exit("DATABASE_URL이 없습니다 (backend/.env). 설정: docs/database.md")
+    args = parse_args("옛 사진 기록(json)을 DB images 표로 옮기기", "--images-dir", IMAGES_DIR, "사진 json이 있는 폴더 (기본 storage/images)")
 
     skipped = {"이미 DB에 있음": [], "읽을 수 없는 기록": [], "사진 파일 없음": [], "올린 회원이 DB에 없음": []}
     rows = []
     with sessionmaker(create_engine(DATABASE_URL))() as s:
         users = set(s.scalars(select(User.id)))
         have = set(s.scalars(select(UploadedImage.image_id)))
-        for path in sorted(args.images_dir.glob("img_*.json")):
+        for path in sorted(args.src_dir.glob("img_*.json")):
             try:
                 rec = json.loads(path.read_text(encoding="utf-8"))
                 image_id, user_id, filename, kind = rec["image_id"], rec["user_id"], rec["filename"], rec["kind"]
                 width, height = int(rec["width"]), int(rec["height"])
-                created = datetime.fromisoformat(rec["created_at"]).astimezone(timezone.utc).replace(tzinfo=None)
+                created = to_utc(rec["created_at"])
                 if kind not in IMAGE_KINDS:
                     raise ValueError(kind)
             except (OSError, ValueError, KeyError, TypeError):
@@ -55,7 +46,7 @@ def main():
                 continue
             if image_id in have:
                 skipped["이미 DB에 있음"].append(image_id)
-            elif not (args.images_dir / filename).is_file():
+            elif not (args.src_dir / filename).is_file():
                 skipped["사진 파일 없음"].append(image_id)
             elif user_id not in users:
                 skipped["올린 회원이 DB에 없음"].append(image_id)
@@ -63,19 +54,15 @@ def main():
                 thumb = f"{image_id}_thumb.jpg"
                 rows.append(UploadedImage(
                     image_id=image_id, user_id=user_id, kind=kind, filename=filename,
-                    thumb=thumb if (args.images_dir / thumb).is_file() else None, width=width, height=height,
-                    content_hash=hashlib.sha256((args.images_dir / filename).read_bytes()).hexdigest(),
+                    thumb=thumb if (args.src_dir / thumb).is_file() else None, width=width, height=height,
+                    content_hash=hashlib.sha256((args.src_dir / filename).read_bytes()).hexdigest(),
                     from_sample=False, created_at=created,
                 ))
         if args.apply and rows:
             s.add_all(rows)
             s.commit()
 
-    print(f"{'넣음' if args.apply else '넣을 예정 (확인만, DB에 쓰지 않음)'}: {len(rows)}개")
-    for reason, ids in skipped.items():
-        print(f"건너뜀 - {reason}: {len(ids)}개" + (f" {ids}" if ids and reason != "이미 DB에 있음" else ""))
-    if not args.apply and rows:
-        print("실제로 넣으려면 --apply 를 붙여 다시 실행하세요.")
+    report(args.apply, len(rows), skipped)
 
 
 if __name__ == "__main__":

@@ -39,9 +39,17 @@ DIL = 5  # wide_top: 원래 상의 넓힘 (px)
 REF_AUG = A.ReplayCompose([A.RandomBrightnessContrast(p=0.5)])  # ref_aug: 원래 base.py aug_data_mask와 같은 설정 (좌우 뒤집기는 뺌)
 
 
-def read(i, root=None):
+def read(i, root=None, with_image=True):
+    """한 쌍의 재료를 읽는다. with_image=False면 인물 사진(jpg)을 디코딩하지 않고 image를 None으로 돌려준다 (거르기에는 안 쓰므로).
+    이때도 인물 사진 파일이 없으면 FileNotFoundError (with_image=True에서 cv2.error로 걸러지던 것과 같은 결과)"""
     root = Path(root or VI)
-    image = cv2.cvtColor(cv2.imread(str(root / "image" / f"{i}.jpg")), cv2.COLOR_BGR2RGB)
+    image_path = root / "image" / f"{i}.jpg"
+    if with_image:
+        image = cv2.cvtColor(cv2.imread(str(image_path)), cv2.COLOR_BGR2RGB)
+    elif image_path.is_file():
+        image = None
+    else:
+        raise FileNotFoundError(image_path)
     cloth = cv2.cvtColor(cv2.imread(str(root / "cloth" / f"{i}.jpg")), cv2.COLOR_BGR2RGB)
     cmask = (cv2.imread(str(root / "cloth-mask" / f"{i}.jpg"), cv2.IMREAD_GRAYSCALE) > 127).astype(np.uint8)
     parse = cv2.imread(str(root / "image-parse-v3" / f"{i}.png"), cv2.IMREAD_UNCHANGED)
@@ -71,7 +79,7 @@ def mask_ok(cloth, cmask):
 def usable(i):
     """학습에 쓸 수 있는 쌍인지와 옷 아랫단 위치(목 = 0, 골반 = 1)"""
     try:
-        image, cloth, cmask, top, ag, p = read(i)
+        _, cloth, cmask, top, ag, p = read(i, with_image=False)  # 인물 사진은 거르는 데 안 쓰므로 디코딩하지 않는다
     except (AttributeError, FileNotFoundError, IndexError, KeyError, ValueError, cv2.error):
         return False, None
     if top.sum() < 1000 or ag.sum() < 1000 or cmask.sum() < 1000 or (p[[KP_NECK, KP_RSH, KP_LSH, KP_HIP], 2] < 0.1).any():
@@ -158,6 +166,46 @@ def make_item(i, rng=np.random, wide_top=True, ref_aug=True):
     cm[cm == 2] = -1  # 정사각형으로 채운 빈칸
     return dict(ref=ref.astype(np.float32) / 255, jpg=tgt / 127.5 - 1.0,
                 hint=np.concatenate([col / 127.5 - 1.0, cm[:, :, :1]], -1),
+                extra_sizes=np.array([cy2 - cy1, cx2 - cx1, H2, W2]), tar_box_yyxx_crop=np.array(crop))
+
+
+SERVER_CROP = 1.3  # 서버 합성의 크롭 배율 (features/composition의 CROP_RATIO와 같게)
+
+
+def server_crop(tar_image, tar_mask, ratio=SERVER_CROP):
+    """AnyDoor가 다시 그리는 정사각형 (위, 아래, 왼쪽, 오른쪽): 생성 영역 박스를 ratio배로 키운 뒤 정사각형으로"""
+    H, W = tar_mask.shape
+    by1, by2, bx1, bx2 = du.get_bbox_from_mask(tar_mask)
+    yc, xc, h, w = 0.5 * (by1 + by2), 0.5 * (bx1 + bx2), ratio * (by2 - by1 + 1), ratio * (bx2 - bx1 + 1)
+    return tuple(int(v) for v in du.box2squre(tar_image, (max(0, int(yc - h / 2)), min(H, int(yc + h / 2)),
+                                                          max(0, int(xc - w / 2)), min(W, int(xc + w / 2)))))
+
+
+def inference_item(ref_image, ref_mask, tar_image, tar_mask, p, ratio=SERVER_CROP):
+    """서버 합성(AnyDoor process_pairs)에 넣는 새 입력: run_inference.py와 같은 출력 키, 생성 영역·조건 이미지만 학습 재료와 같은 방식
+    (조건 이미지 = 옷 사진 비율 그대로 어깨 기준 배치). 재학습 결과 확인 스크립트(retrain_compose_test.py, retrain_compare_95.py)가 쓴다.
+    ref_image, ref_mask: 새 상의 사진과 마스크 / tar_image, tar_mask: 인물 사진과 생성 영역 / p: 인물 사진의 관절 점"""
+    y1, y2, x1, x2 = du.get_bbox_from_mask(ref_mask)
+    m3 = np.stack([ref_mask] * 3, -1)
+    ref = (ref_image * m3 + 255 * (1 - m3))[y1:y2, x1:x2]
+    ref, _ = du.expand_image_mask(ref, ref_mask[y1:y2, x1:x2], ratio=1.2)  # run_inference.py와 같은 1.2배
+    ref = cv2.resize(du.pad_to_square(ref, 255).astype(np.uint8), (224, 224))
+    H, W = tar_mask.shape
+    crop = server_crop(tar_image, tar_mask, ratio)
+    hint_big, sil = placed_hint(ref_image, ref_mask, p, H, W)
+    collage = tar_image.copy()
+    collage[tar_mask > 0] = 0
+    collage[sil > 0] = hint_big[sil > 0]
+    cy1, cy2, cx1, cx2 = crop
+    tgt = du.pad_to_square(tar_image[cy1:cy2, cx1:cx2], pad_value=0).astype(np.uint8)
+    col = du.pad_to_square(collage[cy1:cy2, cx1:cx2], pad_value=0).astype(np.uint8)
+    cm = du.pad_to_square(np.stack([tar_mask[cy1:cy2, cx1:cx2]] * 3, -1).astype(np.uint8), pad_value=2).astype(np.uint8)
+    H2, W2 = col.shape[:2]
+    tgt = cv2.resize(tgt, (512, 512)).astype(np.float32)
+    col = cv2.resize(col, (512, 512)).astype(np.float32)
+    cm = cv2.resize(cm, (512, 512), interpolation=cv2.INTER_NEAREST).astype(np.float32)
+    cm[cm == 2] = -1  # 학습과 같게 정사각형 빈칸은 −1
+    return dict(ref=ref.astype(np.float32) / 255, jpg=tgt / 127.5 - 1.0, hint=np.concatenate([col / 127.5 - 1.0, cm[:, :, :1]], -1),
                 extra_sizes=np.array([cy2 - cy1, cx2 - cx1, H2, W2]), tar_box_yyxx_crop=np.array(crop))
 
 

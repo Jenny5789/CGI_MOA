@@ -17,6 +17,7 @@ class Sam2Extractor:
         self.model_config = model_config or config.SAM2_CONFIG
         self.device = device or config.SAM2_DEVICE or None
         self._predictor = None
+        self._image_key = None  # 마지막으로 이미지 인코딩(set_image)한 사진 번호. extract(image_key=...)가 같으면 인코딩을 건너뜀
 
     def _load(self):
         if self._predictor is not None:
@@ -41,6 +42,7 @@ class Sam2Extractor:
         box=None,
         multimask=None,
         postprocess=True,
+        image_key=None,
     ):
         """객체 마스크를 반환한다.
 
@@ -52,6 +54,9 @@ class Sam2Extractor:
                      고르고, point가 여러 개이거나 box가 있으면 단일 마스크를 쓴다
                      (여러 프롬프트에서 후보 선택은 작은 부분만 고르는 경향이 있음)
         postprocess: 포함 점이 찍힌 연결 영역만 남기고(점이 없으면 가장 큰 영역) 작은 내부 구멍을 채운다
+        image_key  : 사진을 구분하는 값(사진 번호 등). 직전에 인코딩한 사진과 같으면 이미지 인코딩(set_image)을 건너뛰어,
+                     같은 사진에서 점이나 박스만 바꿔 다시 추출할 때 시간을 아낀다. 같은 값에는 항상 같은 사진을 줘야 한다.
+                     None이면 매번 인코딩한다 (합성 뒤 새 상의 찾기처럼 매번 다른 이미지일 때)
 
         return     : np.ndarray, uint8 0/1, (H, W)
         """
@@ -83,7 +88,10 @@ class Sam2Extractor:
             dtype=torch.bfloat16,
             enabled=(self.device == "cuda"),
         ):
-            predictor.set_image(image_rgb)
+            if image_key is None or image_key != self._image_key:
+                self._image_key = None  # 인코딩 도중 실패하면 다음에는 처음부터 다시 한다
+                predictor.set_image(image_rgb)
+                self._image_key = image_key
             masks, scores, _ = predictor.predict(**kwargs)
 
         mask = masks[int(np.argmax(scores))].astype(np.uint8)
@@ -130,10 +138,11 @@ def fill_small_holes(mask, max_hole_area=400):
     """마스크 내부의 작은 구멍(max_hole_area 이하)을 채운다."""
     inv = (1 - mask).astype(np.uint8)
     n, labels, stats, _ = cv2.connectedComponentsWithStats(inv, connectivity=8)
+    # 구멍마다 전체 이미지를 비교하지 않고(구멍이 많으면 느림), 채울 구멍의 번호를 먼저 모아 한 번에 채운다
+    small = np.flatnonzero(stats[1:, cv2.CC_STAT_AREA] <= max_hole_area) + 1
     out = mask.copy()
-    for i in range(1, n):
-        if stats[i, cv2.CC_STAT_AREA] <= max_hole_area:
-            out[labels == i] = 1
+    if small.size:
+        out[np.isin(labels, small)] = 1
     return out
 
 

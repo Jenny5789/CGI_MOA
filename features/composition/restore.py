@@ -9,7 +9,10 @@ import cv2
 import numpy as np
 
 BAND = 20           # 블렌딩 폭: 경계 위 이만큼은 원본과 합성 결과를 섞음 (px)
-GARMENT_REACH = None  # 새 상의 유지 범위 제한 (상단 경계 위 최대 px, None = 제한 없음. 10/17 100건: 60·100·150px 모두 얼굴 보호 효과 없음, 제한 없음일 때 상의 잘림 0건)
+# (실험용) 새 상의 유지 범위 제한: 상단 경계 위 최대 px, None = 제한 없음. 서버는 항상 None으로 쓴다.
+# 10/17 100건 시험에서 60·100·150px 모두 얼굴 보호 효과가 없었고, 제한이 없을 때 상의 잘림이 0건이라 제한하지 않기로 했다.
+# 시험을 다시 해 볼 수 있게 restore_original(reach=...) 매개변수와 이 분기만 남겨 둔다
+GARMENT_REACH = None
 GARMENT_RATIO = (0.3, 2.0)  # 찾은 새 상의 크기 / 착용 영역 크기가 이 범위 밖이면 찾기 실패로 봄
 
 
@@ -50,6 +53,7 @@ def restore_original(person, result, area, garment=None, band=BAND, reach=GARMEN
     person, result: np.uint8 (H, W, 3) RGB, 같은 크기 (원본 인물 사진, 합성 결과)
     area          : np.uint8 (H, W) 0/1 착용 영역
     garment       : np.uint8 (H, W) 0/1 합성 결과의 새 상의 영역 (find_garment), None이면 상단 경계만 사용
+    reach         : (실험용) 새 상의를 상단 경계 위 몇 px까지 유지할지, None = 제한 없음 (GARMENT_REACH 설명 참고). 서버는 기본값(None)으로 부른다
     """
     weight = _ramp(area, 0, band)  # 1 = 합성 결과, 0 = 원본
     if garment is not None:

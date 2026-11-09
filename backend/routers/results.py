@@ -4,12 +4,13 @@
 - GET   /api/results/{id}       : 결과 하나 (명세 5-3)
 - PATCH /api/results/{id}       : 저장 / 좋아요 (명세 6-2)
 - GET   /api/results/{id}/source: 결과를 만든 재료 (명세 6-4). 합성하기 "내 작업 기록"에서 결과를 열 때 1~4단계를 채운다
-- 저장하지 않은 결과는 만든 지 24시간 뒤 지운다 (명세 5-3, 10/16 결정: 3일 → 24시간). 목록을 볼 때 지난 것을 정리한다
+- 저장하지 않은 결과는 만든 지 24시간 뒤 지운다 (명세 5-3, 10/16 결정: 3일 → 24시간). 목록을 볼 때 지난 것을 정리한다 (10분에 한 번, RESULT_CLEANUP_SECONDS)
 - 로그인 필요. 자기 결과만 보이고 바꿀 수 있음 (남의 결과는 404). 결과 정보는 DB results 표(11/2), 결과 사진은 storage/results에 파일로 저장
 - 사진 주소(image_url, thumb_url)는 응답할 때 열쇠를 붙여 줌 (명세 7장, backend/file_keys.py). 사진 파일 이름은 결과 번호에서 만든다 (res_xxx.png, res_xxx_thumb.jpg)
 - DB는 시각을 UTC로 저장한다. 응답의 created_at과 날짜(date) 필터는 예전처럼 한국 시간 기준
 """
-from datetime import datetime, timedelta, timezone
+import time
+from datetime import datetime, timedelta
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends
@@ -18,11 +19,11 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from backend.auth import current_user
-from backend.config import EXTRACTIONS_DIR, JOBS_DIR, RESULT_KEEP_HOURS, RESULTS_DIR
-from backend.db import Result, User, get_db, utcnow
+from backend.config import EXTRACTIONS_DIR, JOBS_DIR, RESULT_CLEANUP_SECONDS, RESULT_KEEP_HOURS, RESULTS_DIR
+from backend.db import Result, User, get_db, kst_text, utcnow
 from backend.errors import ApiError
 from backend.file_keys import signed_url
-from backend.storage import _ID, KST, load_extraction_info, load_image_info, load_job_info
+from backend.storage import _ID, load_extraction_info, load_image_info, load_job_info
 
 router = APIRouter()
 
@@ -36,7 +37,7 @@ def _public(row, keys):
         "result_id": row.result_id,
         "image_url": signed_url(f"{row.result_id}.png"),
         "thumb_url": signed_url(f"{row.result_id}_thumb.jpg"),
-        "created_at": row.created_at.replace(tzinfo=timezone.utc).astimezone(KST).isoformat(timespec="seconds"),
+        "created_at": kst_text(row.created_at),
         "saved": row.saved,
         "favorite": row.favorite,
         "garment_image_id": row.garment_image_id,
@@ -70,6 +71,20 @@ def _remove_expired(db):
                 (RESULTS_DIR / name).unlink(missing_ok=True)
 
 
+_last_cleanup = None  # 마지막으로 만료 정리를 한 시각 (time.monotonic). 서버를 켠 뒤 첫 목록 조회 때는 정리한다
+
+
+def _remove_expired_if_due(db):
+    """_remove_expired를 RESULT_CLEANUP_SECONDS에 한 번만 한다. 보관 기준이 24시간이라 요청마다 전체 회원을 훑을 필요가 없다.
+    두 요청이 동시에 와서 둘 다 정리해도 같은 조건으로 지우므로 문제없다"""
+    global _last_cleanup
+    now = time.monotonic()
+    if _last_cleanup is not None and now - _last_cleanup < RESULT_CLEANUP_SECONDS:
+        return
+    _remove_expired(db)
+    _last_cleanup = now
+
+
 @router.get("/api/results")
 def list_results(
     saved: Optional[bool] = None,
@@ -79,7 +94,7 @@ def list_results(
     user: User = Depends(current_user),
     db: Session = Depends(get_db),
 ):
-    _remove_expired(db)  # 24시간 지난 것은 모든 회원 것을 함께 정리
+    _remove_expired_if_due(db)  # 24시간 지난 것은 모든 회원 것을 함께 정리 (10분에 한 번)
 
     if date is not None:
         try:
@@ -107,6 +122,7 @@ def list_results(
     order = Result.created_at.desc() if sort == "new" else Result.created_at.asc()
     rows = db.scalars(query.order_by(order, Result.result_id)).all()
 
+    # next_cursor: 명세 6-1의 응답 모양을 맞추려고 둔 칸. 페이지를 나누지 않고 목록 전체를 한 번에 돌려주므로 항상 null
     return {"items": [_public(r, LIST_KEYS) for r in rows], "counts": counts, "next_cursor": None}
 
 
@@ -124,10 +140,10 @@ def get_result_source(result_id: str, user: User = Depends(current_user), db: Se
     if row.job_id is None or row.extraction_id is None:  # 연결된 작업·추출 결과가 지워져 비어 있음
         raise missing
     try:
-        job = load_job_info(row.job_id)
-        ext = load_extraction_info(row.extraction_id, user)
-        garment = load_image_info(row.garment_image_id, user)
-        person = load_image_info(row.person_image_id, user)
+        job = load_job_info(row.job_id, db)
+        ext = load_extraction_info(row.extraction_id, user, db)
+        garment = load_image_info(row.garment_image_id, user, db)
+        person = load_image_info(row.person_image_id, user, db)
     except ApiError:
         raise missing
     garment_mask = (JOBS_DIR / job["garment_mask"]) if job.get("garment_mask") else (EXTRACTIONS_DIR / ext["mask"])

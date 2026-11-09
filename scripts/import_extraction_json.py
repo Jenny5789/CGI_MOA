@@ -13,28 +13,19 @@
     CGI\\Scripts\\python.exe scripts\\import_extraction_json.py
     CGI\\Scripts\\python.exe scripts\\import_extraction_json.py --apply
 """
-import argparse
 import json
-import sys
-from datetime import datetime, timezone
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _import_common import parse_args, report, to_utc  # 저장소 맨 위 폴더를 import 경로에 넣는 일도 여기서 한다 (backend 패키지를 쓰려고)
 
-from sqlalchemy import create_engine, inspect, select  # noqa: E402
-from sqlalchemy.orm import sessionmaker  # noqa: E402
+from sqlalchemy import create_engine, inspect, select
+from sqlalchemy.orm import sessionmaker
 
-from backend.config import EXTRACTIONS_DIR  # noqa: E402
-from backend.db import DATABASE_URL, Extraction, UploadedImage, User  # noqa: E402
+from backend.config import EXTRACTIONS_DIR
+from backend.db import DATABASE_URL, Extraction, UploadedImage, User
 
 
 def main():
-    parser = argparse.ArgumentParser(description="옛 추출 기록(json)을 DB extractions 표로 옮기기")
-    parser.add_argument("--apply", action="store_true", help="실제로 DB에 넣는다 (없으면 확인만)")
-    parser.add_argument("--extractions-dir", type=Path, default=EXTRACTIONS_DIR, help="추출 json이 있는 폴더 (기본 storage/extractions)")
-    args = parser.parse_args()
-    if not DATABASE_URL:
-        sys.exit("DATABASE_URL이 없습니다 (backend/.env). 설정: docs/database.md")
+    args = parse_args("옛 추출 기록(json)을 DB extractions 표로 옮기기", "--extractions-dir", EXTRACTIONS_DIR, "추출 json이 있는 폴더 (기본 storage/extractions)")
 
     engine = create_engine(DATABASE_URL)
     skipped = {"이미 DB에 있음": [], "읽을 수 없는 기록": [], "윤곽·cutout 파일 없음": [], "추출한 사진이 DB에 없음": [],
@@ -44,20 +35,20 @@ def main():
         users = set(s.scalars(select(User.id)))
         images = set(s.scalars(select(UploadedImage.image_id)))
         have = set(s.scalars(select(Extraction.extraction_id))) if inspect(engine).has_table(Extraction.__tablename__) else set()
-        for path in sorted(args.extractions_dir.glob("ext_*.json")):
+        for path in sorted(args.src_dir.glob("ext_*.json")):
             try:
                 rec = json.loads(path.read_text(encoding="utf-8"))
                 extraction_id, user_id, image_id = rec["extraction_id"], rec["user_id"], rec["image_id"]
                 width, height, mask, cutout = int(rec["width"]), int(rec["height"]), rec["mask"], rec["cutout"]
                 seconds = float(rec["seconds"])
                 detail = {"points": rec["points"], "box": rec.get("box"), "bbox": rec["bbox"]}
-                created = datetime.fromisoformat(rec["created_at"]).astimezone(timezone.utc).replace(tzinfo=None)
+                created = to_utc(rec["created_at"])
             except (OSError, ValueError, KeyError, TypeError):
                 skipped["읽을 수 없는 기록"].append(path.name)
                 continue
             if extraction_id in have:
                 skipped["이미 DB에 있음"].append(extraction_id)
-            elif not (args.extractions_dir / mask).is_file() or not (args.extractions_dir / cutout).is_file():
+            elif not (args.src_dir / mask).is_file() or not (args.src_dir / cutout).is_file():
                 skipped["윤곽·cutout 파일 없음"].append(extraction_id)
             elif image_id not in images:
                 skipped["추출한 사진이 DB에 없음"].append(extraction_id)
@@ -71,11 +62,7 @@ def main():
             s.add_all(rows)
             s.commit()
 
-    print(f"{'넣음' if args.apply else '넣을 예정 (확인만, DB에 쓰지 않음)'}: {len(rows)}개")
-    for reason, ids in skipped.items():
-        print(f"건너뜀 - {reason}: {len(ids)}개" + (f" {ids}" if ids and reason != "이미 DB에 있음" else ""))
-    if not args.apply and rows:
-        print("실제로 넣으려면 --apply 를 붙여 다시 실행하세요.")
+    report(args.apply, len(rows), skipped)
 
 
 if __name__ == "__main__":

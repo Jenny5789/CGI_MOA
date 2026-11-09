@@ -15,34 +15,21 @@
     CGI\\Scripts\\python.exe scripts\\import_result_json.py
     CGI\\Scripts\\python.exe scripts\\import_result_json.py --apply
 """
-import argparse
 import json
-import sys
-from datetime import datetime, timezone
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _import_common import parse_args, report, to_utc  # 저장소 맨 위 폴더를 import 경로에 넣는 일도 여기서 한다 (backend 패키지를 쓰려고)
 
-from sqlalchemy import create_engine, inspect, select  # noqa: E402
-from sqlalchemy.orm import sessionmaker  # noqa: E402
+from sqlalchemy import create_engine, inspect, select
+from sqlalchemy.orm import sessionmaker
 
-from backend.config import RESULTS_DIR  # noqa: E402
-from backend.db import DATABASE_URL, Extraction, Job, Result, UploadedImage, User  # noqa: E402
+from backend.config import RESULTS_DIR
+from backend.db import DATABASE_URL, Extraction, Job, Result, UploadedImage, User
 
 DETAIL_KEYS = ("seam_fix", "crop_box", "restore_original", "garment_found")
 
 
-def to_utc(text):
-    return datetime.fromisoformat(text).astimezone(timezone.utc).replace(tzinfo=None)
-
-
 def main():
-    parser = argparse.ArgumentParser(description="옛 합성 결과 기록(json)을 DB results 표로 옮기기")
-    parser.add_argument("--apply", action="store_true", help="실제로 DB에 넣는다 (없으면 확인만)")
-    parser.add_argument("--results-dir", type=Path, default=RESULTS_DIR, help="결과 json과 사진이 있는 폴더 (기본 storage/results)")
-    args = parser.parse_args()
-    if not DATABASE_URL:
-        sys.exit("DATABASE_URL이 없습니다 (backend/.env). 설정: docs/database.md")
+    args = parse_args("옛 합성 결과 기록(json)을 DB results 표로 옮기기", "--results-dir", RESULTS_DIR, "결과 json과 사진이 있는 폴더 (기본 storage/results)")
 
     engine = create_engine(DATABASE_URL)
     skipped = {"이미 DB에 있음": [], "읽을 수 없는 기록": [], "결과 사진 파일 없음": [], "회원이 DB에 없음": [], "상의·인물 사진이 DB에 없음": []}
@@ -54,7 +41,7 @@ def main():
         extractions = set(s.scalars(select(Extraction.extraction_id)))
         jobs = set(s.scalars(select(Job.job_id)))
         have = set(s.scalars(select(Result.result_id))) if inspect(engine).has_table(Result.__tablename__) else set()
-        for path in sorted(args.results_dir.glob("res_*.json")):
+        for path in sorted(args.src_dir.glob("res_*.json")):
             try:
                 rec = json.loads(path.read_text(encoding="utf-8"))
                 result_id, user_id = rec["result_id"], rec["user_id"]
@@ -70,7 +57,7 @@ def main():
                 continue
             if result_id in have:
                 skipped["이미 DB에 있음"].append(result_id)
-            elif not all((args.results_dir / name).is_file() for name in (f"{result_id}.png", f"{result_id}_thumb.jpg")):
+            elif not all((args.src_dir / name).is_file() for name in (f"{result_id}.png", f"{result_id}_thumb.jpg")):
                 skipped["결과 사진 파일 없음"].append(result_id)
             elif user_id not in users:
                 skipped["회원이 DB에 없음"].append(result_id)
@@ -92,11 +79,7 @@ def main():
             s.add_all(rows)
             s.commit()
 
-    print(f"{'넣음' if args.apply else '넣을 예정 (확인만, DB에 쓰지 않음)'}: {len(rows)}개 (사진첩에 저장한 것 {saved_count}개, 좋아요 {favorite_count}개)")
-    for reason, ids in {**skipped, **unlinked}.items():
-        print(f"{'건너뜀' if reason in skipped else '넣되'} - {reason}: {len(ids)}개" + (f" {ids}" if ids and reason != "이미 DB에 있음" else ""))
-    if not args.apply and rows:
-        print("실제로 넣으려면 --apply 를 붙여 다시 실행하세요.")
+    report(args.apply, len(rows), skipped, count_note=f" (사진첩에 저장한 것 {saved_count}개, 좋아요 {favorite_count}개)", unlinked=unlinked)
 
 
 if __name__ == "__main__":

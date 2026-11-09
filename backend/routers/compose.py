@@ -13,7 +13,9 @@
   (Enable Shape Control). 생략하면 둘 다 끔. 작업 기록(DB jobs 표)에 함께 남긴다
 - 로그인 필요. 자기 추출 결과·인물 사진으로만 합성, 자기 작업만 진행 확인. 작업·결과에 회원 번호(user_id) 기록
 - 작업은 DB jobs 표에, 결과 정보는 DB results 표에 (11/2), 입힐 영역·다듬은 윤곽 그림은 storage/jobs에, 결과 사진은 storage/results에 파일로 저장
-- 진행 중인 작업은 메모리가 먼저이고, 바뀐 값은 DB에도 바로 적는다 (서버를 다시 켠 뒤 진행 확인·재료 보기용)
+- 진행 중인 작업은 메모리가 기준이다. DB jobs 표에는 상태가 바뀔 때(진행 중, 완료, 실패)만 적는다 (서버를 다시 켠 뒤 진행 확인·재료 보기용).
+  스텝마다 바뀌는 진행률(progress)은 메모리에만 둔다: 서버를 다시 켜면 진행 중이던 작업은 실패로 보여 주므로 DB의 진행률은 읽을 일이 없고,
+  스텝마다 DB에 적으면 GPU를 잡은 합성 루프가 DB 응답을 기다리게 된다
 """
 import io
 import logging
@@ -38,22 +40,28 @@ from backend.storage import is_owner, load_extraction_info, load_image_info, loa
 router = APIRouter()
 log = logging.getLogger("moa.compose")
 
-THUMB_WIDTH = 400
+THUMB_WIDTH = 400  # 결과 작은 사진의 가로 (px). 세로는 비율대로 따라온다 (아래 thumbnail 호출)
 
-_jobs = {}            # job_id -> 작업 정보 (메모리)
-_waiting = []         # 대기 중인 job_id (순서대로)
-_lock = threading.Lock()
-_queue = queue.Queue()
+_jobs = {}            # job_id -> 작업 정보 (메모리). 진행 중인 작업은 이것이 기준
+_waiting = []         # 대기 순번 계산용: 아직 시작하지 않은 job_id를 들어온 순서대로 담고, 일꾼이 꺼내 가면 뺀다 (_public의 queue_position)
+_lock = threading.Lock()  # _jobs와 _waiting을 함께 지킨다
+_queue = queue.Queue()  # 일꾼 스레드에게 일을 넘기는 통로: 일꾼이 get()으로 기다리다 job_id가 오면 처리한다 (_work_loop)
 _worker = None
 
 
 # ---------- 작업 기록 ----------
 
-def _update(job_id, **changes):
-    """메모리 작업 정보를 바꾸고, 바뀐 값만 DB jobs 표에도 적는다 (started_at·finished_at은 DB에만 둠).
-    DB에 적지 못해도 합성은 계속한다: 서버가 켜져 있는 동안은 메모리가 기준이고, 실패는 서버 창에 남긴다"""
+def _set_memory(job_id, **changes):
+    """메모리 작업 정보만 바꾼다 (DB에는 적지 않음). 스텝마다 바뀌는 진행률처럼 자주 바뀌는 값용.
+    started_at·finished_at은 DB에만 둔다"""
     with _lock:
         _jobs[job_id].update({k: v for k, v in changes.items() if k not in ("started_at", "finished_at")})
+
+
+def _update(job_id, **changes):
+    """상태가 바뀔 때: 메모리 작업 정보를 바꾸고, 바뀐 값을 DB jobs 표에도 적는다.
+    DB에 적지 못해도 합성은 계속한다: 서버가 켜져 있는 동안은 메모리가 기준이고, 실패는 서버 창에 남긴다"""
+    _set_memory(job_id, **changes)
     try:
         with open_session() as s:
             s.execute(update(Job).where(Job.job_id == job_id).values(**changes))
@@ -138,19 +146,16 @@ def _run(job_id):
         job = dict(_jobs[job_id])
     _update(job_id, status="running", progress=0.0, started_at=utcnow())
 
-    ext = load_extraction_info(job["extraction_id"])
-    garment = load_image_info(ext["image_id"])
-    person = load_image_info(job["person_image_id"])
-
-    ref = np.array(Image.open(IMAGES_DIR / garment["filename"]).convert("RGB"))
+    # 사진·윤곽 파일 이름은 합성 요청 때 확인해 메모리 작업 정보에 넣어 두었다 (request_compose). 여기서 DB를 다시 읽지 않는다
+    ref = np.array(Image.open(IMAGES_DIR / job["garment_file"]).convert("RGB"))
     # 상의 윤곽: 화면에서 다듬은 윤곽이 있으면 그것, 없으면 4-1 SAM2 윤곽
-    ref_mask_path = JOBS_DIR / job["garment_mask"] if job.get("garment_mask") else EXTRACTIONS_DIR / ext["mask"]
+    ref_mask_path = JOBS_DIR / job["garment_mask"] if job.get("garment_mask") else EXTRACTIONS_DIR / job["extraction_mask"]
     ref_mask = (np.array(Image.open(ref_mask_path).convert("L")) > 127).astype(np.uint8)
-    tar = np.array(Image.open(IMAGES_DIR / person["filename"]).convert("RGB"))
+    tar = np.array(Image.open(IMAGES_DIR / job["person_file"]).convert("RGB"))
     tar_mask = (np.array(Image.open(JOBS_DIR / job["area_mask"]).convert("L")) > 127).astype(np.uint8)
 
     def on_progress(p):
-        _update(job_id, progress=round(min(p, 1.0), 3))
+        _set_memory(job_id, progress=round(min(p, 1.0), 3))  # 스텝마다 불리므로 DB에는 적지 않는다 (GPU를 잡은 채 DB를 기다리지 않게)
 
     garment_found = None
     crop_box = None
@@ -168,9 +173,9 @@ def _run(job_id):
                 # 원본 복원 후처리: 얼굴·머리·배경은 원본, 새 상의(SAM2로 찾음)는 어깨 끝까지 유지
                 from features.composition import find_garment, restore_original
 
-                garment = find_garment(result, tar_mask)
-                garment_found = garment is not None
-                result = restore_original(tar, result, tar_mask, garment)
+                new_garment = find_garment(result, tar_mask)
+                garment_found = new_garment is not None
+                result = restore_original(tar, result, tar_mask, new_garment)
         finally:
             release_cached_memory()  # 다 쓴 GPU 메모리를 돌려준다 (backend/gpu.py)
 
@@ -179,6 +184,8 @@ def _run(job_id):
     img = Image.fromarray(result)
     img.save(RESULTS_DIR / f"{result_id}.png")
     thumb = img.copy()
+    # 가로 THUMB_WIDTH에 맞춰 비율대로 줄인다. thumbnail은 가로·세로 상한 안에 들어가게 줄이므로, 세로 상한(가로의 4배)은
+    # 아주 길쭉한 사진만 막는 안전 한도이고 보통 사진(3:4 등)은 가로가 기준이 된다
     thumb.thumbnail((THUMB_WIDTH, THUMB_WIDTH * 4))
     thumb.save(RESULTS_DIR / f"{result_id}_thumb.jpg", quality=90)
 
@@ -186,7 +193,7 @@ def _run(job_id):
         with open_session() as s:
             s.add(Result(
                 result_id=result_id, user_id=job["user_id"], job_id=job_id, extraction_id=job["extraction_id"],
-                garment_image_id=ext["image_id"], person_image_id=job["person_image_id"], seed=job["seed"], created_at=utcnow(),
+                garment_image_id=job["garment_image_id"], person_image_id=job["person_image_id"], seed=job["seed"], created_at=utcnow(),
                 # 아래는 명세 밖 기록 (재현·분석용)
                 detail={
                     "seam_fix": SEAM_FIX,  # 박스 선 보정 적용 여부
@@ -232,8 +239,9 @@ async def request_compose(
     user: User = Depends(current_user),
     db: Session = Depends(get_db),
 ):
-    ext = load_extraction_info(extraction_id, user)     # 없거나 남의 것이면 404
-    person = load_image_info(person_image_id, user)    # 없거나 남의 것이면 404
+    ext = load_extraction_info(extraction_id, user, db)     # 없거나 남의 것이면 404
+    person = load_image_info(person_image_id, user, db)    # 없거나 남의 것이면 404
+    garment = load_image_info(ext["image_id"], db=db)      # 추출한 상의 사진 (내 추출 결과가 가리키는 사진)
 
     # 명세 5-1: 인물 사진과 같은 비율이면 되고, 크기는 서버가 원본에 맞춘다 (칠한 곳 255)
     mask = await _read_mask(area_mask, person["width"], person["height"], "INVALID_AREA_MASK", "입힐 영역 그림")
@@ -273,8 +281,11 @@ async def request_compose(
     }
     db.add(Job(**job, created_at=utcnow()))  # DB에 먼저 적고 (실패하면 대기열에 올리지 않음) 메모리 대기열에 올린다
     db.commit()
+    # 일꾼이 DB를 다시 읽지 않도록, 이미 확인한 사진·윤곽 파일 이름을 메모리 작업 정보에만 더한다 (DB jobs 표에는 없는 값)
+    memory_job = {**job, "garment_image_id": ext["image_id"], "garment_file": garment["filename"],
+                  "person_file": person["filename"], "extraction_mask": ext["mask"]}
     with _lock:
-        _jobs[job_id] = job
+        _jobs[job_id] = memory_job
         _waiting.append(job_id)
     _ensure_worker()
     _queue.put(job_id)
