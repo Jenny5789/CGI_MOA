@@ -148,6 +148,10 @@ export function pointer(e, canvas) {
   return { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height, px: e.clientX - r.left, py: e.clientY - r.top };
 }
 
+// 날아가는 효과의 시간. CSS 시간보다 짧으면 효과가 끝나기 전에 칸 내용이 바뀌므로, CSS를 바꾸면 함께 바꾼다
+const FLY_MS = 900; // styles/studio-guide.css .sg-fly 전환 0.85초
+const POP_MS = 650; // styles/studio-guide.css .sg-slot-thumb.pop 애니메이션 0.55초
+
 // 선택한 사진이 작아지면서 왼쪽 칸으로 이동하는 효과. 끝나면 finish()로 칸 내용을 바꾼다.
 export function fly(fromEl, toEl, finish) {
   return new Promise((resolve) => {
@@ -177,9 +181,9 @@ export function fly(fromEl, toEl, finish) {
       fromEl.style.visibility = '';
       finish();
       toEl.classList.add('pop');
-      setTimeout(() => toEl.classList.remove('pop'), 650);
+      setTimeout(() => toEl.classList.remove('pop'), POP_MS);
       clone.remove();
       resolve();
-    }, 900);
+    }, FLY_MS);
   });
 }

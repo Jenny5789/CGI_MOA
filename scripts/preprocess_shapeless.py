@@ -11,6 +11,7 @@ AnyDoor datasets/vitonhd.py 가 그대로 읽는 구조라, configs/datasets.yam
 
 라벨 JSON 특이점: segmentation 의 모든 클래스 키가 같은 폴리곤 목록을 반복하고,
 키 순서와 폴리곤 순서가 1:1 로 대응함 (예: 키 [16,1,2,...] ↔ 폴리곤 [티셔츠, 얼굴, 왼팔, ...])
+한 클래스가 여러 조각이면 폴리곤 수가 키 수보다 많아 대응이 깨짐. 전체의 약 15%, 처리 방법은 worn_cloth_polygons 설명 참고
 
 실행 예:
   python scripts/preprocess_shapeless.py --limit 200      # 먼저 200쌍만 시험
@@ -31,7 +32,7 @@ import numpy as np
 from PIL import Image
 from tqdm import tqdm
 
-DEFAULT_SRC = Path(r"C:\Users\AISW_203_101\Downloads\011.쉐이프리스 의류 및 포즈 데이터\01-1.정식개방데이터")
+DEFAULT_SRC = Path.home() / "Downloads" / "011.쉐이프리스 의류 및 포즈 데이터" / "01-1.정식개방데이터"  # 실행하는 PC 사용자의 Downloads
 DEFAULT_OUT = Path(r"C:\CGI_MOA\Dataset\Shapeless_AnyDoor")
 OUT_W, OUT_H = 768, 1024  # VITON-HD 와 같은 3:4. 원본(3024x4032, 3072x4096)도 3:4
 PARSE_CLOTH = 5  # vitonhd.py 가 tar_mask == 5 로 옷 영역을 읽음

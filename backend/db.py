@@ -44,9 +44,9 @@ class User(Base):
 
 
 class UploadedImage(Base):
-    """올린 사진 기록 (명세 3-1, 3-2, 10/17). 합성하기 "최근 사용한 사진" 목록용.
-    사진 파일은 지금처럼 storage/images에 두고, 여기엔 목록에 필요한 정보만. RECENT_IMAGE_KEEP_HOURS가 지난 기록은
-    목록을 볼 때 지운다 (파일은 그대로, 추출·합성·결과에 계속 쓰일 수 있어서)"""
+    """올린 사진 기록 (명세 3-1, 3-2, 10/17). 합성하기 "최근 사용한 사진" 목록에 쓰고, 11/2부터 추출·합성·재료 보기가 사진을 찾을 때도 쓴다.
+    사진 파일은 storage/images에 두고, 여기엔 정보만. RECENT_IMAGE_KEEP_HOURS가 지난 기록도 지우지 않고 최근 사용한 사진 목록에서만 뺀다.
+    지우면 그 사진으로 만든 추출·합성 결과의 재료를 찾지 못한다. 자세한 설명은 routers/images.py 맨 위"""
     __tablename__ = "images"
 
     image_id: Mapped[str] = mapped_column(String(32), primary_key=True)

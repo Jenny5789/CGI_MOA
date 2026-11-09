@@ -4,13 +4,14 @@
    창이 열릴 때마다 새로 그려서(AuthContext에서 열려 있을 때만 렌더) 입력값이 처음 상태로 시작한다.
    바깥(흐린 화면)을 눌러도 닫히지 않는다: 입력하다 잘못 눌러 내용이 사라지지 않게. 닫기는 ×, Esc. */
 
-// 필수 칸 이름: 굵게 + 자주색 *
-const Req = ({ children }) => <span className="auth-label-req">{children}<i className="auth-req" aria-hidden="true">*</i></span>;
 import { useEffect, useRef, useState } from 'react';
 import * as authApi from '../api/auth.js';
 import {
   normalizeEmail, normalizePhone, passwordOk, usernameOk, PASSWORD_HINT, PHONE_HINT, USERNAME_HINT, USERNAME_MAX,
 } from './signupRules.js';
+
+// 필수 칸 이름: 굵게 + 자주색 *
+const Req = ({ children }) => <span className="auth-label-req">{children}<i className="auth-req" aria-hidden="true">*</i></span>;
 
 const EMPTY = { username: '', password: '', password2: '', email: '', phone: '' };
 
