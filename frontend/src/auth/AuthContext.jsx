@@ -9,6 +9,7 @@ import * as authApi from '../api/auth.js';
 import { getMe } from '../api/me.js';
 import SignupModal from './SignupModal.jsx';
 import ExpiryNotice from './ExpiryNotice.jsx';
+import { setToken } from '../api/client.js';
 import { getToken, UNAUTHORIZED_EVENT } from '../api/client.js';
 
 const WELCOME = 'MOA에 오신 것을 환영합니다.';
@@ -76,7 +77,8 @@ export function AuthProvider({ children }) {
 
   // 만료 시각이 되면 로그아웃하고 로그인 창을 연다 (docs/login_extend.md 3장)
   const expireLogin = useCallback(() => {
-    authApi.logout();
+    // 이미 만료된 토큰이라 서버에 로그아웃을 보내도 401만 돌아온다. 이 브라우저의 토큰과 만료 시각만 지운다
+    setToken(null);
     setLoggedIn(false);
     setExpiresAt(null);
     setModal({ open: true, sub: EXPIRED, next: location.pathname });

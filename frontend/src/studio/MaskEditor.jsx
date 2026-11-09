@@ -1,5 +1,6 @@
 /* 다듬기 팝업: 점 찍기로 잡은 영역을 영역 추가와 영역 제거로 손본다. 3단계(상의 추출)와 4단계(합성 영역)가 같이 쓴다.
    image: 작업용 사진 캔버스, mask: 시작할 영역(흰색 캔버스). 원본은 건드리지 않고 사본을 고쳐서 onDone으로 돌려준다.
+   onDone의 두 번째 값은 시작 영역과 달라졌는지 여부이며, 실행 취소로 모두 되돌리면 false.
    영역은 포토샵 선택 영역처럼 보여 준다: 안쪽은 움직이는 검정·흰색 빗금, 가장자리는 움직이는 흑백 점선 (canvas.js paintSelection).
    확대 보기, 10/21: zoom.js와 같은 보기 상태 사용. 휠·＋/－ 버튼으로 확대, 스페이스바를 누른 채 끌거나 오른쪽·가운데 버튼으로 끌면 이동.
    브러시 크기는 화면 기준이라 확대할수록 사진에는 더 가늘게 칠해진다. */
@@ -103,6 +104,7 @@ export default function MaskEditor({ title, help, image, mask, cancelLabel, done
     s.mask = newCanvas(s.w, s.h);
     s.mask.getContext('2d').drawImage(mask, 0, 0, s.w, s.h);
     s.hist = [];
+    s.strokes = 0; // 되돌리지 않고 남아 있는 칠하기 횟수. 0이면 시작 영역과 같다
     view.current = fullView();
     setZoom(1);
     setCanUndo(false);
@@ -170,6 +172,7 @@ export default function MaskEditor({ title, help, image, mask, cancelLabel, done
     snap.getContext('2d').drawImage(s.mask, 0, 0);
     s.hist.push(snap);
     if (s.hist.length > MAX_HISTORY) s.hist.shift();
+    s.strokes += 1; // 오래된 되돌리기 기록이 밀려나도 횟수는 그대로 세어, 되돌릴 수 없는 칠하기가 남았는지 알 수 있게
     setCanUndo(true);
   };
 
@@ -221,6 +224,7 @@ export default function MaskEditor({ title, help, image, mask, cancelLabel, done
     const s = ed.current;
     if (!s.hist.length) return;
     const snap = s.hist.pop();
+    s.strokes -= 1;
     const ctx = s.mask.getContext('2d');
     ctx.clearRect(0, 0, s.w, s.h);
     ctx.drawImage(snap, 0, 0);
@@ -274,7 +278,7 @@ export default function MaskEditor({ title, help, image, mask, cancelLabel, done
         <div className="sg-actions">
           <button type="button" className="sg-ghost" disabled={!canUndo} onClick={undo}>실행 취소</button>
           <button type="button" className="sg-ghost" onClick={onCancel}>{cancelLabel}</button>
-          <button type="button" className="sg-confirm" disabled={empty} onClick={() => onDone(ed.current.mask)}>{doneLabel}</button>
+          <button type="button" className="sg-confirm" disabled={empty} onClick={() => onDone(ed.current.mask, ed.current.strokes > 0)}>{doneLabel}</button>
         </div>
       </div>
     </div>
