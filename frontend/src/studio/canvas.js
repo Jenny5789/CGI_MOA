@@ -40,14 +40,7 @@ export function boxFit(canvas, w, h) {
   return fit(w, h, Math.max(160, aw), Math.max(160, ah));
 }
 
-// 원본 영역(sx, sy, sw, sh)을 비율을 유지하며 dw x dh 가득 채워 그린다
-export function drawCover(ctx, src, sx, sy, sw, sh, dw, dh) {
-  const sc = Math.max(dw / sw, dh / sh);
-  const w = sw * sc;
-  const h = sh * sc;
-  ctx.drawImage(src, sx, sy, sw, sh, (dw - w) / 2, (dh - h) / 2, w, h);
-}
-
+// 원본 영역을 비율을 유지하며 dw x dh 안에 모두 보이게 그린다
 export function drawContain(ctx, src, sx, sy, sw, sh, dw, dh) {
   const sc = Math.min(dw / sw, dh / sh);
   const w = sw * sc;
@@ -153,12 +146,6 @@ export function maskBBox(mask) {
 export function pointer(e, canvas) {
   const r = canvas.getBoundingClientRect();
   return { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height, px: e.clientX - r.left, py: e.clientY - r.top };
-}
-
-export function nowText() {
-  const n = new Date();
-  const p = (v) => String(v).padStart(2, '0');
-  return n.getFullYear() + '.' + p(n.getMonth() + 1) + '.' + p(n.getDate()) + ' ' + p(n.getHours()) + ':' + p(n.getMinutes());
 }
 
 // 선택한 사진이 작아지면서 왼쪽 칸으로 이동하는 효과. 끝나면 finish()로 칸 내용을 바꾼다.

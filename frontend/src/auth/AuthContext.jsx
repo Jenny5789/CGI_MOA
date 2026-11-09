@@ -14,7 +14,7 @@ import { getToken, UNAUTHORIZED_EVENT } from '../api/client.js';
 const WELCOME = 'MOA에 오신 것을 환영합니다.';
 const EXPIRED = '로그인이 만료되었습니다. 다시 로그인해 주세요.';
 // 로그인해야 들어갈 수 있는 화면과, 막혔을 때 팝업에 보여 줄 문구
-export const GATED = {
+const GATED = {
   '/studio': '합성하기는 로그인 후 이용할 수 있습니다.',
   '/mypage': '마이페이지는 로그인 후 이용할 수 있습니다.',
 };
