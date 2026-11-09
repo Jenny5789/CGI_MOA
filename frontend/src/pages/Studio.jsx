@@ -953,7 +953,7 @@ export default function Studio() {
               </div>
               <div className="sg-actions sg-actions-center">
                 <button type="button" className="sg-confirm" disabled={saved} onClick={save}>{saved ? '저장 완료' : '저장'}</button>
-                {saved && <button type="button" className="sg-confirm" onClick={() => navigate('/mypage')}>마이페이지로 이동</button>}
+                {saved && <button type="button" className="sg-confirm" onClick={() => navigate('/mypage#album')}>사진첩으로 이동</button>}
                 <button type="button" className="sg-ghost" onClick={redo}>{fromHistory && !result.restored ? '신규 합성' : '재합성'}</button>
               </div>
             </section>
