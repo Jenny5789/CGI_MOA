@@ -9,7 +9,7 @@
    - 3단계: 점만 찍어 둔다. "확인"을 누르면 서버 SAM2로 실제 윤곽을 받아 다듬기 팝업을 연다(4-1)
    - 4단계: 3단계와 같이 인물 사진에 점을 찍고 "확인"을 누르면 SAM2로 지금 입은 상의 영역을 받아 다듬기 팝업을 연다(4-1).
      "합성 시작"에서 서버 AnyDoor 합성 요청 → 2초마다 진행 확인 → 결과(5-1~5-3)
-   - 합성 요청에는 3단계에서 다듬은 상의 윤곽(garment_mask)과 합성 설정 두 개(refine, shape_control)를 함께 보낸다
+   - 합성 요청에는 합성 설정 refine, shape_control을 보내고, 3단계 다듬기에서 고친 경우에만 상의 윤곽 garment_mask도 보낸다
    - 결과 "저장": 서버에 저장 표시(6-2)
    - 1·2단계 "더보기" 창 맨 위: 최근 24시간 동안 올린 사진(3-2)
    - 내 작업 기록을 누르면 그 결과의 재료로 1~4단계를 채운다(GET /results/{id}/source, 명세 6-4)
@@ -468,11 +468,14 @@ export default function Studio() {
     }
   };
 
-  // 다듬기 완료: 다듬은 영역으로 상의를 오려 내고 4단계로 간다
-  const finish3 = async (mask) => {
+  // 다듬기 완료: 다듬은 영역으로 상의를 오려 내고 4단계로 간다.
+  // changed는 이번 다듬기에서 고쳤는지. 지난번에 다듬은 영역에서 이어서 열었으면 그때 손으로 고친 표시를 이어받는다
+  const finish3 = async (mask, changed) => {
     const s = s3.current;
     const bb = maskBBox(mask);
     if (!bb) return;
+    const fromEdited = !!editor && editor.mask === s.edited;
+    s.handEdited = changed || (fromEdited && !!s.handEdited);
     s.edited = newCanvas(s.w, s.h);
     s.edited.getContext('2d').drawImage(mask, 0, 0);
     s.editedKey = JSON.stringify(s.pts);
@@ -603,7 +606,7 @@ export default function Studio() {
   };
 
   // 합성 설정 팝업의 "합성 시작": 서버에 합성을 요청하고(명세 5-1), 2초마다 진행을 확인한 뒤(5-2) 결과를 받는다(5-3).
-  // 3단계에서 다듬은 상의 윤곽과 고른 설정(opts)을 함께 보낸다.
+  // 고른 설정 opts를 보내고, 상의 윤곽은 다듬기에서 손으로 고쳤을 때만 보낸다. 보내지 않으면 서버가 3단계 SAM2 윤곽을 원본 해상도로 쓴다.
   const startCompose = async () => {
     if (!s4.current.edited || !data.current.cutout) return;
     const ext = data.current.extraction;
@@ -614,7 +617,7 @@ export default function Studio() {
     try {
       const { image_id: personId } = await data.current.bg.upload;
       const area = await areaMaskBlob(s4.current.edited);
-      const garmentMask = s3.current.edited ? await areaMaskBlob(s3.current.edited) : null;
+      const garmentMask = s3.current.edited && s3.current.handEdited ? await areaMaskBlob(s3.current.edited) : null;
       const job = await requestCompose(ext.extraction_id, personId, area, { garmentMask, refine: opts.refine, shapeControl: opts.shape });
       const resultId = await waitForJob(job.job_id, setProgress);
       data.current.resultId = resultId; // "저장" 때 서버에 알릴 결과 번호
@@ -694,7 +697,8 @@ export default function Studio() {
       const bg = { img: pImg, src: src.person.url, upload: Promise.resolve(src.person) };
       data.current = { ...data.current, obj, bg, cutout, extraction: { extraction_id: src.extraction_id }, resultId };
       // 찍었던 점은 남지 않으므로 '점 없음' 상태에 다듬은 영역을 붙여 둔다 (3·4단계 '확인'으로 바로 다듬기를 연다)
-      s3.current = { src: obj.src, work: w3.work, w: w3.w, h: w3.h, pts: [], hist: [], dw: 0, dh: 0, view: fullView(), edited: gMask, editedKey: '[]' };
+      // 불러온 상의 윤곽은 손으로 고친 것일 수 있어, 다시 합성할 때 그대로 보낸다
+      s3.current = { src: obj.src, work: w3.work, w: w3.w, h: w3.h, pts: [], hist: [], dw: 0, dh: 0, view: fullView(), edited: gMask, editedKey: '[]', handEdited: true };
       s4.current = { src: bg.src, work: w4.work, w: w4.w, h: w4.h, pts: [], hist: [], dw: 0, dh: 0, view: fullView(), edited: aMask, editedKey: '[]' };
       setZoom({ 3: 1, 4: 1 });
       setC3ui({ neg: 0, pos: 0, canUndo: false, ready: true });
