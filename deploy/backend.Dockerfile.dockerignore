@@ -1,0 +1,7 @@
+# deploy/backend.Dockerfile 전용 제외 목록. 전부 제외 후 필요한 파일만 허용
+*
+!backend/**
+!features/**
+!deploy/backend-requirements.txt
+**/__pycache__
+backend/.env

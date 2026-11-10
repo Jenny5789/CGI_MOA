@@ -1,0 +1,59 @@
+# MOA 서비스 묶음: MySQL + 웹 서비스 서버 + 화면
+# 모델 추론은 이 묶음에 없음. GPU가 있는 컴퓨터의 모델 추론 서버를 MODEL_SERVER_URL로 호출
+# 실행: deploy 폴더에서 .env 작성 후 docker compose up -d --build
+
+name: moa
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: moa-mysql
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    # 웹 서비스 서버가 DB 준비 후 시작하도록 상태 확인
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ..
+      dockerfile: deploy/backend.Dockerfile
+    image: moa-backend:1
+    container_name: moa-backend
+    environment:
+      DATABASE_URL: mysql+pymysql://${MYSQL_USER}:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE}?charset=utf8mb4
+      MODEL_SERVER_URL: ${MODEL_SERVER_URL}
+      MODEL_TOKEN: ${MODEL_TOKEN:-}
+    volumes:
+      # 사진·결과 파일과 파일 주소 서명 키 보관. 컨테이너를 다시 만들어도 유지
+      - storage:/app/storage
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: deploy/frontend.Dockerfile
+    image: moa-frontend:1
+    container_name: moa-frontend
+    # 외부 공개 포트는 화면 컨테이너 하나. /api는 nginx가 웹 서비스 서버로 전달
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  mysql-data:
+  storage:

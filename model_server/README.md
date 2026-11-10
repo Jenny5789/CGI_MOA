@@ -11,6 +11,8 @@ SAM2 이미지 분할과 AnyDoor 기반 이미지 합성 모델을 HTTP로 제�
 | `Dockerfile` | 컨테이너 이미지 구성 |
 | `Dockerfile.dockerignore` | 빌드 시 전송 제외 목록. `features`, `model_server`만 허용 |
 | `test_client.py` | 서버 동작 확인용 요청 스크립트 |
+| `docker-compose.yml` | 배포용 실행 묶음. GPU 연결, 가중치 읽기 전용 연결, 상태 확인, 자동 재시작 |
+| `.env.example`, `.gitignore` | compose 설정값 본보기, `.env` Git 제외 |
 
 ## 2. 요청
 
@@ -37,7 +39,22 @@ SAM2 이미지 분할과 AnyDoor 기반 이미지 합성 모델을 HTTP로 제�
 | `MODEL_TOKEN` | 비움 | 요청 토큰 |
 | `MODEL_SAVE_MEMORY` | `0` | `1`이면 부품 단위 GPU 적재, VRAM 10GB 미만 GPU용 |
 
-## 4. 빌드와 실행
+## 4. 실행 · compose, 배포용
+
+`model_server` 폴더에서 실행.
+
+```
+docker compose up -d --build
+docker compose ps
+```
+
+- 기본 설정: 가중치 `../checkpoints/weights/official_fp16.ckpt`, SAM2 `../checkpoints/sam2`, 포트 8100
+- 다른 가중치·토큰·포트: `.env.example`을 `.env`로 복사해 수정
+- `docker compose ps`의 상태 `healthy`: `/health`가 ready, 적재·예열 약 65~90초
+- 자동 재시작 `unless-stopped`: 개발 PC 재부팅 후 Docker 실행 시 자동 실행. 평소 개발 중에는 `docker compose down`으로 내려 VRAM 확보
+- 웹 서비스 서버 쪽 구성: `deploy/README.md`
+
+## 5. 빌드와 실행 · 명령 직접 입력
 
 저장소 최상위 폴더, PowerShell 기준.
 
@@ -54,7 +71,7 @@ docker run -d --name moa-model --gpus all -p 8100:8100 -v "${PWD}\checkpoints\we
 - 상시 운영 시 `--restart unless-stopped` 추가. Docker 재시작 시 컨테이너 자동 재실행
 - 적재 확인: `docker logs -f moa-model`에서 `적재·예열 완료` 줄, 또는 `http://localhost:8100/health`의 `ready`
 
-## 5. 동작 확인
+## 6. 동작 확인
 
 ```
 CGI\Scripts\python.exe model_server/test_client.py http://localhost:8100 결과폴더
