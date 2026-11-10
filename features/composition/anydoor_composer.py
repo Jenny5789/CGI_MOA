@@ -29,6 +29,8 @@
   - refine (Reference Mask Refine): AnyDoor에 들어 있는 작은 보정 모델(iseg/coarse_mask_refine.pth, CPU)로
     옷 윤곽 가장자리를 다듬은 뒤 합성 (refine_ref_mask)
 - 크롭 영역 기록 (2026-10-21): 합성마다 AnyDoor가 다시 그린 정사각형 위치를 last_crop_box에 보관 → 박스 선 보정(seam.py)에 사용
+- 초해상도 복원 2026-11-10: 512 결과를 정사각형 크기로 키우기 전에 Real-ESRGAN x2로 1024 복원 후 축소, upscale.py.
+  UPSCALE_CKPT 가중치 파일이 없으면 기존 방식
 """
 import os
 import sys
@@ -38,6 +40,9 @@ import numpy as np
 
 ANYDOOR_DIR = Path(os.environ.get("ANYDOOR_DIR", Path.home() / "Desktop" / "AnyDoor"))
 ANYDOOR_CKPT = os.environ.get("ANYDOOR_CKPT") or None  # 합성 가중치 파일. 비우면 configs/inference.yaml의 pretrained_model
+# 초해상도 가중치 파일 2026-11-10, upscale.py. 빈 값이면 초해상도 끔, 파일이 없어도 끔
+UPSCALE_CKPT = os.environ.get(
+    "UPSCALE_CKPT", str(Path(__file__).resolve().parents[2] / "checkpoints" / "realesrgan" / "RealESRGAN_x2plus.pth"))
 DDIM_STEPS = 50  # 기본 스텝 수. compose(steps=...)로 바꿀 수 있다
 CROP_RATIO = 1.3  # 잘라 다시 그리는 정사각형 배율 (None이면 AnyDoor 기본 1.5~2.9배 무작위)
 
@@ -139,17 +144,22 @@ def _shift_out_first(self, is_diffusing):
 
 
 class AnyDoorComposer:
-    def __init__(self, anydoor_dir=ANYDOOR_DIR, save_memory=False, fp16=True, ckpt=ANYDOOR_CKPT, crop_ratio=CROP_RATIO):
+    def __init__(self, anydoor_dir=ANYDOOR_DIR, save_memory=False, fp16=True, ckpt=ANYDOOR_CKPT, crop_ratio=CROP_RATIO,
+                 upscale_ckpt=UPSCALE_CKPT):
         """save_memory: 참이면 부품 단위 GPU 적재. fp16: 참이면 16비트 연산·가중치.
-        ckpt: 합성 가중치 파일, 비우면 configs/inference.yaml의 pretrained_model"""
+        ckpt: 합성 가중치 파일, 비우면 configs/inference.yaml의 pretrained_model
+        upscale_ckpt: 초해상도 가중치 파일, 비우거나 파일이 없으면 기존처럼 512 결과를 그대로 확대"""
         self.anydoor_dir = Path(anydoor_dir).resolve()
         self.save_memory = save_memory
         self.fp16 = fp16
         self.ckpt = str(Path(ckpt).resolve()) if ckpt else None
         self.crop_ratio = crop_ratio
+        self.upscale_ckpt = str(upscale_ckpt) if upscale_ckpt and Path(upscale_ckpt).is_file() else None
+        self._upscaler = None
         self._ns = None
         self._progress = None  # 합성 중에만 설정되는 진행률 알림 함수
         self.last_crop_box = None  # 가장 최근 합성의 크롭 영역 (위, 아래, 왼쪽, 오른쪽), 박스 선 보정용
+        self.last_upscaled = False  # 가장 최근 합성에 초해상도를 적용했는지
 
     def _load(self):
         if self._ns is not None:
@@ -230,6 +240,32 @@ class AnyDoorComposer:
             return item
 
         ns["process_pairs"] = process_pairs_record
+
+        # 초해상도 복원 2026-11-10: crop_back이 512 결과를 다시 그린 정사각형 크기로 키우기 전에 2배로 복원한 뒤 줄여서 넘긴다.
+        # 정사각형이 512보다 클 때만 적용, AnyDoor 코드 수정 없음. upscale.py 설명 참고
+        if self.upscale_ckpt:
+            import cv2
+
+            from .upscale import Upscaler
+
+            self._upscaler = Upscaler(self.upscale_ckpt, device="cuda", half=self.fp16)
+            print(f"[MOA] 초해상도 가중치 적재: {self.upscale_ckpt}", flush=True)
+            crop_back = ns["crop_back"]
+
+            def crop_back_upscaled(pred, tar_image, extra_sizes, tar_box_yyxx_crop):
+                h2, w2 = int(extra_sizes[2]), int(extra_sizes[3])
+                self.last_upscaled = max(h2, w2) > max(pred.shape[:2])
+                if self.last_upscaled:
+                    img = np.clip(pred, 0, 255).astype(np.uint8)
+                    # AnyDoor가 첫 줄을 빼 511줄이 되므로 짝수로 맞춘 뒤 복원하고 다시 자름: pixel unshuffle 조건
+                    pad = (img.shape[0] % 2, img.shape[1] % 2)
+                    if any(pad):
+                        img = np.pad(img, ((0, pad[0]), (0, pad[1]), (0, 0)), mode="edge")
+                    up = self._upscaler(img)[: 2 * pred.shape[0], : 2 * pred.shape[1]]
+                    pred = cv2.resize(up, (w2, h2), interpolation=cv2.INTER_AREA).astype(np.float32)
+                return crop_back(pred, tar_image, extra_sizes, tar_box_yyxx_crop)
+
+            ns["crop_back"] = crop_back_upscaled
         ns["_MOA_SHAPE_CONTROL"] = False
         self._ns = ns
         return ns
@@ -305,6 +341,8 @@ class AnyDoorComposer:
         mask = np.zeros((size, size), np.uint8)
         mask[64:192, 64:192] = 1
         self.compose(img, mask, img, mask, steps=steps)
+        if self._upscaler is not None:  # 예열 합성은 정사각형이 작아 초해상도를 거치지 않으므로 따로 한 번 실행
+            self._upscaler(img[:64, :64])
 
 
 _default = None

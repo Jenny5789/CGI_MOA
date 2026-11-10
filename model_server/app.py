@@ -15,6 +15,7 @@ SAM2 이미지 분할과 AnyDoor 기반 이미지 합성 모델을 HTTP로 제�
   - MODEL_TOKEN: 설정 시 요청 헤더 X-Model-Token 일치 요청만 허용
   - MODEL_SAVE_MEMORY: 1이면 부품 단위 GPU 적재, VRAM 10GB 미만 GPU용
   - ANYDOOR_DIR, ANYDOOR_CKPT, SAM2_CHECKPOINT: 모델 코드·가중치 위치
+  - UPSCALE_CKPT: 초해상도 가중치 위치, 파일이 없으면 초해상도 없이 합성
 """
 import json
 import os
@@ -119,7 +120,9 @@ def health():
         free, total = torch.cuda.mem_get_info()
         gpu = {"name": torch.cuda.get_device_name(0), "vram_total_gb": round(total / 1024**3, 2),
                "vram_free_gb": round(free / 1024**3, 2)}
-    return {**STATE, "weights": os.environ.get("ANYDOOR_CKPT"), "save_memory": SAVE_MEMORY, "gpu": gpu}
+    composer = MODELS.get("composer")
+    upscale = composer.upscale_ckpt if composer is not None else None
+    return {**STATE, "weights": os.environ.get("ANYDOOR_CKPT"), "upscale": upscale, "save_memory": SAVE_MEMORY, "gpu": gpu}
 
 
 @app.post("/extract", dependencies=[Depends(check_token), Depends(require_ready)])

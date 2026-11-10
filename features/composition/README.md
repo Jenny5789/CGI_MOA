@@ -43,6 +43,14 @@ result = compose(ref_rgb, ref_mask, tar_rgb, tar_mask, seed=1234, on_progress=fn
   - 큰 부품 네 개를 CPU에 두고 사용 중인 묶음만 GPU 적재
   - 묶음 교체 순서: 기존 묶음 해제 후 새 묶음 적재. `_shift_out_first`가 AnyDoor `low_vram_shift` 대체
 
+### 초해상도 복원 (`upscale.py`)
+
+- 문제: AnyDoor는 512로 그린 결과를 다시 그린 정사각형 크기로 키움. 890~930px 정사각형이면 1.7~1.8배 확대라 새 상의 미세 질감이 부족하고 원본을 쓰는 머리만 선명
+- 방법: `AnyDoorComposer`가 AnyDoor `crop_back` 앞에서 512 결과를 Real-ESRGAN x2로 1024 복원한 뒤 정사각형 크기로 축소. 정사각형이 512보다 클 때만 적용
+- 가중치: `checkpoints/realesrgan/RealESRGAN_x2plus.pth`, 환경 변수 `UPSCALE_CKPT`로 변경, 파일이 없으면 기존 방식
+- 효과, 2026-11-10 모델 원래 결과 6장: 새 상의 미세 질감 0.71~1.00 → 1.21~1.55, 같은 크기로 맞춘 상품 사진 0.96~1.06. 처리 0.2~0.4초, GPU 메모리 최고 578MiB
+- 네트워크 구조 RRDBNet은 패키지 설치 없이 직접 작성, 가중치는 `torch.load(weights_only=True)`로 값만 읽음
+
 ### 원본 복원 후처리 (`restore.py`)
 
 ```python
@@ -84,6 +92,7 @@ result = fix_seam(tar_rgb, result, last_crop_box())   # RGB uint8, 인물 이미
 |---|---|---|
 | `ANYDOOR_DIR` | AnyDoor 폴더 위치 | `Desktop\AnyDoor` |
 | `ANYDOOR_CKPT` | 합성 가중치 파일, 16비트 추론용 파일 지정 권장 | AnyDoor `configs/inference.yaml`의 원본 파일 |
+| `UPSCALE_CKPT` | 초해상도 가중치 파일, 빈 값이면 끔 | `checkpoints/realesrgan/RealESRGAN_x2plus.pth` |
 | `MOA_RESTORE_ORIGINAL` | 서버의 원본 복원 후처리 켜기(1)·끄기(0) | `1` |
 | `MOA_SEAM_FIX` | 서버의 박스 선 보정 켜기(1)·끄기(0) | `1` |
 

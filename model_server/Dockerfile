@@ -40,7 +40,8 @@ COPY model_server model_server
 # 가중치 위치: 실행 시 /weights 아래로 연결
 ENV ANYDOOR_DIR=/opt/AnyDoor \
     ANYDOOR_CKPT=/weights/anydoor/official_fp16.ckpt \
-    SAM2_CHECKPOINT=/weights/sam2/sam2.1_hiera_base_plus.pt
+    SAM2_CHECKPOINT=/weights/sam2/sam2.1_hiera_base_plus.pt \
+    UPSCALE_CKPT=/weights/realesrgan/RealESRGAN_x2plus.pth
 
 EXPOSE 8100
 

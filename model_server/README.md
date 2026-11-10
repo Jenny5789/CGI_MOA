@@ -18,7 +18,7 @@ SAM2 이미지 분할과 AnyDoor 기반 이미지 합성 모델을 HTTP로 제�
 
 | 주소 | 입력 | 출력 |
 |---|---|---|
-| `GET /health` | 없음 | 적재 상태 `loading`·`ready`·`failed`, 가중치 파일, GPU 이름·VRAM |
+| `GET /health` | 없음 | 적재 상태 `loading`·`ready`·`failed`, 가중치 파일, 초해상도 가중치 파일, GPU 이름·VRAM |
 | `POST /extract` | 파일 `image`, 문자 `points`·`neg_points`·`box` JSON, `image_key` | 0/255 마스크 PNG, 헤더 `X-Elapsed-Sec`. 빈 마스크는 422 `EMPTY_MASK` |
 | `POST /compose` | 파일 `garment`·`garment_mask`·`person`·`area`, 값 `seed`·`steps`·`shape_control`·`refine` | 결과 PNG, 헤더 `X-Crop-Box`·`X-Elapsed-Sec` |
 | `GET /progress` | 없음 | 진행 중인 합성의 스텝 진행률 0~1, 합성 중이 아니면 null |
@@ -38,6 +38,7 @@ SAM2 이미지 분할과 AnyDoor 기반 이미지 합성 모델을 HTTP로 제�
 | `ANYDOOR_DIR` | `/opt/AnyDoor` | AnyDoor 공식 코드 위치, 이미지에 포함 |
 | `MODEL_TOKEN` | 비움 | 요청 토큰 |
 | `MODEL_SAVE_MEMORY` | `0` | `1`이면 부품 단위 GPU 적재, VRAM 10GB 미만 GPU용 |
+| `UPSCALE_CKPT` | `/weights/realesrgan/RealESRGAN_x2plus.pth` | 초해상도 가중치 파일, 없으면 초해상도 없이 합성 |
 
 ## 4. 실행 · compose, 배포용
 
@@ -48,7 +49,8 @@ docker compose up -d --build
 docker compose ps
 ```
 
-- 기본 설정: 가중치 `../checkpoints/weights/official_fp16.ckpt`, SAM2 `../checkpoints/sam2`, 포트 8100
+- 기본 설정: 가중치 `../checkpoints/weights/official_fp16.ckpt`, SAM2 `../checkpoints/sam2`, 초해상도 `../checkpoints/realesrgan`, 포트 8100
+- 초해상도 가중치: Real-ESRGAN 공식 릴리스 v0.2.1의 `RealESRGAN_x2plus.pth`, 67,061,725바이트, SHA-256 `49fafd45f8fd7aa8d31ab2a22d14d91b536c34494a5cfe31eb5d89c2fa266abb`. `checkpoints/realesrgan`에 배치
 - 다른 가중치·토큰·포트: `.env.example`을 `.env`로 복사해 수정
 - `docker compose ps`의 상태 `healthy`: `/health`가 ready, 적재·예열 약 65~90초
 - 자동 재시작 `unless-stopped`: 개발 PC 재부팅 후 Docker 실행 시 자동 실행. 평소 개발 중에는 `docker compose down`으로 내려 VRAM 확보
