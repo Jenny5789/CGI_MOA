@@ -16,6 +16,8 @@ SAM2 이미지 분할과 AnyDoor 기반 이미지 합성 모델을 HTTP로 제�
   - MODEL_SAVE_MEMORY: 1이면 부품 단위 GPU 적재, VRAM 10GB 미만 GPU용
   - ANYDOOR_DIR, ANYDOOR_CKPT, SAM2_CHECKPOINT: 모델 코드·가중치 위치
   - UPSCALE_CKPT: 초해상도 가중치 위치, 파일이 없으면 초해상도 없이 합성
+  - ANYDOOR_INPUT: anydoor = 원래 AnyDoor 입력, retrain = 재학습 가중치용 입력. retrain이면 합성 전에 SAM2로 사람 영역을 찾아
+    목·어깨를 계산, 응답 헤더 X-Input-Mode에 실제로 쓴 입력 형식
 """
 import json
 import os
@@ -122,7 +124,9 @@ def health():
                "vram_free_gb": round(free / 1024**3, 2)}
     composer = MODELS.get("composer")
     upscale = composer.upscale_ckpt if composer is not None else None
-    return {**STATE, "weights": os.environ.get("ANYDOOR_CKPT"), "upscale": upscale, "save_memory": SAVE_MEMORY, "gpu": gpu}
+    input_mode = composer.input_mode if composer is not None else None
+    return {**STATE, "weights": os.environ.get("ANYDOOR_CKPT"), "input_mode": input_mode, "upscale": upscale,
+            "save_memory": SAVE_MEMORY, "gpu": gpu}
 
 
 @app.post("/extract", dependencies=[Depends(check_token), Depends(require_ready)])
@@ -159,15 +163,24 @@ def compose(garment: UploadFile = File(...), garment_mask: UploadFile = File(...
     with GPU_LOCK:
         try:
             PROGRESS["progress"] = 0.0
+            keypoints = None
+            if composer.input_mode == "retrain":
+                # 재학습 입력: SAM2 사람 영역으로 목·어깨 계산, 실패하면 원래 AnyDoor 입력, features/composition/retrain_input.py
+                from features.composition.restore import find_person
+                from features.composition.retrain_input import estimate_keypoints
+
+                person_mask = find_person(tar, tar_mask, lambda img, **kw: MODELS["sam2"].extract(img, **kw))
+                keypoints = estimate_keypoints(person_mask) if person_mask is not None else None
             result = composer.compose(ref, ref_mask, tar, tar_mask, seed=seed, steps=steps,
-                                      shape_control=shape_control, refine=refine,
+                                      shape_control=shape_control, refine=refine, keypoints=keypoints,
                                       on_progress=lambda v: PROGRESS.update(progress=round(min(v, 1.0), 3)))
             crop = composer.last_crop_box
         finally:
             PROGRESS["progress"] = None
             _release()
     return Response(png(result), media_type="image/png",
-                    headers={"X-Crop-Box": ",".join(map(str, crop)), "X-Elapsed-Sec": f"{time.time() - t0:.2f}"})
+                    headers={"X-Crop-Box": ",".join(map(str, crop)), "X-Elapsed-Sec": f"{time.time() - t0:.2f}",
+                             "X-Input-Mode": composer.last_input or ""})
 
 
 @app.get("/progress", dependencies=[Depends(check_token)])

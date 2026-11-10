@@ -18,9 +18,9 @@ SAM2 이미지 분할과 AnyDoor 기반 이미지 합성 모델을 HTTP로 제�
 
 | 주소 | 입력 | 출력 |
 |---|---|---|
-| `GET /health` | 없음 | 적재 상태 `loading`·`ready`·`failed`, 가중치 파일, 초해상도 가중치 파일, GPU 이름·VRAM |
+| `GET /health` | 없음 | 적재 상태 `loading`·`ready`·`failed`, 가중치 파일, 입력 형식, 초해상도 가중치 파일, GPU 이름·VRAM |
 | `POST /extract` | 파일 `image`, 문자 `points`·`neg_points`·`box` JSON, `image_key` | 0/255 마스크 PNG, 헤더 `X-Elapsed-Sec`. 빈 마스크는 422 `EMPTY_MASK` |
-| `POST /compose` | 파일 `garment`·`garment_mask`·`person`·`area`, 값 `seed`·`steps`·`shape_control`·`refine` | 결과 PNG, 헤더 `X-Crop-Box`·`X-Elapsed-Sec` |
+| `POST /compose` | 파일 `garment`·`garment_mask`·`person`·`area`, 값 `seed`·`steps`·`shape_control`·`refine` | 결과 PNG, 헤더 `X-Crop-Box`·`X-Elapsed-Sec`·`X-Input-Mode` |
 | `GET /progress` | 없음 | 진행 중인 합성의 스텝 진행률 0~1, 합성 중이 아니면 null |
 
 - `X-Crop-Box`: 다시 그린 정사각형 위치 위,아래,왼쪽,오른쪽. 웹 서비스 서버의 박스 선 보정에 사용
@@ -39,6 +39,7 @@ SAM2 이미지 분할과 AnyDoor 기반 이미지 합성 모델을 HTTP로 제�
 | `MODEL_TOKEN` | 비움 | 요청 토큰 |
 | `MODEL_SAVE_MEMORY` | `0` | `1`이면 부품 단위 GPU 적재, VRAM 10GB 미만 GPU용 |
 | `UPSCALE_CKPT` | `/weights/realesrgan/RealESRGAN_x2plus.pth` | 초해상도 가중치 파일, 없으면 초해상도 없이 합성 |
+| `ANYDOOR_INPUT` | `anydoor` | 합성 입력 형식. `retrain`이면 SAM2 사람 영역으로 목·어깨를 계산해 재학습 학습 형식으로 입력, 시험용 |
 
 ## 4. 실행 · compose, 배포용
 

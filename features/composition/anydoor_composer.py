@@ -40,6 +40,9 @@ import numpy as np
 
 ANYDOOR_DIR = Path(os.environ.get("ANYDOOR_DIR", Path.home() / "Desktop" / "AnyDoor"))
 ANYDOOR_CKPT = os.environ.get("ANYDOOR_CKPT") or None  # 합성 가중치 파일. 비우면 configs/inference.yaml의 pretrained_model
+# 입력 형식 2026-11-10, retrain_input.py: anydoor = 원래 AnyDoor 입력, retrain = 팀 재학습 학습 재료와 같은 입력.
+# 11/10 비교: 재학습 가중치도 앱 합성 영역 모양에서는 anydoor가 안정적이라 배포 기본은 anydoor, retrain은 시험용
+INPUT_MODE = os.environ.get("ANYDOOR_INPUT", "anydoor")
 # 초해상도 가중치 파일 2026-11-10, upscale.py. 빈 값이면 초해상도 끔, 파일이 없어도 끔
 UPSCALE_CKPT = os.environ.get(
     "UPSCALE_CKPT", str(Path(__file__).resolve().parents[2] / "checkpoints" / "realesrgan" / "RealESRGAN_x2plus.pth"))
@@ -145,7 +148,7 @@ def _shift_out_first(self, is_diffusing):
 
 class AnyDoorComposer:
     def __init__(self, anydoor_dir=ANYDOOR_DIR, save_memory=False, fp16=True, ckpt=ANYDOOR_CKPT, crop_ratio=CROP_RATIO,
-                 upscale_ckpt=UPSCALE_CKPT):
+                 upscale_ckpt=UPSCALE_CKPT, input_mode=INPUT_MODE):
         """save_memory: 참이면 부품 단위 GPU 적재. fp16: 참이면 16비트 연산·가중치.
         ckpt: 합성 가중치 파일, 비우면 configs/inference.yaml의 pretrained_model
         upscale_ckpt: 초해상도 가중치 파일, 비우거나 파일이 없으면 기존처럼 512 결과를 그대로 확대"""
@@ -160,6 +163,9 @@ class AnyDoorComposer:
         self._progress = None  # 합성 중에만 설정되는 진행률 알림 함수
         self.last_crop_box = None  # 가장 최근 합성의 크롭 영역 (위, 아래, 왼쪽, 오른쪽), 박스 선 보정용
         self.last_upscaled = False  # 가장 최근 합성에 초해상도를 적용했는지
+        self.input_mode = input_mode  # anydoor 또는 retrain
+        self._keypoints = None  # retrain 입력에 쓸 관절 점, 합성 중에만 설정
+        self.last_input = None  # 가장 최근 합성에 실제로 쓴 입력 형식
 
     def _load(self):
         if self._ns is not None:
@@ -235,7 +241,15 @@ class AnyDoorComposer:
         process_pairs = ns["process_pairs"]
 
         def process_pairs_record(*args, **kwargs):
-            item = process_pairs(*args, **kwargs)
+            # 재학습 입력: 관절 점이 있으면 팀 재학습 학습 재료와 같은 입력으로 구성, retrain_input.py
+            if self._keypoints is not None:
+                from .retrain_input import inference_item
+
+                item = inference_item(*args, self._keypoints, ns)
+                self.last_input = "retrain"
+            else:
+                item = process_pairs(*args, **kwargs)
+                self.last_input = "anydoor"
             self.last_crop_box = tuple(int(v) for v in item["tar_box_yyxx_crop"])  # (위, 아래, 왼쪽, 오른쪽)
             return item
 
@@ -271,7 +285,7 @@ class AnyDoorComposer:
         return ns
 
     def compose(self, ref_rgb, ref_mask, tar_rgb, tar_mask, seed=None, on_progress=None, steps=DDIM_STEPS,
-                shape_control=False, refine=False):
+                shape_control=False, refine=False, keypoints=None):
         """합성 결과(RGB uint8)를 돌려준다.
 
         ref_rgb, tar_rgb : np.uint8 (H, W, 3) RGB
@@ -281,10 +295,13 @@ class AnyDoorComposer:
         steps      : DDIM 스텝 수 (기본 50). 줄이면 빨라지지만 품질이 바뀔 수 있다
         shape_control: 참이면 칠한 모양 그대로 다시 그림 (거짓이면 칠한 영역을 감싼 사각형)
         refine     : 참이면 옷 윤곽 가장자리를 보정 모델로 다듬은 뒤 합성
+        keypoints  : input_mode가 retrain일 때 쓰는 인물 사진 관절 점, retrain_input.estimate_keypoints 결과.
+                     비우면 원래 AnyDoor 입력
         """
         import torch
 
         ns = self._load()
+        self._keypoints = keypoints if self.input_mode == "retrain" else None
         ns["_MOA_DDIM_STEPS"] = int(steps)
         ns["_MOA_SHAPE_CONTROL"] = bool(shape_control)
         if refine:
@@ -297,6 +314,7 @@ class AnyDoorComposer:
                 gen = ns["inference_single_image"](ref_rgb, ref_mask, tar_rgb.copy(), tar_mask)
         finally:
             self._progress = None
+            self._keypoints = None
         return np.clip(gen, 0, 255).astype(np.uint8)
 
     def refine_ref_mask(self, ref_rgb, ref_mask, max_side=1024):

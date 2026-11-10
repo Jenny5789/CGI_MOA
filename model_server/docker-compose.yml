@@ -17,6 +17,8 @@ services:
       - "${MODEL_PORT:-8100}:8100"
     environment:
       ANYDOOR_CKPT: /weights/anydoor/${ANYDOOR_WEIGHT:-official_fp16.ckpt}
+      # 입력 형식: anydoor = 원래 AnyDoor 입력, 배포 기본. retrain = 재학습 학습 형식 입력, 시험용
+      ANYDOOR_INPUT: ${ANYDOOR_INPUT:-anydoor}
       # 초해상도 가중치. 폴더에 파일이 없으면 초해상도 없이 합성
       UPSCALE_CKPT: /weights/realesrgan/${UPSCALE_WEIGHT:-RealESRGAN_x2plus.pth}
       MODEL_TOKEN: ${MODEL_TOKEN:-}
