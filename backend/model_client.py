@@ -151,13 +151,6 @@ def compose(ref, ref_mask, tar, tar_mask, seed=None, on_progress=None, shape_con
     return result, crop
 
 
-def find_garment(result, area):
-    """합성 결과의 새 상의 영역 찾기. 원본 복원 후처리용, 이미지 분할은 이 계층의 extract 사용"""
-    from features.composition import find_garment as _find
-
-    return _find(result, area, extract=extract)
-
-
 # ---------- 예열 ----------
 
 def warmup(set_state):

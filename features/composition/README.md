@@ -46,16 +46,22 @@ result = compose(ref_rgb, ref_mask, tar_rgb, tar_mask, seed=1234, on_progress=fn
 ### 원본 복원 후처리 (`restore.py`)
 
 ```python
-from features.composition import find_garment, restore_original
+from features.composition import restore_scene
 
-garment = find_garment(result, tar_mask)                       # 합성 결과의 새 상의 영역 (SAM2), 실패 시 None
-final = restore_original(tar_rgb, result, tar_mask, garment)   # RGB uint8, 인물 이미지와 같은 크기
+final, info = restore_scene(tar_rgb, result, tar_mask, extract=extract_object, crop_box=last_crop_box())
+# final: RGB uint8, 인물 이미지와 같은 크기 / info: method object·boundary, garment_found, seam_fix
 ```
 
-- 착용 영역 상단 경계(세로줄마다 착용 영역 최상단을 이은 선) 위 = 원본, 아래 = 합성 결과 (블렌딩 폭 20px)
-- 새 상의 영역은 경계 위라도 합성 결과 유지 (어깨 끝 잘림 방지)
-- `find_garment`: 착용 영역을 감싼 박스를 프롬프트로 SAM2 실행, 착용 영역 대비 0.3~2배 밖이면 `None` (상단 경계만으로 복원)
-- 서버: `backend/routers/compose.py`가 합성 직후 적용
+- 물체 기준 원본 복원, 2026-11-10: 위치가 아닌 각 픽셀이 무엇인지로 원본과 합성 결과를 나눔
+  - SAM2로 찾는 영역 4개: 원본 사람, 합성 결과 사람, 새 상의, 원래 상의
+  - 합성 결과에서 가져올 곳: 합성 영역 상단 경계 아래의 합성 결과 사람과 새 상의
+  - 원래 사람이 있었는데 합성 결과 사람이 덮지 않은 곳: 원래 사람을 지운 원본 배경 추정으로 채움
+  - 배경·얼굴·머리: 원본 그대로. 원본과 합성 결과가 바뀌는 선이 항상 사람·옷 윤곽에 놓임
+  - 효과: 기존 방식의 어깨·팔 옆 세로 잔상과 박스 선 보정의 붉은 얼룩 제거, 다시 그린 정사각형 안 배경 중 원본 그대로인 비율 85.5~91.3% → 98.1~99.2%
+- 사람을 찾지 못하면 기존 상단 경계 방식 `restore_original`로 처리, 이때만 박스 선 보정 적용
+  - 상단 경계: 세로줄마다 합성 영역 최상단을 이은 선, 위 = 원본, 아래 = 합성 결과, 블렌딩 폭 20px
+- `find_garment`: 합성 영역을 감싼 박스를 프롬프트로 SAM2 실행, 합성 영역 대비 0.3~2배 밖이면 `None`
+- 서버: `backend/routers/compose.py`가 합성 직후 적용, SAM2는 `backend/model_client.extract`
 
 ### 박스 선 보정 (`seam.py`)
 
@@ -70,7 +76,7 @@ result = fix_seam(tar_rgb, result, last_crop_box())   # RGB uint8, 인물 이미
 - 방법: 테두리의 "원본 - 합성 결과" 색 차이 중 튀는 값(원본과 내용이 다른 곳)은 빼고, 그 차이만큼 네모 안쪽을 부드럽게 보정
 - `last_crop_box()`: 가장 최근 합성의 크롭 영역 (위, 아래, 왼쪽, 오른쪽), `compose` 직후 호출
 - 효과 (100장 시험, 2026-10-21): 박스 선 세기(테두리 안팎 밝기 차이) 평균 2.49 → 0.57
-- 서버: `backend/routers/compose.py`가 합성 직후, 원본 복원 전에 적용
+- 서버: `backend/routers/compose.py`가 원본 복원을 끈 경우, 또는 원본 복원이 사람을 찾지 못해 상단 경계 방식으로 처리할 때 적용
 
 ## 3. 환경 변수
 

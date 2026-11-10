@@ -164,23 +164,27 @@ def _run(job_id):
         _set_memory(job_id, progress=round(min(p, 1.0), 3))  # 스텝마다 불리므로 DB에는 적지 않는다 (GPU를 잡은 채 DB를 기다리지 않게)
 
     garment_found = None
-    crop_box = None
+    restore_info = {}
+    seam_applied = False
     # 이미지 합성: 직접 실행 또는 모델 서버 요청. 다시 그린 정사각형 위치를 함께 받음 (backend/model_client.py)
-    result, model_crop = model_client.compose(ref, ref_mask, tar, tar_mask, seed=job["seed"], on_progress=on_progress,
-                                              shape_control=job.get("shape_control", False), refine=job.get("refine", False))
-    if SEAM_FIX:
+    result, crop_box = model_client.compose(ref, ref_mask, tar, tar_mask, seed=job["seed"], on_progress=on_progress,
+                                            shape_control=job.get("shape_control", False), refine=job.get("refine", False))
+    if RESTORE_ORIGINAL:
+        # 물체 기준 원본 복원: 배경·얼굴·머리는 원본, 사람과 새 상의만 합성 결과, SAM2 영역 4개 사용 (features/composition/restore.py)
+        # 배경을 원본으로 두므로 박스 선 보정은 사람을 찾지 못해 기존 상단 경계 방식으로 처리할 때만 적용
+        from features.composition import restore_scene
+
+        result, restore_info = restore_scene(tar, result, tar_mask, extract=model_client.extract,
+                                             crop_box=crop_box if SEAM_FIX else None,
+                                             person_key=job["person_image_id"], result_key=job_id)
+        garment_found = restore_info["garment_found"]
+        seam_applied = restore_info["seam_fix"]
+    elif SEAM_FIX:
         # 박스 선 보정: 다시 그린 정사각형을 붙인 테두리의 밝기·색 차이를 원본에 맞춤 (features/composition/seam.py, CPU)
         from features.composition import fix_seam
 
-        crop_box = model_crop
         result = fix_seam(tar, result, crop_box)
-    if RESTORE_ORIGINAL:
-        # 원본 복원 후처리: 얼굴·머리·배경은 원본, 새 상의(SAM2로 찾음)는 어깨 끝까지 유지
-        from features.composition import restore_original
-
-        new_garment = model_client.find_garment(result, tar_mask)
-        garment_found = new_garment is not None
-        result = restore_original(tar, result, tar_mask, new_garment)
+        seam_applied = True
 
     result_id = "res_" + uuid.uuid4().hex[:12]
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -199,10 +203,12 @@ def _run(job_id):
                 garment_image_id=job["garment_image_id"], person_image_id=job["person_image_id"], seed=job["seed"], created_at=utcnow(),
                 # 아래는 명세 밖 기록 (재현·분석용)
                 detail={
-                    "seam_fix": SEAM_FIX,  # 박스 선 보정 적용 여부
-                    "crop_box": list(crop_box) if crop_box else None,  # 박스 선 보정에 쓴 크롭 영역 (위, 아래, 왼쪽, 오른쪽), None = 보정 안 됨
+                    "seam_fix": seam_applied,  # 박스 선 보정 실제 적용 여부
+                    "crop_box": list(crop_box) if crop_box else None,  # 다시 그린 정사각형 위치 위, 아래, 왼쪽, 오른쪽
                     "restore_original": RESTORE_ORIGINAL,  # 원본 복원 후처리 적용 여부
-                    "garment_found": garment_found,  # 새 상의 찾기 성공 여부 (실패 시 상단 경계만으로 복원, 미적용 시 None)
+                    "restore_method": restore_info.get("method"),  # object = 물체 기준, boundary = 사람을 찾지 못해 상단 경계 방식, 미적용 시 None
+                    "garment_found": garment_found,  # 새 상의 찾기 성공 여부, 미적용 시 None
+                    "old_garment_found": restore_info.get("old_garment_found"),  # 원래 상의 찾기 성공 여부, 물체 기준일 때만
                 },
             ))
             s.commit()

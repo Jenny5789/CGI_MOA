@@ -35,7 +35,7 @@
 | `MODEL_SERVER_URL` | 모델 추론 서버 주소. 설정 시 이미지 분할·합성을 HTTP로 요청하고 이 서버는 모델 미적재, 비우면 이 서버에서 직접 실행. `backend/model_client.py`, [model_server/README.md](../model_server/README.md) | 비움, 직접 실행 | 실행 전 PowerShell `$env:MODEL_SERVER_URL="http://주소:8100"` |
 | `MODEL_TOKEN` | 모델 서버 요청 토큰. 모델 서버의 `MODEL_TOKEN`과 같은 값 | 비움 | 실행 전 PowerShell `$env:MODEL_TOKEN="값"` |
 | `MOA_WARMUP` | `0`이면 서버 시작 시 AnyDoor 모델 로딩(1~2분) 생략 | `1` (로딩함) | 실행 전 PowerShell `$env:MOA_WARMUP="0"` |
-| `MOA_SEAM_FIX` | `0`이면 합성 후 박스 선 보정 생략 ([features/composition/README.md](../features/composition/README.md#박스-선-보정-seampy)) | `1` (보정함) | 실행 전 PowerShell `$env:MOA_SEAM_FIX="0"` |
+| `MOA_SEAM_FIX` | `0`이면 박스 선 보정 생략. 원본 복원을 끄거나 원본 복원이 사람을 찾지 못한 경우에만 쓰임 ([features/composition/README.md](../features/composition/README.md#박스-선-보정-seampy)) | `1` (보정함) | 실행 전 PowerShell `$env:MOA_SEAM_FIX="0"` |
 | `MOA_RESTORE_ORIGINAL` | `0`이면 합성 후 원본 복원(얼굴·머리·배경을 원본으로 되돌림) 생략 ([features/composition/README.md](../features/composition/README.md#원본-복원-후처리-restorepy)) | `1` (복원함) | 실행 전 PowerShell `$env:MOA_RESTORE_ORIGINAL="0"` |
 
 - SAM2 관련 설정: [features/object_extraction/README.md](../features/object_extraction/README.md)
