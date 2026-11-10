@@ -100,14 +100,17 @@ def _grow(mask, k):
 
 
 def find_person(image, area, extract, image_key=None):
-    """사진 속 사람 전체 영역(0/1)을 SAM2로 찾는다. 합성 영역 좌우로 PERSON_PAD만큼 넓히고 위아래는 사진 전체인 박스를 프롬프트로 사용.
-    찾은 영역이 합성 영역의 절반 이상을 덮지 못하면 None"""
+    """사진 속 사람 전체 영역(0/1)을 SAM2로 찾는다. 합성 영역 좌우로 PERSON_PAD만큼 넓히고 위아래는 사진 전체인 박스와
+    합성 영역 안쪽에서 가장 깊은 점 하나를 프롬프트로 사용. 찾은 영역이 합성 영역의 절반 이상을 덮지 못하면 None.
+    11/10 박스만 쓴 시험에서 합성 영역이 큰 사각형인 사진은 배경을 사람으로 골라 실패, 점을 더해 합성 영역 덮음 0.16 → 0.80"""
     h, w = area.shape
     ys, xs = np.where(area)
     pad = int(PERSON_PAD * w)
     box = (max(xs.min() - pad, 0), 0, min(xs.max() + pad, w), h)
+    dist = cv2.distanceTransform(area.astype(np.uint8), cv2.DIST_L2, 5)
+    y, x = np.unravel_index(np.argmax(dist), dist.shape)
     try:
-        person = extract(image, box=box, image_key=image_key)
+        person = extract(image, points=[(int(x), int(y))], box=box, image_key=image_key)
     except RuntimeError:  # 빈 마스크
         return None
     return person if (person & area).sum() >= 0.5 * area.sum() else None
