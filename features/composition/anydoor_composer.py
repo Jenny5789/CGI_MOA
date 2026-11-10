@@ -5,22 +5,23 @@
 
 - AnyDoor 폴더(기본 Desktop\\AnyDoor)의 run_inference.py는 고치지 않는다.
   모델 로딩과 inference_single_image 부분만 읽어서 쓴다 (docs/작업일지.md 2026-10-12 ⑤).
-- 설정: 50스텝, float16 + save_memory (2026-10-11 확인: 화질 차이 없음)
+- 설정: 50스텝, 16비트 연산·가중치
 - 인물 사진에서 잘라 다시 그리는 정사각형: AnyDoor 기본 1.5~2.9배 무작위 → 1.3배 고정
   (2026-10-12 결정: 배율 비교 실험에서 머리카락·귀걸이 유지가 낫고 옷 변형이 가장 적음, run_inference.py는 그대로)
-- 모델 파일(16.8GB)은 본체 RAM에서 열고 모델 가중치(약 9.2GB)만 GPU로 옮긴다 (load_on_cpu).
-  원래 코드는 파일 전체를 GPU에서 열어 10GB를 넘기고, 모자란 만큼 본체 메모리를 빌려 써서 느려졌다.
-  (2026-10-13 측정: 같은 사진·seed로 1장 115초 → 60초, 결과 그림은 완전히 같음)
-- 부품 단위 GPU 적재 (2026-10-21, _ONDEMAND_LOAD, _shift_out_first):
-  - save_memory 동작: 부품을 두 묶음으로 나눠 사용 중인 묶음만 GPU에 적재.
-    노이즈 제거 단계는 U-Net·ControlNet, 그 전후 단계는 VAE·DINOv2
-  - 기존 문제 1: 모델 적재 시 model.cuda()로 네 부품 전체를 GPU에 일괄 적재
-  - 기존 문제 2: 묶음 교체 시 새 묶음 적재 후 기존 묶음 해제. 교체 시점마다 네 부품 동시 상주
-  - 결과: VRAM 10GB 용량 초과, 공유 GPU 메모리 2.7~3.2GB 사용으로 합성 지연
-  - 변경: 큰 부품 네 개를 CPU에 둔 상태로 시작, 묶음 교체 시 기존 묶음 해제 후 새 묶음 적재. 가중치·연산 방식 동일
-  - 측정: 같은 사진·seed, 서버와 같은 순서인 예열 → SAM2 추출 → 합성 2회.
-    합성 41.1·36.9초 → 25.4·24.4초, 공유 GPU 메모리 최대 3,199MB → 218MB, 결과 이미지 픽셀 단위 동일
-- 모델은 처음 호출할 때 한 번만 불러오고 이후 재사용한다 (체크포인트 16.8GB라 시간이 걸림).
+- 가중치 적재 2026-11-09, _load_weights:
+  - mmap 적재: 가중치 파일을 RAM에 통째로 복사하지 않고 필요한 부분만 읽음. 원본 파일의 학습 전용 값 7.0GB는 읽지 않음
+  - 16비트 가중치: U-Net·ControlNet·VAE·DINOv2 네 부품을 16비트로 바꿔 9.8GB를 4.9GB로 줄임. 확산 일정 값은 32비트 유지
+  - DINOv2 중복 적재 생략: 사전 학습 파일 4.5GB와 같은 값 567개가 합성 가중치 파일에 모두 있어 빈 값으로 만든 뒤 덮어씀
+  - 네 부품 GPU 상주: 16비트 기준 SAM2와 함께 올려도 VRAM 10GB 이내라 부품 교체 없이 모두 GPU에 둠
+  - ANYDOOR_CKPT: 16비트 추론용 파일 경로. scripts/convert_weights_fp16.py로 생성. 비우면 configs/inference.yaml의 원본 파일
+  - 측정: 서버와 같은 순서인 SAM2 적재·추출 → 예열 → 합성 3쌍, 32비트 부품 교체 방식 대비
+    합성 22.4~29.3초 → 15.3~17.0초, RAM 최고 22.2GB → 13.7GB, GPU 전용 최고 8.81GB → 7.08GB,
+    공유 GPU 메모리 최고 212MB → 84MB, 결과 평균 픽셀 차이 0.047~0.109/255
+- save_memory=True: VRAM이 더 작은 GPU용 부품 단위 적재 2026-10-21, _ONDEMAND_LOAD, _shift_out_first
+  - 부품을 두 묶음으로 나눠 사용 중인 묶음만 GPU에 적재. 노이즈 제거 단계는 U-Net·ControlNet, 그 전후 단계는 VAE·DINOv2
+  - 묶음 교체 순서: 기존 묶음 해제 후 새 묶음 적재. AnyDoor 원래 순서는 교체 시점에 네 부품이 동시에 GPU에 상주
+  - 16비트 기준 GPU 전용 최고 4.35GB, 합성 15.7초
+- 모델은 처음 호출할 때 한 번만 불러오고 이후 재사용한다.
 - warmup(): 짧은 합성을 한 번 미리 돌려 GPU 첫 실행 준비를 끝내 둔다 (서버 켤 때 사용).
 - 합성 설정 (화면 "합성 설정" 팝업, 2026-10-17, AnyDoor 웹 데모 run_gradio_demo.py와 같은 동작):
   - shape_control (Enable Shape Control): 다시 그릴 영역을 입힐 영역을 감싼 사각형 대신 칠한 모양 그대로.
@@ -28,6 +29,8 @@
   - refine (Reference Mask Refine): AnyDoor에 들어 있는 작은 보정 모델(iseg/coarse_mask_refine.pth, CPU)로
     옷 윤곽 가장자리를 다듬은 뒤 합성 (refine_ref_mask)
 - 크롭 영역 기록 (2026-10-21): 합성마다 AnyDoor가 다시 그린 정사각형 위치를 last_crop_box에 보관 → 박스 선 보정(seam.py)에 사용
+- 초해상도 복원 2026-11-10: 512 결과를 정사각형 크기로 키우기 전에 Real-ESRGAN x2로 1024 복원 후 축소, upscale.py.
+  UPSCALE_CKPT 가중치 파일이 없으면 기존 방식
 """
 import os
 import sys
@@ -36,6 +39,13 @@ from pathlib import Path
 import numpy as np
 
 ANYDOOR_DIR = Path(os.environ.get("ANYDOOR_DIR", Path.home() / "Desktop" / "AnyDoor"))
+ANYDOOR_CKPT = os.environ.get("ANYDOOR_CKPT") or None  # 합성 가중치 파일. 비우면 configs/inference.yaml의 pretrained_model
+# 입력 형식 2026-11-10, retrain_input.py: anydoor = 원래 AnyDoor 입력, retrain = 팀 재학습 학습 재료와 같은 입력.
+# 11/10 비교: 재학습 가중치도 앱 합성 영역 모양에서는 anydoor가 안정적이라 배포 기본은 anydoor, retrain은 시험용
+INPUT_MODE = os.environ.get("ANYDOOR_INPUT", "anydoor")
+# 초해상도 가중치 파일 2026-11-10, upscale.py. 빈 값이면 초해상도 끔, 파일이 없어도 끔
+UPSCALE_CKPT = os.environ.get(
+    "UPSCALE_CKPT", str(Path(__file__).resolve().parents[2] / "checkpoints" / "realesrgan" / "RealESRGAN_x2plus.pth"))
 DDIM_STEPS = 50  # 기본 스텝 수. compose(steps=...)로 바꿀 수 있다
 CROP_RATIO = 1.3  # 잘라 다시 그리는 정사각형 배율 (None이면 AnyDoor 기본 1.5~2.9배 무작위)
 
@@ -56,6 +66,52 @@ def _patch_shape_control(src):
         "\n        collage_mask = np.stack([_m, _m, _m], -1)"
     )
     return src.replace(_BOX_LINE, _BOX_LINE + shape, 1)
+
+
+# 합성에 쓰는 큰 부품 네 개: U-Net, ControlNet, VAE, DINOv2. 가중치 2,451.9M개 중 99.9%
+_BIG_PARTS = ("model", "control_model", "first_stage_model", "cond_stage_model")
+
+# run_inference.py에서 모델을 만드는 줄과 가중치 파일 전체를 GPU에서 여는 줄
+_CREATE_LINE = "model = create_model(model_config ).cpu()\n"
+_LOAD_LINE = "model.load_state_dict(load_state_dict(model_ckpt, location='cuda'))\n"
+# 대체 코드: DINOv2 인코더가 사전 학습 파일 대신 빈 값을 읽게 한 뒤 모델 생성, 가중치는 _load_weights로 적재
+_CREATE_PATCH = """import ldm.modules.encoders.modules as _moa_enc
+_moa_enc.DINOv2_weight_path = _moa_empty_state()
+model = create_model(model_config ).cpu()
+"""
+_LOAD_PATCH = "_moa_load_weights(model, model_ckpt)\n"
+
+
+def _empty_state():
+    """DINOv2 중복 적재 생략용 빈 가중치. AnyDoor DINOv2 인코더는 생성 시 사전 학습 파일 4.5GB를 읽지만
+    같은 값이 합성 가중치 파일에 모두 들어 있어 곧바로 덮어써진다. 2026-11-09 확인: 결과 픽셀 동일, 적재 약 20초 단축"""
+    import io
+
+    import torch
+
+    buf = io.BytesIO()
+    torch.save({}, buf)
+    buf.seek(0)
+    return buf
+
+
+def _load_weights(model, path, half):
+    """합성 가중치 적재. mmap으로 열어 파일 전체를 RAM에 복사하지 않고, 학습 전용 값은 읽지 않는다.
+    half면 큰 부품 네 개를 16비트로 바꾼 뒤 적재. 32비트 파일도 적재 중에 16비트로 바뀐다"""
+    import torch
+
+    if half:
+        for name in _BIG_PARTS:
+            getattr(model, name).half()
+    if str(path).lower().endswith(".safetensors"):
+        import safetensors.torch
+
+        state = safetensors.torch.load_file(str(path), device="cpu")
+    else:
+        state = torch.load(path, map_location="cpu", mmap=True, weights_only=False)
+        state = state.get("state_dict", state)
+    print(f"[MOA] AnyDoor 가중치 적재: {path}", flush=True)
+    model.load_state_dict(state)
 
 
 # run_inference.py에서 불러온 모델 전체를 GPU로 옮기는 줄
@@ -91,15 +147,25 @@ def _shift_out_first(self, is_diffusing):
 
 
 class AnyDoorComposer:
-    def __init__(self, anydoor_dir=ANYDOOR_DIR, save_memory=True, fp16=True, load_on_cpu=True, crop_ratio=CROP_RATIO):
+    def __init__(self, anydoor_dir=ANYDOOR_DIR, save_memory=False, fp16=True, ckpt=ANYDOOR_CKPT, crop_ratio=CROP_RATIO,
+                 upscale_ckpt=UPSCALE_CKPT, input_mode=INPUT_MODE):
+        """save_memory: 참이면 부품 단위 GPU 적재. fp16: 참이면 16비트 연산·가중치.
+        ckpt: 합성 가중치 파일, 비우면 configs/inference.yaml의 pretrained_model
+        upscale_ckpt: 초해상도 가중치 파일, 비우거나 파일이 없으면 기존처럼 512 결과를 그대로 확대"""
         self.anydoor_dir = Path(anydoor_dir).resolve()
         self.save_memory = save_memory
         self.fp16 = fp16
-        self.load_on_cpu = load_on_cpu
+        self.ckpt = str(Path(ckpt).resolve()) if ckpt else None
         self.crop_ratio = crop_ratio
+        self.upscale_ckpt = str(upscale_ckpt) if upscale_ckpt and Path(upscale_ckpt).is_file() else None
+        self._upscaler = None
         self._ns = None
         self._progress = None  # 합성 중에만 설정되는 진행률 알림 함수
         self.last_crop_box = None  # 가장 최근 합성의 크롭 영역 (위, 아래, 왼쪽, 오른쪽), 박스 선 보정용
+        self.last_upscaled = False  # 가장 최근 합성에 초해상도를 적용했는지
+        self.input_mode = input_mode  # anydoor 또는 retrain
+        self._keypoints = None  # retrain 입력에 쓸 관절 점, 합성 중에만 설정
+        self.last_input = None  # 가장 최근 합성에 실제로 쓴 입력 형식
 
     def _load(self):
         if self._ns is not None:
@@ -111,12 +177,12 @@ class AnyDoorComposer:
         if self.save_memory:
             # AnyDoor 원래 옵션: 안 쓰는 부품을 CPU로 옮기고(low_vram_shift) attention을 나눠 계산
             src = src.replace("save_memory = False", "save_memory = True", 1)
-        if self.load_on_cpu:
-            # 모델 파일을 본체 RAM에서 열고, 다음 줄 model.cuda()가 합성에 쓰는 가중치만 GPU로 옮긴다
-            if "location='cuda'" not in src:
-                raise RuntimeError("run_inference.py에서 location='cuda'를 찾지 못했습니다. AnyDoor 코드가 바뀌었는지 확인하세요.")
-            src = src.replace("location='cuda'", "location='cpu'", 1)
-        if self.save_memory and self.load_on_cpu:
+        # 모델 생성·가중치 적재: DINOv2 중복 적재 생략, mmap 적재, 16비트 변환. 맨 위 설명 참고
+        for line in (_CREATE_LINE, _LOAD_LINE):
+            if line not in src:
+                raise RuntimeError(f"run_inference.py에서 {line.strip()}를 찾지 못했습니다. AnyDoor 코드가 바뀌었는지 확인하세요.")
+        src = src.replace(_CREATE_LINE, _CREATE_PATCH, 1).replace(_LOAD_LINE, _LOAD_PATCH, 1)
+        if self.save_memory:
             # 큰 부품 CPU 유지 상태로 시작. 부품 단위 GPU 적재, 맨 위 설명 참고
             if _CUDA_LINE not in src:
                 raise RuntimeError("run_inference.py에서 model = model.cuda()를 찾지 못했습니다. AnyDoor 코드가 바뀌었는지 확인하세요.")
@@ -139,12 +205,16 @@ class AnyDoorComposer:
         prev_cwd = os.getcwd()
         os.chdir(self.anydoor_dir)
         try:
-            ns = {"__name__": "anydoor_inference"}
+            ns = {
+                "__name__": "anydoor_inference",
+                "_moa_empty_state": _empty_state,
+                "_moa_load_weights": lambda model, path: _load_weights(model, self.ckpt or path, self.fp16),
+            }
             exec(compile(src, str(self.anydoor_dir / "run_inference.py"), "exec"), ns)
         finally:
             os.chdir(prev_cwd)
 
-        if self.save_memory and self.load_on_cpu:
+        if self.save_memory:
             # 묶음 교체 순서 변경: 해제 후 적재. AnyDoor 원본 파일 수정 없이 이 모델에만 적용
             import types
             ns["model"].low_vram_shift = types.MethodType(_shift_out_first, ns["model"])
@@ -171,17 +241,51 @@ class AnyDoorComposer:
         process_pairs = ns["process_pairs"]
 
         def process_pairs_record(*args, **kwargs):
-            item = process_pairs(*args, **kwargs)
+            # 재학습 입력: 관절 점이 있으면 팀 재학습 학습 재료와 같은 입력으로 구성, retrain_input.py
+            if self._keypoints is not None:
+                from .retrain_input import inference_item
+
+                item = inference_item(*args, self._keypoints, ns)
+                self.last_input = "retrain"
+            else:
+                item = process_pairs(*args, **kwargs)
+                self.last_input = "anydoor"
             self.last_crop_box = tuple(int(v) for v in item["tar_box_yyxx_crop"])  # (위, 아래, 왼쪽, 오른쪽)
             return item
 
         ns["process_pairs"] = process_pairs_record
+
+        # 초해상도 복원 2026-11-10: crop_back이 512 결과를 다시 그린 정사각형 크기로 키우기 전에 2배로 복원한 뒤 줄여서 넘긴다.
+        # 정사각형이 512보다 클 때만 적용, AnyDoor 코드 수정 없음. upscale.py 설명 참고
+        if self.upscale_ckpt:
+            import cv2
+
+            from .upscale import Upscaler
+
+            self._upscaler = Upscaler(self.upscale_ckpt, device="cuda", half=self.fp16)
+            print(f"[MOA] 초해상도 가중치 적재: {self.upscale_ckpt}", flush=True)
+            crop_back = ns["crop_back"]
+
+            def crop_back_upscaled(pred, tar_image, extra_sizes, tar_box_yyxx_crop):
+                h2, w2 = int(extra_sizes[2]), int(extra_sizes[3])
+                self.last_upscaled = max(h2, w2) > max(pred.shape[:2])
+                if self.last_upscaled:
+                    img = np.clip(pred, 0, 255).astype(np.uint8)
+                    # AnyDoor가 첫 줄을 빼 511줄이 되므로 짝수로 맞춘 뒤 복원하고 다시 자름: pixel unshuffle 조건
+                    pad = (img.shape[0] % 2, img.shape[1] % 2)
+                    if any(pad):
+                        img = np.pad(img, ((0, pad[0]), (0, pad[1]), (0, 0)), mode="edge")
+                    up = self._upscaler(img)[: 2 * pred.shape[0], : 2 * pred.shape[1]]
+                    pred = cv2.resize(up, (w2, h2), interpolation=cv2.INTER_AREA).astype(np.float32)
+                return crop_back(pred, tar_image, extra_sizes, tar_box_yyxx_crop)
+
+            ns["crop_back"] = crop_back_upscaled
         ns["_MOA_SHAPE_CONTROL"] = False
         self._ns = ns
         return ns
 
     def compose(self, ref_rgb, ref_mask, tar_rgb, tar_mask, seed=None, on_progress=None, steps=DDIM_STEPS,
-                shape_control=False, refine=False):
+                shape_control=False, refine=False, keypoints=None):
         """합성 결과(RGB uint8)를 돌려준다.
 
         ref_rgb, tar_rgb : np.uint8 (H, W, 3) RGB
@@ -191,10 +295,13 @@ class AnyDoorComposer:
         steps      : DDIM 스텝 수 (기본 50). 줄이면 빨라지지만 품질이 바뀔 수 있다
         shape_control: 참이면 칠한 모양 그대로 다시 그림 (거짓이면 칠한 영역을 감싼 사각형)
         refine     : 참이면 옷 윤곽 가장자리를 보정 모델로 다듬은 뒤 합성
+        keypoints  : input_mode가 retrain일 때 쓰는 인물 사진 관절 점, retrain_input.estimate_keypoints 결과.
+                     비우면 원래 AnyDoor 입력
         """
         import torch
 
         ns = self._load()
+        self._keypoints = keypoints if self.input_mode == "retrain" else None
         ns["_MOA_DDIM_STEPS"] = int(steps)
         ns["_MOA_SHAPE_CONTROL"] = bool(shape_control)
         if refine:
@@ -207,6 +314,7 @@ class AnyDoorComposer:
                 gen = ns["inference_single_image"](ref_rgb, ref_mask, tar_rgb.copy(), tar_mask)
         finally:
             self._progress = None
+            self._keypoints = None
         return np.clip(gen, 0, 255).astype(np.uint8)
 
     def refine_ref_mask(self, ref_rgb, ref_mask, max_side=1024):
@@ -251,6 +359,8 @@ class AnyDoorComposer:
         mask = np.zeros((size, size), np.uint8)
         mask[64:192, 64:192] = 1
         self.compose(img, mask, img, mask, steps=steps)
+        if self._upscaler is not None:  # 예열 합성은 정사각형이 작아 초해상도를 거치지 않으므로 따로 한 번 실행
+            self._upscaler(img[:64, :64])
 
 
 _default = None

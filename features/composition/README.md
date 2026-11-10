@@ -33,25 +33,43 @@ result = compose(ref_rgb, ref_mask, tar_rgb, tar_mask, seed=1234, on_progress=fn
 - 다시 그리는 범위: `tar_mask` 사각형(1.1배)을 다시 1.3배 넓힌 정사각형 (AnyDoor 기본 1.5~2.9배 무작위 대신 고정, `AnyDoorComposer(crop_ratio=...)`로 변경)
 - `warmup()`: 모델 로딩 + 2스텝 시험 합성 (백엔드 시작 시 자동 실행)
 - 모델은 첫 호출 시 1회 로딩 후 재사용
-- 계산 방식: float16, save_memory (화질 차이 없음, 2026-10-11 확인)
-- GPU 적재 방식: 2026-10-21부터 부품 단위 적재
-  - 모델 적재 시 큰 부품 네 개 CPU 유지, 사용 중인 묶음만 GPU 적재
+- 계산 방식: 16비트 연산·가중치. 32비트 가중치 대비 평균 픽셀 차이 0.033/255, 2026-11-09 확인
+- 가중치 적재 방식: 2026-11-09부터 적용
+  - mmap 적재: 가중치 파일을 RAM에 통째로 복사하지 않고 필요한 부분만 읽음
+  - 16비트 가중치: U-Net·ControlNet·VAE·DINOv2 네 부품을 16비트로 변환, 확산 일정 값은 32비트 유지
+  - DINOv2 중복 적재 생략: 합성 가중치 파일에 같은 값이 모두 있어 `dinov2_vitg14_pretrain.pth`를 읽지 않음
+  - 네 부품 GPU 상주: 16비트 기준 SAM2와 함께 올려도 VRAM 10GB 이내
+- `AnyDoorComposer(save_memory=True)`: VRAM이 더 작은 GPU용 부품 단위 적재, 2026-10-21 도입
+  - 큰 부품 네 개를 CPU에 두고 사용 중인 묶음만 GPU 적재
   - 묶음 교체 순서: 기존 묶음 해제 후 새 묶음 적재. `_shift_out_first`가 AnyDoor `low_vram_shift` 대체
-  - 가중치 · 연산 방식 동일, 결과 이미지 픽셀 단위 동일
+
+### 초해상도 복원 (`upscale.py`)
+
+- 문제: AnyDoor는 512로 그린 결과를 다시 그린 정사각형 크기로 키움. 890~930px 정사각형이면 1.7~1.8배 확대라 새 상의 미세 질감이 부족하고 원본을 쓰는 머리만 선명
+- 방법: `AnyDoorComposer`가 AnyDoor `crop_back` 앞에서 512 결과를 Real-ESRGAN x2로 1024 복원한 뒤 정사각형 크기로 축소. 정사각형이 512보다 클 때만 적용
+- 가중치: `checkpoints/realesrgan/RealESRGAN_x2plus.pth`, 환경 변수 `UPSCALE_CKPT`로 변경, 파일이 없으면 기존 방식
+- 효과, 2026-11-10 모델 원래 결과 6장: 새 상의 미세 질감 0.71~1.00 → 1.21~1.55, 같은 크기로 맞춘 상품 사진 0.96~1.06. 처리 0.2~0.4초, GPU 메모리 최고 578MiB
+- 네트워크 구조 RRDBNet은 패키지 설치 없이 직접 작성, 가중치는 `torch.load(weights_only=True)`로 값만 읽음
 
 ### 원본 복원 후처리 (`restore.py`)
 
 ```python
-from features.composition import find_garment, restore_original
+from features.composition import restore_scene
 
-garment = find_garment(result, tar_mask)                       # 합성 결과의 새 상의 영역 (SAM2), 실패 시 None
-final = restore_original(tar_rgb, result, tar_mask, garment)   # RGB uint8, 인물 이미지와 같은 크기
+final, info = restore_scene(tar_rgb, result, tar_mask, extract=extract_object, crop_box=last_crop_box())
+# final: RGB uint8, 인물 이미지와 같은 크기 / info: method object·boundary, garment_found, seam_fix
 ```
 
-- 착용 영역 상단 경계(세로줄마다 착용 영역 최상단을 이은 선) 위 = 원본, 아래 = 합성 결과 (블렌딩 폭 20px)
-- 새 상의 영역은 경계 위라도 합성 결과 유지 (어깨 끝 잘림 방지)
-- `find_garment`: 착용 영역을 감싼 박스를 프롬프트로 SAM2 실행, 착용 영역 대비 0.3~2배 밖이면 `None` (상단 경계만으로 복원)
-- 서버: `backend/routers/compose.py`가 합성 직후 적용
+- 물체 기준 원본 복원, 2026-11-10: 위치가 아닌 각 픽셀이 무엇인지로 원본과 합성 결과를 나눔
+  - SAM2로 찾는 영역 4개: 원본 사람, 합성 결과 사람, 새 상의, 원래 상의
+  - 합성 결과에서 가져올 곳: 합성 영역 상단 경계 아래의 합성 결과 사람과 새 상의
+  - 원래 사람이 있었는데 합성 결과 사람이 덮지 않은 곳: 원래 사람을 지운 원본 배경 추정으로 채움
+  - 배경·얼굴·머리: 원본 그대로. 원본과 합성 결과가 바뀌는 선이 항상 사람·옷 윤곽에 놓임
+  - 효과: 기존 방식의 어깨·팔 옆 세로 잔상과 박스 선 보정의 붉은 얼룩 제거, 다시 그린 정사각형 안 배경 중 원본 그대로인 비율 85.5~91.3% → 98.1~99.2%
+- 사람을 찾지 못하면 기존 상단 경계 방식 `restore_original`로 처리, 이때만 박스 선 보정 적용
+  - 상단 경계: 세로줄마다 합성 영역 최상단을 이은 선, 위 = 원본, 아래 = 합성 결과, 블렌딩 폭 20px
+- `find_garment`: 합성 영역을 감싼 박스를 프롬프트로 SAM2 실행, 합성 영역 대비 0.3~2배 밖이면 `None`
+- 서버: `backend/routers/compose.py`가 합성 직후 적용, SAM2는 `backend/model_client.extract`
 
 ### 박스 선 보정 (`seam.py`)
 
@@ -66,13 +84,15 @@ result = fix_seam(tar_rgb, result, last_crop_box())   # RGB uint8, 인물 이미
 - 방법: 테두리의 "원본 - 합성 결과" 색 차이 중 튀는 값(원본과 내용이 다른 곳)은 빼고, 그 차이만큼 네모 안쪽을 부드럽게 보정
 - `last_crop_box()`: 가장 최근 합성의 크롭 영역 (위, 아래, 왼쪽, 오른쪽), `compose` 직후 호출
 - 효과 (100장 시험, 2026-10-21): 박스 선 세기(테두리 안팎 밝기 차이) 평균 2.49 → 0.57
-- 서버: `backend/routers/compose.py`가 합성 직후, 원본 복원 전에 적용
+- 서버: `backend/routers/compose.py`가 원본 복원을 끈 경우, 또는 원본 복원이 사람을 찾지 못해 상단 경계 방식으로 처리할 때 적용
 
 ## 3. 환경 변수
 
 | 이름 | 용도 | 기본값 |
 |---|---|---|
 | `ANYDOOR_DIR` | AnyDoor 폴더 위치 | `Desktop\AnyDoor` |
+| `ANYDOOR_CKPT` | 합성 가중치 파일, 16비트 추론용 파일 지정 권장 | AnyDoor `configs/inference.yaml`의 원본 파일 |
+| `UPSCALE_CKPT` | 초해상도 가중치 파일, 빈 값이면 끔 | `checkpoints/realesrgan/RealESRGAN_x2plus.pth` |
 | `MOA_RESTORE_ORIGINAL` | 서버의 원본 복원 후처리 켜기(1)·끄기(0) | `1` |
 | `MOA_SEAM_FIX` | 서버의 박스 선 보정 켜기(1)·끄기(0) | `1` |
 
@@ -84,18 +104,21 @@ result = fix_seam(tar_rgb, result, last_crop_box())   # RGB uint8, 인물 이미
 |---|---|
 | AnyDoor 공식 저장소 폴더 | 실행 코드 |
 | `epoch=1-step=8687.ckpt` (약 16.8GB) | AnyDoor 가중치 |
-| `dinov2_vitg14_pretrain.pth` (약 4.5GB) | DINOv2 가중치 |
+| `dinov2_vitg14_pretrain.pth` (약 4.5GB) | DINOv2 가중치, 학습용. 합성에서는 읽지 않음 |
+| 16비트 추론용 가중치 약 4.9GB | 선택. `python scripts\convert_weights_fp16.py 원본.ckpt 새파일.ckpt`로 생성 후 `ANYDOOR_CKPT`에 지정 |
 
-## 5. 성능 · RTX 3080 10GB, 2026-10-21
+## 5. 성능 · RTX 3080 10GB
 
-| 항목 | 기존 일괄 적재 | 부품 단위 적재 |
-|---|---|---|
-| 합성 1건, 50스텝 | 36.9~41.1초 | 24.4~25.4초 |
-| 모델 적재 · 예열 | 152.1초 | 100.8초 |
-| PyTorch 최대 할당 메모리 | 9.70GB | 8.25GB |
-| 공유 GPU 메모리 최대 사용량 | 3,199MB | 218MB |
+| 항목 | 기존 일괄 적재 | 부품 단위 적재 2026-10-21 | 16비트 가중치·전 부품 GPU 상주 2026-11-09 |
+|---|---|---|---|
+| 합성 1건, 50스텝 | 36.9~41.1초 | 24.4~25.4초 | 15.3~17.0초 |
+| 모델 적재 · 예열 | 152.1초 | 100.8초 | 74.6초 |
+| PyTorch 최대 할당 메모리 | 9.70GB | 8.25GB | 5.94GB |
+| 공유 GPU 메모리 최대 사용량 | 3,199MB | 218MB | 84MB |
 
-- 비교 조건: 서버 종료 상태, 같은 입력과 seed, 상의 경계 보정 적용, 예열 → SAM2 추출 → 합성 2회
+- 2026-10-21 비교 조건: 서버 종료 상태, 같은 입력과 seed, 상의 경계 보정 적용, 예열 → SAM2 추출 → 합성 2회
+- 2026-11-09 비교 조건: 서버 종료 상태, SAM2 적재·추출 6회 → 예열 → 서로 다른 3쌍 합성, 16비트 추론용 파일 사용.
+  같은 3쌍의 32비트 부품 단위 적재 결과 대비 평균 픽셀 차이 0.047~0.109/255
 - 비교 표 전체: [README.md 6. 합성 속도 개선](../../README.md#구성-요소별-gpu-순차-적재--2026-10-21)
 
 ## 6. 단위 테스트

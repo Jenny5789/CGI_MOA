@@ -32,4 +32,5 @@ RECENT_IMAGE_LIMIT = 12       # 최근 사용한 사진 목록 최대 장수 (�
 RESTORE_ORIGINAL = os.environ.get("MOA_RESTORE_ORIGINAL", "1") != "0"
 
 # 합성 후 박스 선 보정 (다시 그린 정사각형 테두리의 밝기·색을 원본에 맞춤, features/composition/seam.py). 끄기: MOA_SEAM_FIX=0
+# 11/10부터 물체 기준 원본 복원은 배경을 원본으로 두므로, 원본 복원을 끄거나 사람을 찾지 못한 경우에만 적용
 SEAM_FIX = os.environ.get("MOA_SEAM_FIX", "1") != "0"

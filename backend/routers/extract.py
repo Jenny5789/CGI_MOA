@@ -11,7 +11,7 @@
   - cutout: 상의만 남기고 배경을 투명하게 한 PNG. 추출 때는 만들지 않고 이 주소를 처음 열 때 만든다
     (화면이 쓰지 않는 파일을 원본 크기로 저장하느라 응답이 늦어지지 않게, backend/storage.py ensure_cutout)
   - bbox: 상의를 감싸는 사각형 (원본 픽셀 기준)
-- SAM2는 features/object_extraction의 extract_object를 그대로 쓴다 (처음 요청 때 모델을 불러와 이후 재사용)
+- SAM2는 backend/model_client.py를 거쳐 호출. MODEL_SERVER_URL이 있으면 모델 추론 서버, 없으면 features/object_extraction의 extract_object 직접 실행
 - 로그인 필요. 자기가 올린 사진만 추출 가능, 결과에 회원 번호(user_id) 기록
 - 윤곽 사진은 storage/extractions에, 정보는 DB extractions 표에 저장 (11/2). cutout 사진은 처음 열 때 같은 폴더에 만든다
 """
@@ -30,9 +30,8 @@ from backend.config import EXTRACTIONS_DIR, IMAGES_DIR
 from backend.db import Extraction, User, get_db, utcnow
 from backend.errors import ApiError
 from backend.file_keys import signed_url
-from backend.gpu import GPU_LOCK, release_cached_memory
 from backend.storage import load_image_info
-from features.object_extraction import extract_object
+from backend import model_client
 
 router = APIRouter()
 
@@ -85,12 +84,10 @@ def extract(req: ExtractRequest, user: User = Depends(current_user), db: Session
 
     started = time.perf_counter()
     try:
-        with GPU_LOCK:
-            try:
-                # image_key: 같은 사진을 연달아 다시 추출하면(점을 바꿔 확인) SAM2의 이미지 인코딩을 건너뛴다
-                mask = extract_object(image_rgb, points=pos, neg_points=neg, box=box, image_key=req.image_id)
-            finally:
-                release_cached_memory()  # 다 쓴 GPU 메모리를 돌려준다 (backend/gpu.py)
+        # image_key: 같은 사진을 연달아 다시 추출하면(점을 바꿔 확인) SAM2의 이미지 인코딩을 건너뛴다
+        mask = model_client.extract(image_rgb, points=pos, neg_points=neg, box=box, image_key=req.image_id)
+    except model_client.ModelServerError:
+        raise ApiError(503, "MODEL_UNAVAILABLE", "모델 서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.")
     except RuntimeError:
         # 빈 마스크 (extract_object가 RuntimeError로 알려 줌)
         raise ApiError(400, "EMPTY_MASK", "상의를 찾지 못했습니다. 점이나 박스 위치를 바꿔 다시 시도해 주세요.")

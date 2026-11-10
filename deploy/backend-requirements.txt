@@ -1,0 +1,19 @@
+# 웹 서비스 서버 패키지. 개발 PC conda 환경 CGI 설치 버전으로 고정, PyTorch·모델 패키지 제외
+
+# HTTP 서버
+fastapi==0.143.0
+starlette==1.7.0
+pydantic==2.14.1
+uvicorn==0.54.0
+python-multipart==0.0.32
+
+# DB: MySQL 8 기본 인증 방식 caching_sha2_password에 cryptography 필요
+SQLAlchemy==2.0.54
+PyMySQL==1.2.3
+cryptography==50.0.2
+python-dotenv==1.2.4
+
+# 이미지 처리와 후처리
+numpy==2.2.6
+pillow==12.3.0
+opencv-python-headless==5.0.0.93

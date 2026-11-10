@@ -35,7 +35,8 @@ export default function TopNav() {
           {!loggedIn && (
             <a className="auth-btn" href="#" onClick={(e) => { e.preventDefault(); openSignup(); }}>회원가입</a>
           )}
-          {/* 로그인 중: 프로필 사진과 닉네임 환영 문구, 로그인 남은 시간, 로그아웃 순서 */}
+          {/* 로그인 중: 로그인 남은 시간, 프로필 사진과 닉네임 환영 문구, 로그아웃 순서 */}
+          {loggedIn && <LoginTimer />}
           {loggedIn && me && (
             <div className="topnav-profile">
               <span className="topnav-avatar">{me.avatar_url && <img src={me.avatar_url} alt="" />}</span>
@@ -45,7 +46,6 @@ export default function TopNav() {
               </span>
             </div>
           )}
-          {loggedIn && <LoginTimer />}
           <a
             className="auth-btn auth-btn-primary"
             href="#"

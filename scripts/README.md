@@ -16,6 +16,7 @@
 | `shapeless_to_viton.py` | 쉐이프리스 변환본에 관절 점·agnostic-mask를 더해 VITON-HD 폴더 형식으로 변환 | - |
 | `agnostic_pose.py` | 관절 점으로 상체·팔 영역 그리기, VITON-HD 제공 마스크와 비교해 재현 정도 확인 | - |
 | `build_retrain_mix.py` | VITON-HD와 쉐이프리스 상의류를 한 폴더로 합치고 재학습 쌍 목록 생성 | - |
+| `convert_weights_fp16.py` | AnyDoor 합성 가중치를 16비트 추론용 파일로 변환, 서버는 `ANYDOOR_CKPT`로 지정 | - |
 
 ## 2. check_env.py (개발 환경 점검)
 

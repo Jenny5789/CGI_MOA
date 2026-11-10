@@ -1,0 +1,38 @@
+# 모델 추론 서버 실행 묶음. GPU가 있는 컴퓨터에서 실행
+# 실행: model_server 폴더에서 docker compose up -d --build
+# 설정값은 같은 폴더 .env에서 읽음, 없으면 아래 기본값. 본보기는 .env.example
+
+name: moa-model
+
+services:
+  model:
+    build:
+      context: ..
+      dockerfile: model_server/Dockerfile
+    image: moa-model:2
+    container_name: moa-model
+    # 실행 컴퓨터 GPU 전체 연결. NVIDIA Container Toolkit 필요
+    gpus: all
+    ports:
+      - "${MODEL_PORT:-8100}:8100"
+    environment:
+      ANYDOOR_CKPT: /weights/anydoor/${ANYDOOR_WEIGHT:-official_fp16.ckpt}
+      # 입력 형식: anydoor = 원래 AnyDoor 입력, 배포 기본. retrain = 재학습 학습 형식 입력, 시험용
+      ANYDOOR_INPUT: ${ANYDOOR_INPUT:-anydoor}
+      # 초해상도 가중치. 폴더에 파일이 없으면 초해상도 없이 합성
+      UPSCALE_CKPT: /weights/realesrgan/${UPSCALE_WEIGHT:-RealESRGAN_x2plus.pth}
+      MODEL_TOKEN: ${MODEL_TOKEN:-}
+      MODEL_SAVE_MEMORY: ${MODEL_SAVE_MEMORY:-0}
+    volumes:
+      # 가중치 폴더 읽기 전용 연결. 상대 경로 기준은 이 파일이 있는 model_server 폴더
+      - ${WEIGHTS_DIR:-../checkpoints/weights}:/weights/anydoor:ro
+      - ${SAM2_DIR:-../checkpoints/sam2}:/weights/sam2:ro
+      - ${UPSCALE_DIR:-../checkpoints/realesrgan}:/weights/realesrgan:ro
+    # /health가 ready면 정상. 적재·예열 약 65~90초를 고려해 시작 후 180초까지 실패 미집계
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import json, sys, urllib.request; sys.exit(0 if json.load(urllib.request.urlopen('http://127.0.0.1:8100/health'))['status'] == 'ready' else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 180s
+    restart: unless-stopped
