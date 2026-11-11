@@ -383,7 +383,7 @@ sequenceDiagram
 
 ### 5-2. 착용 합성 · AnyDoor
 
-- 합성 옵션: Reference Mask Refine(상의 마스크 경계 다듬기), Shape Control(영역 모양 유지)
+- 합성 옵션: Reference Mask Refine(상의 마스크 경계 다듬기)
 - 작업 대기열에 쌓아 순서대로 처리, 진행률·대기 순번 표시
 - 합성 응답 22~26초
 - 합성 후처리 (환경 변수로 끄기 가능, 문제와 해결은 6-2 · 6-4 참고)
