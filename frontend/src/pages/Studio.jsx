@@ -66,6 +66,8 @@ const PICK_TEXT = {
 
 // 버튼 상태가 그대로면 화면을 다시 그리지 않는다 (영역 추가로 칠하는 동안 매번 다시 그리는 것을 막음)
 const sameUi = (a, b) => Object.keys(b).every((k) => a[k] === b[k]);
+// 실패 안내. 모델 서버가 켜진 직후 모델을 준비하는 중이면 실패가 아니므로 서버 문구만 띄운다
+const failText = (prefix, e) => (e.code === 'MODEL_LOADING' ? e.message : `${prefix}: ${e.message}`);
 
 const LEAVE_MS = 200; // 단계 화면이 사라지는 시간, 아래 go 설명 참고
 
@@ -145,7 +147,11 @@ const waitForJob = async (jobId, onProgress) => {
     const job = await getJob(jobId);
     onProgress(job);
     if (job.status === 'done') return job.result_id;
-    if (job.status === 'failed') throw new Error((job.error && job.error.message) || '합성에 실패했습니다');
+    if (job.status === 'failed') {
+      const err = new Error((job.error && job.error.message) || '합성에 실패했습니다');
+      err.code = job.error && job.error.code;
+      throw err;
+    }
     await new Promise((r) => setTimeout(r, JOB_POLL_MS));
   }
 };
@@ -463,7 +469,7 @@ export default function Studio() {
       data.current.extraction = ext; // 4단계 합성에서 extraction_id를 쓴다
       setEditor({ kind: 'extract', image: s.work, mask });
     } catch (e) {
-      showToast(`상의를 찾지 못했습니다: ${e.message}`);
+      showToast(failText('상의를 찾지 못했습니다', e));
     } finally {
       s.extracting = false;
     }
@@ -574,7 +580,7 @@ export default function Studio() {
       Object.assign(s, { samMask: mask, samKey: key });
       setEditor({ kind: 'area', image: s.work, mask });
     } catch (e) {
-      showToast(`합성 영역을 찾지 못했습니다: ${e.message}`);
+      showToast(failText('합성 영역을 찾지 못했습니다', e));
     } finally {
       s.extracting = false;
     }
@@ -637,7 +643,7 @@ export default function Studio() {
       notifyComposeDone(); // 다른 탭에 있으면 브라우저 알림 (마이페이지 알림 설정)
       await showResult({ canvas: out }, false, resultId);
     } catch (e) {
-      showToast(`합성하지 못했습니다: ${e.message}`);
+      showToast(failText('합성하지 못했습니다', e));
     } finally {
       setBusy(false);
     }

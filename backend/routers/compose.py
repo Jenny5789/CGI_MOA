@@ -139,6 +139,9 @@ def _work_loop():
         job_id = _queue.get()
         try:
             _run(job_id)
+        except model_client.ModelServerNotReady:
+            # 모델 서버가 켜진 직후 모델을 적재하는 중. 연결 실패와 구분해 안내한다
+            _update(job_id, status="failed", error={"code": "MODEL_LOADING", "message": "모델을 준비하고 있습니다. 잠시 후 다시 시도해 주세요."})
         except Exception as exc:  # 한 작업이 실패해도 일꾼은 계속 돈다
             log.exception("합성 실패: %s", job_id)
             _update(job_id, status="failed", error={"code": "COMPOSE_FAILED", "message": f"합성 중 오류가 발생했습니다: {exc}"})
