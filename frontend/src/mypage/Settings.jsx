@@ -235,7 +235,7 @@ function ComposeDefaultsForm({ showToast }) {
   };
   const rows = [
     ['refine', '상의 경계 보정', '지정한 상의 영역의 가장자리를 상의 윤곽에 맞게 정리합니다.'],
-    ['shape', '영역 모양 유지', '지정한 합성 영역 안에서만 합성합니다. 영역보다 큰 상의는 일부가 잘릴 수 있습니다.'],
+    ['shape', '영역 모양 유지', '지정한 합성 영역 안에서만 합성합니다. 영역보다 큰 상의는 일부가 잘릴 수 있습니다. 입고 있는 상의와 모양이 비슷한 상의를 합성할 때 추천합니다.'],
   ];
   return rows.map(([k, label, hint]) => (
     <div className="as-set-row" key={k}>

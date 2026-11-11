@@ -1121,7 +1121,7 @@ export default function Studio() {
               <input type="checkbox" checked={opts.shape} onChange={(e) => setOpts((o) => ({ ...o, shape: e.target.checked }))} />
               <span>
                 <b>영역 모양 유지<small>Enable Shape Control</small></b>
-                <span>지정한 합성 영역 안에서만 합성합니다.<br />영역보다 큰 상의는 일부가 잘릴 수 있습니다.</span>
+                <span>지정한 합성 영역 안에서만 합성합니다.<br />영역보다 큰 상의는 일부가 잘릴 수 있습니다.<br />입고 있는 상의와 모양이 비슷한 상의를 합성할 때 추천합니다.</span>
               </span>
             </label>
             <div className="sg-actions">
