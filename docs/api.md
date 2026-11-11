@@ -471,7 +471,7 @@
 - `garment_mask`: 상의 이미지와 같은 비율, 크기는 서버에서 원본에 맞춤
   - 생략 시 4-1. 상의 영역 추출의 윤곽(SAM2)으로 합성
   - 용도: 합성하기 3단계 다듬기에서 고친 윤곽 반영 (예: 상의 위 목걸이 제외)
-- `refine`, `shape_control`: AnyDoor 웹 데모의 같은 이름 옵션과 같은 동작. 웹 UI는 합성하기 4단계 뒤 합성 설정 팝업의 `refine`만 보내고 `shape_control`은 항상 `0`
+- `refine`, `shape_control`: 합성하기 4단계 뒤 합성 설정 팝업 (AnyDoor 웹 데모의 같은 이름 옵션과 같은 동작)
   - `refine=1`: AnyDoor의 보정 모델(`iseg/coarse_mask_refine.pth`, CPU 약 1~2초)로 상의 윤곽 가장자리를 다듬은 뒤 합성
   - `shape_control=1`: 다시 그릴 영역을 착용 영역을 감싼 사각형 대신 칠한 모양 그대로 (칠하지 않은 곳은 유지, 대신 새 상의가 칠한 모양을 넘지 않음)
 

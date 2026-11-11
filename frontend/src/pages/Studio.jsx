@@ -1,7 +1,7 @@
 /* 합성하기: 단계별 안내 화면
    1 상의 사진 고르기 -> 2 인물 사진 고르기
    -> 3 점 찍어 상의 추출 -> 확인 -> 다듬기 팝업(영역 추가, 영역 제거) -> 완료
-   -> 4 점 찍어 입힐 영역 추출 -> 확인 -> 다듬기 팝업(영역 추가, 영역 제거) -> 다음 -> 합성 설정 팝업(상의 경계 보정 체크) -> 합성 시작
+   -> 4 점 찍어 입힐 영역 추출 -> 확인 -> 다듬기 팝업(영역 추가, 영역 제거) -> 다음 -> 합성 설정 팝업(체크 두 개) -> 합성 시작
    -> 결과, 저장
    오른쪽 "내 작업 기록"은 저장 여부와 관계없이 합성한 결과 전체(명세 6-1)를 보여 준다. 저장하지 않은 결과는 24시간 뒤 서버에서 삭제된다.
    서버 연결 (src/api/studio.js)
@@ -9,8 +9,7 @@
    - 3단계: 점만 찍어 둔다. "확인"을 누르면 서버 SAM2로 실제 윤곽을 받아 다듬기 팝업을 연다(4-1)
    - 4단계: 3단계와 같이 인물 사진에 점을 찍고 "확인"을 누르면 SAM2로 지금 입은 상의 영역을 받아 다듬기 팝업을 연다(4-1).
      "합성 시작"에서 서버 AnyDoor 합성 요청 → 2초마다 진행 확인 → 결과(5-1~5-3)
-   - 합성 요청에는 합성 설정 refine을 보내고, 3단계 다듬기에서 고친 경우에만 상의 윤곽 garment_mask도 보낸다
-   - 영역 모양 유지 옵션은 11/11 UI에서 뺐다. 원래 상의와 모양이 다른 상의를 칠한 모양에 맞추면 어깨·팔 옆이 깨져 항상 끈 채로 요청한다
+   - 합성 요청에는 합성 설정 refine, shape_control을 보내고, 3단계 다듬기에서 고친 경우에만 상의 윤곽 garment_mask도 보낸다
    - 결과 "저장": 서버에 저장 표시(6-2)
    - 1·2단계 "더보기" 창 맨 위: 최근 24시간 동안 올린 사진(3-2)
    - 내 작업 기록을 누르면 그 결과의 재료로 1~4단계를 채운다(GET /results/{id}/source, 명세 6-4)
@@ -178,7 +177,7 @@ export default function Studio() {
   const [confirmReset, setConfirmReset] = useState(false); // '초기화' 확인 창
   const [zoom, setZoom] = useState({ 3: 1, 4: 1 }); // 3·4단계 점 찍기 화면 확대 배율 (studio/zoom.js)
   const [settingsOpen, setSettingsOpen] = useState(false); // 합성 설정 팝업
-  const [opts, setOpts] = useState(readComposeDefaults); // Reference Mask Refine. 처음 값은 마이페이지 합성 기본 설정
+  const [opts, setOpts] = useState(readComposeDefaults); // Reference Mask Refine, Enable Shape Control. 처음 값은 마이페이지 합성 기본 설정
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(null); // 합성 진행 상황 (서버 작업 정보: status, progress, queue_position)
   const [result, setResult] = useState(null); // { entry: { canvas } 또는 { src }, fromHistory, id(결과 번호), restored(1~4단계가 이 결과의 재료로 채워짐) }
@@ -625,7 +624,7 @@ export default function Studio() {
       const { image_id: personId } = await data.current.bg.upload;
       const area = await areaMaskBlob(s4.current.edited);
       const garmentMask = s3.current.edited && s3.current.handEdited ? await areaMaskBlob(s3.current.edited) : null;
-      const job = await requestCompose(ext.extraction_id, personId, area, { garmentMask, refine: opts.refine });
+      const job = await requestCompose(ext.extraction_id, personId, area, { garmentMask, refine: opts.refine, shapeControl: opts.shape });
       const resultId = await waitForJob(job.job_id, setProgress);
       data.current.resultId = resultId; // "저장" 때 서버에 알릴 결과 번호
       const res = await getResult(resultId);
@@ -713,7 +712,7 @@ export default function Studio() {
       setPick({ 1: { src: obj.src, fromSample: false, confirm: false }, 2: { src: bg.src, fromSample: false, confirm: false } });
       setSlots({ 1: obj.src, 2: bg.src, 3: cutout });
       setDone({ 1: true, 2: true, 3: true, 4: true });
-      setOpts({ refine: src.refine });
+      setOpts({ refine: src.refine, shape: src.shape_control });
       setResult((r) => (r && r.id === resultId ? { ...r, restored: true } : r));
     } catch {
       // 재료가 없으면 결과만 보여 준다
@@ -1116,6 +1115,13 @@ export default function Studio() {
               <span>
                 <b>상의 경계 보정<small>Reference Mask Refine</small></b>
                 <span>지정한 상의 영역의 가장자리를 상의 윤곽에 맞게 정리합니다.</span>
+              </span>
+            </label>
+            <label className="sg-check">
+              <input type="checkbox" checked={opts.shape} onChange={(e) => setOpts((o) => ({ ...o, shape: e.target.checked }))} />
+              <span>
+                <b>영역 모양 유지<small>Enable Shape Control</small></b>
+                <span>지정한 합성 영역 안에서만 합성합니다.<br />영역보다 큰 상의는 일부가 잘릴 수 있습니다.</span>
               </span>
             </label>
             <div className="sg-actions">
