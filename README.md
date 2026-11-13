@@ -195,7 +195,7 @@ flowchart LR
 | 로그인 토큰 | `sessions` | `token_hash` 토큰 해시, `expires_at` 만료 시각 (발급 후 3시간) | - |
 | 업로드 사진 | `images` | `kind` 종류(상의·인물), `filename` 파일명, `from_sample` 예시 사진 여부 | `images/`: 원본, 썸네일 (JPG·PNG, 10MB 이하) |
 | 영역 추출 결과 | `extractions` | `mask` 마스크 파일명, `cutout` 배경 제거 사진 파일명, `detail` 지정한 점 · 영역 좌표(JSON) | `extractions/`: 마스크, 배경 제거 상의 |
-| 합성 작업 | `jobs` | `status` 상태, `progress` 진행률, `area_mask` 착용 영역 마스크, `refine` · `shape_control` 합성 옵션 | `jobs/`: 착용 영역 마스크, 경계를 다듬은 상의 마스크 |
+| 합성 작업 | `jobs` | `status` 상태, `progress` 진행률, `area_mask` 착용 영역 마스크, `refine` · `shape_control` 합성 옵션 기록 | `jobs/`: 착용 영역 마스크, 경계를 다듬은 상의 마스크 |
 | 합성 결과 | `results` | `saved` 사진첩 저장 여부, `favorite` 좋아요 여부, `detail` 후처리 정보(JSON) | `results/`: 결과 사진, 미리보기 |
 
 - 전체 컬럼: [backend/db.py](backend/db.py)
@@ -383,7 +383,7 @@ sequenceDiagram
 
 ### 5-2. 착용 합성 · AnyDoor
 
-- 합성 옵션: Reference Mask Refine(상의 마스크 경계 다듬기), Shape Control(영역 모양 유지)
+- 합성 옵션 서버 고정: Reference Mask Refine 적용으로 상의 마스크 경계 다듬기, Shape Control 미적용으로 착용 영역을 감싼 사각형 재생성
 - 작업 대기열에 쌓아 순서대로 처리, 진행률·대기 순번 표시
 - 합성 응답 22~26초
 - 합성 후처리 (환경 변수로 끄기 가능, 문제와 해결은 6-2 · 6-4 참고)

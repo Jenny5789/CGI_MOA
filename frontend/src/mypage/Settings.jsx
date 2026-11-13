@@ -1,12 +1,11 @@
 /* 마이페이지 설정 화면 두 가지.
    - AccountPanel: 내 정보의 '계정 설정'에서 고른 항목 하나 (프로필 수정, 이메일 변경, 비밀번호 변경, 명세 2-7~2-10).
      서버가 돌려준 내 정보로 상단 메뉴 프로필도 바로 바뀌도록 onMe로 넘긴다.
-   - ServiceSettings: 왼쪽 '설정'. 계정과 관계없는 이 브라우저의 설정 (알림, 합성 기본 설정) */
+   - ServiceSettings: 왼쪽 '설정'. 계정과 관계없는 이 브라우저의 설정 (알림) */
 import { useEffect, useRef, useState } from 'react';
 import { changeEmail, changePassword, resetAvatar, updateProfile, uploadAvatar } from '../api/me.js';
 import { PASSWORD_HINT, PHONE_HINT, normalizeEmail, normalizePhone, passwordOk } from '../auth/signupRules.js';
 import { disableNotify, enableNotify, notifyEnabled, notifySupported } from '../utils/notify.js';
-import { readComposeDefaults, saveComposeDefaults } from '../utils/composeDefaults.js';
 import { DEFAULT_BIO } from '../utils/profile.js';
 
 const NAME_MAX = 20; // 서버 backend/routers/auth.py NAME_MAX와 같게
@@ -225,31 +224,6 @@ function NotifyForm({ showToast }) {
   );
 }
 
-function ComposeDefaultsForm({ showToast }) {
-  const [v, setV] = useState(readComposeDefaults);
-  const toggle = (k, label) => () => {
-    const next = { ...v, [k]: !v[k] };
-    setV(next);
-    saveComposeDefaults(next);
-    showToast(`${label} 기본값을 ${next[k] ? '켰' : '껐'}습니다.`);
-  };
-  const rows = [
-    ['refine', '상의 경계 보정', '지정한 상의 영역의 가장자리를 상의 윤곽에 맞게 정리합니다.'],
-    ['shape', '영역 모양 유지', '지정한 합성 영역 안에서만 합성합니다. 영역보다 큰 상의는 일부가 잘릴 수 있습니다. 입고 있는 상의와 모양이 비슷한 상의를 합성할 때 추천합니다.'],
-  ];
-  return rows.map(([k, label, hint]) => (
-    <div className="as-set-row" key={k}>
-      <div>
-        <div className="as-set-row-title">{label}</div>
-        <div className="as-field-hint">{hint}</div>
-      </div>
-      <button type="button" role="switch" aria-checked={v[k]} aria-label={label} className={'as-switch' + (v[k] ? ' on' : '')} onClick={toggle(k, label)}>
-        <span />
-      </button>
-    </div>
-  ));
-}
-
 // 내 정보 상자: 상단 탭 items로 항목을 고른다. item: 'profile' / 'email' / 'password' (MyPage의 주소 #account-..., 기본 profile)
 export function AccountPanel({ items, item, me, onMe, showToast }) {
   let desc = '';
@@ -279,9 +253,6 @@ export function ServiceSettings({ showToast }) {
     <>
       <Section id="set-notify" title="알림 설정" desc="이 브라우저에서 받을 알림입니다. 기기마다 따로 설정합니다.">
         <NotifyForm showToast={showToast} />
-      </Section>
-      <Section id="set-compose" title="합성 기본 설정" desc="합성 시 기본으로 선택되는 항목입니다. 합성마다 변경할 수 있습니다.">
-        <ComposeDefaultsForm showToast={showToast} />
       </Section>
     </>
   );

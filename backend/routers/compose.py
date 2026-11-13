@@ -10,8 +10,9 @@
 - 직접 실행 시 GPU는 추출과 같은 GPU_LOCK으로 차례를 지킨다 (합성 중에 들어온 추출 요청은 합성이 끝날 때까지 기다림)
 - 이미지 합성은 features/composition의 compose와 같은 설정. 50스텝, 16비트 연산·가중치
 - 상의 윤곽: 화면 "다듬기"에서 고친 윤곽(garment_mask, 추가 제안)을 보내면 그것으로, 안 보내면 4-1 SAM2 윤곽으로 합성
-- 합성 설정 (10/17): refine="1" 상의 경계 다듬기(Reference Mask Refine), shape_control="1" 칠한 모양 그대로
-  (Enable Shape Control). 생략하면 둘 다 끔. 작업 기록(DB jobs 표)에 함께 남긴다
+- 합성 설정 (11/13 고정): 상의 경계 다듬기(Reference Mask Refine) 항상 켬, 칠한 모양 그대로(Enable Shape Control) 항상 끔.
+  8건 x 4조합 비교에서 경계 다듬기는 결과가 같거나 상품 색에 가까웠고, 칠한 모양 그대로는 원래 옷보다 큰 셔츠 5건이 모두 깨졌다.
+  요청에서 refine·shape_control 값을 받지 않는다. 작업 기록(DB jobs 표)에는 고정값을 남긴다
 - 로그인 필요. 자기 추출 결과·인물 사진으로만 합성, 자기 작업만 진행 확인. 작업·결과에 회원 번호(user_id) 기록
 - 작업은 DB jobs 표에, 결과 정보는 DB results 표에 (11/2), 입힐 영역·다듬은 윤곽 그림은 storage/jobs에, 결과 사진은 storage/results에 파일로 저장
 - 진행 중인 작업은 메모리가 기준이다. DB jobs 표에는 상태가 바뀔 때(진행 중, 완료, 실패)만 적는다 (서버를 다시 켠 뒤 진행 확인·재료 보기용).
@@ -246,8 +247,6 @@ async def request_compose(
     person_image_id: str = Form(...),
     area_mask: UploadFile = File(...),
     garment_mask: UploadFile | None = File(None),
-    refine: str = Form("0"),
-    shape_control: str = Form("0"),
     user: User = Depends(current_user),
     db: Session = Depends(get_db),
 ):
@@ -287,8 +286,8 @@ async def request_compose(
         "person_image_id": person_image_id,
         "area_mask": area_name,
         "garment_mask": garment_name,  # 다듬은 상의 윤곽 파일 (없으면 None → SAM2 윤곽)
-        "refine": refine == "1",  # 합성 설정: 상의 경계 다듬기
-        "shape_control": shape_control == "1",  # 합성 설정: 칠한 모양 그대로
+        "refine": True,  # 합성 설정 고정: 상의 경계 다듬기 켬
+        "shape_control": False,  # 합성 설정 고정: 칠한 모양 그대로 끔
         "seed": random.randint(0, 2 ** 31 - 1),
     }
     db.add(Job(**job, created_at=utcnow()))  # DB에 먼저 적고 (실패하면 대기열에 올리지 않음) 메모리 대기열에 올린다

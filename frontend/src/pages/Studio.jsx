@@ -1,7 +1,7 @@
 /* 합성하기: 단계별 안내 화면
    1 상의 사진 고르기 -> 2 인물 사진 고르기
    -> 3 점 찍어 상의 추출 -> 확인 -> 다듬기 팝업(영역 추가, 영역 제거) -> 완료
-   -> 4 점 찍어 입힐 영역 추출 -> 확인 -> 다듬기 팝업(영역 추가, 영역 제거) -> 다음 -> 합성 설정 팝업(체크 두 개) -> 합성 시작
+   -> 4 점 찍어 입힐 영역 추출 -> 확인 -> 다듬기 팝업(영역 추가, 영역 제거) -> 합성 시작
    -> 결과, 저장
    오른쪽 "내 작업 기록"은 저장 여부와 관계없이 합성한 결과 전체(명세 6-1)를 보여 준다. 저장하지 않은 결과는 24시간 뒤 서버에서 삭제된다.
    서버 연결 (src/api/studio.js)
@@ -9,7 +9,9 @@
    - 3단계: 점만 찍어 둔다. "확인"을 누르면 서버 SAM2로 실제 윤곽을 받아 다듬기 팝업을 연다(4-1)
    - 4단계: 3단계와 같이 인물 사진에 점을 찍고 "확인"을 누르면 SAM2로 지금 입은 상의 영역을 받아 다듬기 팝업을 연다(4-1).
      "합성 시작"에서 서버 AnyDoor 합성 요청 → 2초마다 진행 확인 → 결과(5-1~5-3)
-   - 합성 요청에는 합성 설정 refine, shape_control을 보내고, 3단계 다듬기에서 고친 경우에만 상의 윤곽 garment_mask도 보낸다
+   - 합성 요청에는 3단계 다듬기에서 고친 경우에만 상의 윤곽 garment_mask를 보낸다
+   - 합성 설정은 11/13부터 서버 고정값: 상의 경계 보정 켬, 영역 모양 유지 끔. 8건 x 4조합 비교에서 경계 보정은 결과가 같거나 나았고,
+     영역 모양 유지는 원래 옷보다 큰 셔츠가 모두 깨져 설정 팝업과 체크박스를 없앴다
    - 결과 "저장": 서버에 저장 표시(6-2)
    - 1·2단계 "더보기" 창 맨 위: 최근 24시간 동안 올린 사진(3-2)
    - 내 작업 기록을 누르면 그 결과의 재료로 1~4단계를 채운다(GET /results/{id}/source, 명세 6-4)
@@ -29,7 +31,6 @@ import { listResults, updateResult } from '../api/results.js';
 import { extractGarment, getJob, getResult, getResultSource, listRecentImages, requestCompose, uploadImage } from '../api/studio.js';
 import { formatKoreanDate } from '../utils/date.js';
 import { notifyComposeDone } from '../utils/notify.js';
-import { readComposeDefaults } from '../utils/composeDefaults.js';
 import { baseModels, fullBodyModels, thumbOf, topsOnly, topsWorn } from '../data/generatedAssets.js';
 
 // 이 화면은 body 아래가 세로로 꽉 차는 구조라서 React가 끼워 넣은 #root 칸도 같은 모양으로 맞춘다
@@ -176,8 +177,6 @@ export default function Studio() {
   const [recent, setRecent] = useState({ 1: [], 2: [] }); // 최근 24시간 동안 직접 올린 사진 (명세 3-2), 더보기 창 맨 위에 보여 준다
   const [confirmReset, setConfirmReset] = useState(false); // '초기화' 확인 창
   const [zoom, setZoom] = useState({ 3: 1, 4: 1 }); // 3·4단계 점 찍기 화면 확대 배율 (studio/zoom.js)
-  const [settingsOpen, setSettingsOpen] = useState(false); // 합성 설정 팝업
-  const [opts, setOpts] = useState(readComposeDefaults); // Reference Mask Refine, Enable Shape Control. 처음 값은 마이페이지 합성 기본 설정
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(null); // 합성 진행 상황 (서버 작업 정보: status, progress, queue_position)
   const [result, setResult] = useState(null); // { entry: { canvas } 또는 { src }, fromHistory, id(결과 번호), restored(1~4단계가 이 결과의 재료로 채워짐) }
@@ -345,7 +344,7 @@ export default function Studio() {
   );
 
   /* ---------- 초기화 ---------- */
-  // 고른 사진, 찍은 점, 지정한 영역, 보고 있던 결과를 지우고 시작 화면으로 돌아간다 (내 작업 기록, 합성 설정은 그대로)
+  // 고른 사진, 찍은 점, 지정한 영역, 보고 있던 결과를 지우고 시작 화면으로 돌아간다 (내 작업 기록은 그대로)
   const resetAll = async () => {
     setConfirmReset(false);
     restoreTok.current += 1; // 불러오던 작업 기록은 버린다
@@ -585,7 +584,7 @@ export default function Studio() {
     }
   };
 
-  // 다듬기 완료: 다듬은 영역을 기억하고 합성 설정 팝업을 연다
+  // 다듬기 "합성 시작": 다듬은 영역을 기억하고 바로 합성을 요청한다
   const finish4 = (mask) => {
     const s = s4.current;
     s.edited = newCanvas(s.w, s.h);
@@ -593,7 +592,7 @@ export default function Studio() {
     s.editedKey = JSON.stringify(s.pts);
     setDone((d) => ({ ...d, 4: false }));
     setEditor(null);
-    setSettingsOpen(true);
+    startCompose();
   };
 
   const showResult = async (entry, fromHistory, id, restored = false) => {
@@ -604,27 +603,19 @@ export default function Studio() {
   // 다듬기 팝업 닫기 (점 다시 찍기). 다듬던 내용은 버린다.
   const closeEditor = useCallback(() => setEditor(null), []);
 
-  // 합성 설정 팝업의 "이전": 입힐 곳 다듬기로 돌아간다 (다듬은 영역에서 이어서)
-  const backToArea = () => {
-    setSettingsOpen(false);
-    const s = s4.current;
-    if (s.edited) setEditor({ kind: 'area', image: s.work, mask: s.edited });
-  };
-
-  // 합성 설정 팝업의 "합성 시작": 서버에 합성을 요청하고(명세 5-1), 2초마다 진행을 확인한 뒤(5-2) 결과를 받는다(5-3).
-  // 고른 설정 opts를 보내고, 상의 윤곽은 다듬기에서 손으로 고쳤을 때만 보낸다. 보내지 않으면 서버가 3단계 SAM2 윤곽을 원본 해상도로 쓴다.
+  // 합성 시작: 서버에 합성을 요청하고(명세 5-1), 2초마다 진행을 확인한 뒤(5-2) 결과를 받는다(5-3).
+  // 상의 윤곽은 다듬기에서 손으로 고쳤을 때만 보낸다. 보내지 않으면 서버가 3단계 SAM2 윤곽을 원본 해상도로 쓴다. 합성 설정은 서버 고정값
   const startCompose = async () => {
     if (!s4.current.edited || !data.current.cutout) return;
     const ext = data.current.extraction;
     if (!ext) { showToast('3단계에서 상의를 다시 지정해 주십시오'); return; }
-    setSettingsOpen(false);
     setProgress(null);
     setBusy(true);
     try {
       const { image_id: personId } = await data.current.bg.upload;
       const area = await areaMaskBlob(s4.current.edited);
       const garmentMask = s3.current.edited && s3.current.handEdited ? await areaMaskBlob(s3.current.edited) : null;
-      const job = await requestCompose(ext.extraction_id, personId, area, { garmentMask, refine: opts.refine, shapeControl: opts.shape });
+      const job = await requestCompose(ext.extraction_id, personId, area, { garmentMask });
       const resultId = await waitForJob(job.job_id, setProgress);
       data.current.resultId = resultId; // "저장" 때 서버에 알릴 결과 번호
       const res = await getResult(resultId);
@@ -687,7 +678,7 @@ export default function Studio() {
   // 재합성: 1~4단계가 채워져 있으면 4단계로, 재료를 못 불러온 기록이면 1단계부터
   const redo = () => { go(result && result.fromHistory && !result.restored ? 1 : 4); };
 
-  // 내 작업 기록에서 연 결과의 재료(상의·인물 사진, 상의 윤곽, 입힐 영역, 합성 설정)로 1~4단계를 채운다 (명세 6-4, GET /results/{id}/source).
+  // 내 작업 기록에서 연 결과의 재료(상의·인물 사진, 상의 윤곽, 입힐 영역)로 1~4단계를 채운다 (명세 6-4, GET /results/{id}/source).
   // 하던 작업은 이 결과의 재료로 바뀐다. 재료를 받지 못하면(예: 지워진 파일) 결과만 보여 준다
   const restoreFrom = async (resultId) => {
     const tok = ++restoreTok.current;
@@ -712,7 +703,6 @@ export default function Studio() {
       setPick({ 1: { src: obj.src, fromSample: false, confirm: false }, 2: { src: bg.src, fromSample: false, confirm: false } });
       setSlots({ 1: obj.src, 2: bg.src, 3: cutout });
       setDone({ 1: true, 2: true, 3: true, 4: true });
-      setOpts({ refine: src.refine, shape: src.shape_control });
       setResult((r) => (r && r.id === resultId ? { ...r, restored: true } : r));
     } catch {
       // 재료가 없으면 결과만 보여 준다
@@ -1036,7 +1026,7 @@ export default function Studio() {
           image={editor.image}
           mask={editor.mask}
           cancelLabel="점 재지정"
-          doneLabel="다음"
+          doneLabel="합성 시작"
           onCancel={closeEditor}
           onDone={finish4}
         />
@@ -1097,36 +1087,6 @@ export default function Studio() {
             <div className="sg-actions sg-actions-center">
               <button type="button" className="sg-ghost" onClick={() => setConfirmReset(false)}>취소</button>
               <button type="button" className="sg-confirm" onClick={resetAll}>초기화</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 합성 설정 팝업 */}
-      {settingsOpen && (
-        <div className="sg-modal" role="dialog" aria-modal="true" aria-label="합성 설정">
-          <div className="sg-modal-box sg-modal-narrow">
-            <div className="sg-modal-head">
-              <h3>합성 설정</h3>
-              <button type="button" className="sg-modal-close" aria-label="닫기" onClick={() => setSettingsOpen(false)}>×</button>
-            </div>
-            <label className="sg-check">
-              <input type="checkbox" checked={opts.refine} onChange={(e) => setOpts((o) => ({ ...o, refine: e.target.checked }))} />
-              <span>
-                <b>상의 경계 보정<small>Reference Mask Refine</small></b>
-                <span>지정한 상의 영역의 가장자리를 상의 윤곽에 맞게 정리합니다.</span>
-              </span>
-            </label>
-            <label className="sg-check">
-              <input type="checkbox" checked={opts.shape} onChange={(e) => setOpts((o) => ({ ...o, shape: e.target.checked }))} />
-              <span>
-                <b>영역 모양 유지<small>Enable Shape Control</small></b>
-                <span>지정한 합성 영역 안에서만 합성합니다.<br />영역보다 큰 상의는 일부가 잘릴 수 있습니다.<br />입고 있는 상의와 모양이 비슷한 상의를 합성할 때 추천합니다.</span>
-              </span>
-            </label>
-            <div className="sg-actions">
-              <button type="button" className="sg-ghost" onClick={backToArea}>이전</button>
-              <button type="button" className="sg-confirm" onClick={startCompose}>합성 시작</button>
             </div>
           </div>
         </div>
