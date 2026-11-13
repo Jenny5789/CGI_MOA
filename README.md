@@ -216,7 +216,7 @@ flowchart LR
 | **1**<br>사진 선택<br>· 업로드 | 상의 사진<br>인물 사진 선택<br>(최근 사진은<br>업로드 생략) | `GET /api/images/recent`<br>`POST /api/images` | 최근 24시간<br>사진 목록 조회<br>새 사진 · 예시<br>사진 저장 | `images`<br>사진 파일 |
 | **2**<br>상의<br>영역 추출 | 상의 사진에<br>포함 · 제외 점 지정<br>마스크 편집기로<br>수정 | `POST /api/extract` | SAM2 추출 | `extractions`<br>마스크 파일 |
 | **3**<br>착용<br>영역 추출 | 인물 사진에<br>포함 · 제외 점 지정<br>마스크 편집기로<br>수정 | `POST /api/extract` | SAM2 추출 | `extractions`<br>마스크 파일 |
-| **4**<br>착용<br>합성 | 합성 옵션 선택<br>합성 요청 | `POST /api/compose`<br>`GET /api/jobs/{job_id}`<br>(2초 간격) | 작업 대기열 등록<br>AnyDoor 합성<br>합성 후처리 | `jobs`<br>`results` (완료 시)<br>마스크 파일<br>결과 파일 |
+| **4**<br>착용<br>합성 | 합성 요청 | `POST /api/compose`<br>`GET /api/jobs/{job_id}`<br>(2초 간격) | 작업 대기열 등록<br>AnyDoor 합성<br>합성 후처리 | `jobs`<br>`results` (완료 시)<br>마스크 파일<br>결과 파일 |
 | **5**<br>결과 확인<br>· 저장 | 사진첩 저장<br>좋아요 | `GET /api/results/{result_id}`<br>`PATCH /api/results/{result_id}` | 결과 조회<br>저장 · 좋아요 갱신 | `results` |
 
 - 2단계는 상의 사진, 3단계는 인물 사진에 같은 `POST /api/extract` 사용. 3단계 결과(착용 영역)는 4단계 합성 요청 때 `area_mask`로 함께 전송
@@ -311,8 +311,8 @@ sequenceDiagram
         participant A as AI 모듈
         participant S as DB · storage
     end
-    U->>F: 4-1. 합성 옵션 선택, 합성 요청
-    F->>B: 4-2. POST /api/compose (착용 영역 마스크 · 합성 옵션)
+    U->>F: 4-1. 합성 요청
+    F->>B: 4-2. POST /api/compose (착용 영역 마스크)
     B->>S: 4-3. 착용 영역 마스크 저장, jobs 기록
     B-->>F: 4-4. job_id, 대기 순번
     B->>A: 4-5. AnyDoor 합성, 합성 후처리
@@ -401,7 +401,7 @@ sequenceDiagram
 | 프로필 수정 | 사진·이름·휴대폰 번호·소개 글. 사진은 중앙 256px 정사각형 변환, EXIF(촬영 정보 등 사진 부가 정보) 제거 |
 | 이메일 변경 | 현재 비밀번호 확인, 중복 이메일 차단 |
 | 비밀번호 변경 | 현재 기기 로그인 유지, 다른 기기 로그인 만료 |
-| 설정 | 합성 완료 브라우저 알림, 합성 옵션 기본값 (이 브라우저에만 저장) |
+| 설정 | 합성 완료 브라우저 알림 (이 브라우저에만 저장) |
 | 고객센터 | 자주 묻는 질문 7개, 이메일 문의 연결 |
 
 - 계정 API: [docs/api.md](docs/api.md#2-계정-관리-api)
