@@ -741,6 +741,7 @@ cloudflared tunnel --no-autoupdate --url http://localhost:5180
 ```
 CGI_MOA/
 ├── README.md
+├── CLAUDE.md                        AI 코딩 도구 작업 규칙
 ├── requirements.txt                 Python 의존 패키지
 ├── Dockerfile · frontend.Dockerfile Docker 이미지 (backend, frontend)
 ├── docker-compose.yml · nginx.conf  Docker 실행 구성 (docs/docker.md)
@@ -757,11 +758,17 @@ CGI_MOA/
 │   └── .env.sqlite.example          SQLite 접속 설정 예시
 ├── features/                        AI 모듈
 │   ├── object_extraction/           SAM2 영역 추출
-│   └── composition/                 AnyDoor 합성, 원본 복원, seam 보정
+│   └── composition/                 AnyDoor 합성, 초해상도, 원본 복원, seam 보정
+├── model_server/                    GPU 모델 추론 서버와 Docker 구성
+├── deploy/                          운영 서버 Docker 구성: 웹 화면·웹 서버·MySQL
 ├── scripts/                         단위 테스트, 환경 점검, 데이터 전처리, 예전 JSON 기록의 DB 이전
 │   └── retrain/                     AnyDoor 재학습 (B200 서버용)
 ├── web/                             초기 정적 화면 시안 (AI·서버 미연동)
 └── docs/                            문서 (9장 참고), readme/는 README 이미지
+    ├── ai/                          AI 작업용 문서: 프로젝트 정의, 요구사항, 기술 스택, 코딩 규칙, 작업 범위
+    ├── 작업일지.md                   최이재 작업일지
+    ├── 작업일지_서지섭.md             서지섭 작업일지
+    └── B200_학습_*.md                B200 학습 환경·절차·작업일지
 ```
 
 ### 8-1. 저장소 제외 항목
@@ -788,6 +795,10 @@ CGI_MOA/
 | 단위 테스트·환경 점검 | [scripts/README.md](scripts/README.md) |
 | AnyDoor 재학습 | [scripts/retrain/README.md](scripts/retrain/README.md) |
 | Docker 실행 | [docs/docker.md](docs/docker.md) |
+| 모델 추론 서버 | [model_server/README.md](model_server/README.md) |
+| 운영 서버 배포 | [deploy/README.md](deploy/README.md) |
+| AI 작업 규칙 | [CLAUDE.md](CLAUDE.md), [프로젝트 정의](docs/ai/project.md), [요구사항 명세](docs/ai/요구사항명세.md), [기술 스택](docs/ai/기술스택.md), [코딩 규칙](docs/ai/코딩규칙.md), [작업 범위](docs/ai/작업범위.md) |
+| 작업일지 | [최이재](docs/작업일지.md), [서지섭](docs/작업일지_서지섭.md) |
 
 ---
 
