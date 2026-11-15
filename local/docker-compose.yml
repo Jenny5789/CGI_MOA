@@ -1,0 +1,97 @@
+# MOA 한 PC 실행 묶음: 화면 + 웹 서비스 서버 + MySQL + 모델 추론 서버
+# NVIDIA GPU 한 장이 있는 PC 한 대에서 전체 서비스 실행. 사용법은 같은 폴더 README.md
+#   1. 가중치 받기: docker compose --profile setup run --rm weights
+#   2. 실행:        docker compose up -d --build
+#   3. 접속:        http://localhost:8080
+# 설정값은 같은 폴더 .env에서 읽음, 없으면 아래 기본값. 본보기는 .env.example
+
+name: moa-local
+
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-moa}
+      MYSQL_USER: ${MYSQL_USER:-moa}
+      # DB 포트는 외부에 열지 않음. 이 PC 안에서만 쓰는 기본 비밀번호
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-moalocal}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-moalocalroot}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+
+  model:
+    build:
+      context: ..
+      dockerfile: model_server/Dockerfile
+    image: moa-model:2
+    gpus: all
+    environment:
+      ANYDOOR_CKPT: /weights/anydoor/${ANYDOOR_WEIGHT:-mix35000_fp16.ckpt}
+      ANYDOOR_INPUT: anydoor
+      UPSCALE_CKPT: /weights/realesrgan/RealESRGAN_x2plus.pth
+      # 1이면 부품 단위 GPU 적재, VRAM 10GB 미만 GPU용
+      MODEL_SAVE_MEMORY: ${MODEL_SAVE_MEMORY:-0}
+    volumes:
+      # scripts/download_weights.py가 받는 위치
+      - ../checkpoints/weights:/weights/anydoor:ro
+      - ../checkpoints/sam2:/weights/sam2:ro
+      - ../checkpoints/realesrgan:/weights/realesrgan:ro
+    # 모델 적재·예열 약 1분 30초. 포트는 외부에 열지 않고 웹 서비스 서버만 호출
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import json, sys, urllib.request; sys.exit(0 if json.load(urllib.request.urlopen('http://127.0.0.1:8100/health'))['status'] == 'ready' else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 180s
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ..
+      dockerfile: deploy/backend.Dockerfile
+    image: moa-backend:local
+    environment:
+      DATABASE_URL: mysql+pymysql://${MYSQL_USER:-moa}:${MYSQL_PASSWORD:-moalocal}@mysql:3306/${MYSQL_DATABASE:-moa}?charset=utf8mb4
+      MODEL_SERVER_URL: http://model:8100
+    volumes:
+      - storage:/app/storage
+    # 모델 적재가 끝나기 전에도 화면은 열림. 그동안 합성 요청에는 모델 준비 중 안내
+    depends_on:
+      mysql:
+        condition: service_healthy
+      model:
+        condition: service_started
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: deploy/frontend.Dockerfile
+    image: moa-frontend:local
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # 가중치 받기 전용. docker compose up에는 포함되지 않고 --profile setup run으로만 실행
+  weights:
+    image: python:3.10-slim
+    profiles: ["setup"]
+    environment:
+      MOA_WEIGHTS_REPO: ${MOA_WEIGHTS_REPO:-}
+      HF_TOKEN: ${HF_TOKEN:-}
+    volumes:
+      - ../scripts/download_weights.py:/app/download_weights.py:ro
+      - ../checkpoints:/checkpoints
+    command: ["python", "/app/download_weights.py", "--dest", "/checkpoints"]
+
+volumes:
+  mysql-data:
+  storage:
