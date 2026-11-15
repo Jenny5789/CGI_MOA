@@ -273,7 +273,7 @@ const routes = {
       garment: db.images[ext.image_id], person, extraction_id: ext.extraction_id,
       garment_mask_url: garmentMask ? URL.createObjectURL(garmentMask) : ext.mask_url,
       area_mask_url: URL.createObjectURL(body.get('area_mask')),
-      refine: body.get('refine') === '1', shape_control: body.get('shape_control') === '1',
+      refine: true, shape_control: false, // 서버와 같은 고정값
     };
     const job = { job_id: newId('job'), start: Date.now(), garment_image_id: ext.image_id, person, source, result_id: null };
     db.jobs[job.job_id] = job;

@@ -86,6 +86,8 @@ def extract(req: ExtractRequest, user: User = Depends(current_user), db: Session
     try:
         # image_key: 같은 사진을 연달아 다시 추출하면(점을 바꿔 확인) SAM2의 이미지 인코딩을 건너뛴다
         mask = model_client.extract(image_rgb, points=pos, neg_points=neg, box=box, image_key=req.image_id)
+    except model_client.ModelServerNotReady:
+        raise ApiError(503, "MODEL_LOADING", "모델을 준비하고 있습니다. 잠시 후 다시 시도해 주세요.")
     except model_client.ModelServerError:
         raise ApiError(503, "MODEL_UNAVAILABLE", "모델 서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.")
     except RuntimeError:

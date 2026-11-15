@@ -32,6 +32,10 @@ class ModelServerError(Exception):
     """모델 서버 연결 실패, 준비 전, 처리 오류"""
 
 
+class ModelServerNotReady(ModelServerError):
+    """모델 서버가 켜진 직후 모델을 적재·예열하는 중. 모델 서버가 503과 '모델 준비 상태: loading'으로 응답"""
+
+
 # ---------- HTTP ----------
 
 def _headers():
@@ -74,6 +78,8 @@ def _request(method, path, data=None, files=None, timeout=60):
 def _check(status, body, what):
     if status != 200:
         detail = body.decode("utf-8", "replace")[:300]
+        if status == 503 and "loading" in detail:
+            raise ModelServerNotReady(f"모델 서버 {what} 대기: 모델 적재 중")
         raise ModelServerError(f"모델 서버 {what} 오류 {status}: {detail}")
 
 

@@ -839,7 +839,7 @@ body { display: flex; flex-direction: column; overflow: hidden; }
   .sg-toggle, .sg-rail-label { display: none !important; }
 }
 
-/* ---------- 팝업: 3, 4단계 다듬기 (브러시, 지우개) / 합성 설정 ---------- */
+/* ---------- 팝업: 3, 4단계 다듬기 (브러시, 지우개) ---------- */
 .sg-modal {
   position: fixed;
   inset: 0;
@@ -887,26 +887,10 @@ body { display: flex; flex-direction: column; overflow: hidden; }
   transform: translate(-50%, -50%);
 }
 
-/* 합성 설정 체크 칸 */
-.sg-check {
-  display: flex;
-  gap: 14px;
-  align-items: flex-start;
-  padding: 16px 4px;
-  border-bottom: 1px solid var(--border);
-  cursor: pointer;
-}
-.sg-check:last-of-type { border-bottom: none; }
-.sg-check input { width: 20px; height: 20px; margin: 3px 0 0; accent-color: #16171b; flex: none; }
-.sg-check b { display: block; font-size: 17px; }
-.sg-check b small { margin-left: 6px; font-size: 13px; font-weight: 600; color: var(--muted); }
-.sg-check span span { display: block; margin-top: 4px; font-size: 14.5px; line-height: 1.6; color: #4a4c52; }
-
 /* 안내 문단: 마지막 줄에 한 단어만 넘어가지 않게 줄바꿈 위치를 고르게 맞춘다 */
 .sg-zone-help p,
 .sg-help p,
-.sg-hero-desc,
-.sg-check span span { text-wrap: pretty; }
+.sg-hero-desc { text-wrap: pretty; }
 
 /* 사용 방법 안내도 1, 2단계 안내처럼 가운데 정렬 */
 .sg-help { text-align: center; }

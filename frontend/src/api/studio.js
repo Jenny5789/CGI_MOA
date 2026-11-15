@@ -25,15 +25,13 @@ export function extractGarment(imageId, points) {
 
 // 명세 5-1. areaMask: 입힐 영역 흑백 PNG(Blob, 칠한 곳 흰색)
 // garmentMask: 3단계 다듬기에서 고친 상의 윤곽 흑백 PNG (없으면 서버가 SAM2 윤곽을 씀)
-// refine: 상의 경계 다듬기, shapeControl: 칠한 모양 그대로 (합성 설정 팝업)
-export function requestCompose(extractionId, personImageId, areaMask, { garmentMask = null, refine = false, shapeControl = false } = {}) {
+// 합성 설정은 서버 고정값: 상의 경계 보정 켬, 영역 모양 유지 끔 (11/13)
+export function requestCompose(extractionId, personImageId, areaMask, { garmentMask = null } = {}) {
   const form = new FormData();
   form.append('extraction_id', extractionId);
   form.append('person_image_id', personImageId);
   form.append('area_mask', areaMask, 'area.png');
   if (garmentMask) form.append('garment_mask', garmentMask, 'garment.png');
-  form.append('refine', refine ? '1' : '0');
-  form.append('shape_control', shapeControl ? '1' : '0');
   return request('POST', '/compose', form); // { job_id, status, queue_position }
 }
 

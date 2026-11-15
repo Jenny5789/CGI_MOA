@@ -195,7 +195,7 @@ flowchart LR
 | 로그인 토큰 | `sessions` | `token_hash` 토큰 해시, `expires_at` 만료 시각 (발급 후 3시간) | - |
 | 업로드 사진 | `images` | `kind` 종류(상의·인물), `filename` 파일명, `from_sample` 예시 사진 여부 | `images/`: 원본, 썸네일 (JPG·PNG, 10MB 이하) |
 | 영역 추출 결과 | `extractions` | `mask` 마스크 파일명, `cutout` 배경 제거 사진 파일명, `detail` 지정한 점 · 영역 좌표(JSON) | `extractions/`: 마스크, 배경 제거 상의 |
-| 합성 작업 | `jobs` | `status` 상태, `progress` 진행률, `area_mask` 착용 영역 마스크, `refine` · `shape_control` 합성 옵션 | `jobs/`: 착용 영역 마스크, 경계를 다듬은 상의 마스크 |
+| 합성 작업 | `jobs` | `status` 상태, `progress` 진행률, `area_mask` 착용 영역 마스크, `refine` · `shape_control` 합성 옵션 기록 | `jobs/`: 착용 영역 마스크, 경계를 다듬은 상의 마스크 |
 | 합성 결과 | `results` | `saved` 사진첩 저장 여부, `favorite` 좋아요 여부, `detail` 후처리 정보(JSON) | `results/`: 결과 사진, 미리보기 |
 
 - 전체 컬럼: [backend/db.py](backend/db.py)
@@ -216,7 +216,7 @@ flowchart LR
 | **1**<br>사진 선택<br>· 업로드 | 상의 사진<br>인물 사진 선택<br>(최근 사진은<br>업로드 생략) | `GET /api/images/recent`<br>`POST /api/images` | 최근 24시간<br>사진 목록 조회<br>새 사진 · 예시<br>사진 저장 | `images`<br>사진 파일 |
 | **2**<br>상의<br>영역 추출 | 상의 사진에<br>포함 · 제외 점 지정<br>마스크 편집기로<br>수정 | `POST /api/extract` | SAM2 추출 | `extractions`<br>마스크 파일 |
 | **3**<br>착용<br>영역 추출 | 인물 사진에<br>포함 · 제외 점 지정<br>마스크 편집기로<br>수정 | `POST /api/extract` | SAM2 추출 | `extractions`<br>마스크 파일 |
-| **4**<br>착용<br>합성 | 합성 옵션 선택<br>합성 요청 | `POST /api/compose`<br>`GET /api/jobs/{job_id}`<br>(2초 간격) | 작업 대기열 등록<br>AnyDoor 합성<br>합성 후처리 | `jobs`<br>`results` (완료 시)<br>마스크 파일<br>결과 파일 |
+| **4**<br>착용<br>합성 | 합성 요청 | `POST /api/compose`<br>`GET /api/jobs/{job_id}`<br>(2초 간격) | 작업 대기열 등록<br>AnyDoor 합성<br>합성 후처리 | `jobs`<br>`results` (완료 시)<br>마스크 파일<br>결과 파일 |
 | **5**<br>결과 확인<br>· 저장 | 사진첩 저장<br>좋아요 | `GET /api/results/{result_id}`<br>`PATCH /api/results/{result_id}` | 결과 조회<br>저장 · 좋아요 갱신 | `results` |
 
 - 2단계는 상의 사진, 3단계는 인물 사진에 같은 `POST /api/extract` 사용. 3단계 결과(착용 영역)는 4단계 합성 요청 때 `area_mask`로 함께 전송
@@ -311,8 +311,8 @@ sequenceDiagram
         participant A as AI 모듈
         participant S as DB · storage
     end
-    U->>F: 4-1. 합성 옵션 선택, 합성 요청
-    F->>B: 4-2. POST /api/compose (착용 영역 마스크 · 합성 옵션)
+    U->>F: 4-1. 합성 요청
+    F->>B: 4-2. POST /api/compose (착용 영역 마스크)
     B->>S: 4-3. 착용 영역 마스크 저장, jobs 기록
     B-->>F: 4-4. job_id, 대기 순번
     B->>A: 4-5. AnyDoor 합성, 합성 후처리
@@ -383,7 +383,7 @@ sequenceDiagram
 
 ### 5-2. 착용 합성 · AnyDoor
 
-- 합성 옵션: Reference Mask Refine(상의 마스크 경계 다듬기), Shape Control(영역 모양 유지)
+- 합성 옵션 서버 고정: Reference Mask Refine 적용으로 상의 마스크 경계 다듬기, Shape Control 미적용으로 착용 영역을 감싼 사각형 재생성
 - 작업 대기열에 쌓아 순서대로 처리, 진행률·대기 순번 표시
 - 합성 응답 22~26초
 - 합성 후처리 (환경 변수로 끄기 가능, 문제와 해결은 6-2 · 6-4 참고)
@@ -401,7 +401,7 @@ sequenceDiagram
 | 프로필 수정 | 사진·이름·휴대폰 번호·소개 글. 사진은 중앙 256px 정사각형 변환, EXIF(촬영 정보 등 사진 부가 정보) 제거 |
 | 이메일 변경 | 현재 비밀번호 확인, 중복 이메일 차단 |
 | 비밀번호 변경 | 현재 기기 로그인 유지, 다른 기기 로그인 만료 |
-| 설정 | 합성 완료 브라우저 알림, 합성 옵션 기본값 (이 브라우저에만 저장) |
+| 설정 | 합성 완료 브라우저 알림 (이 브라우저에만 저장) |
 | 고객센터 | 자주 묻는 질문 7개, 이메일 문의 연결 |
 
 - 계정 API: [docs/api.md](docs/api.md#2-계정-관리-api)
@@ -741,6 +741,7 @@ cloudflared tunnel --no-autoupdate --url http://localhost:5180
 ```
 CGI_MOA/
 ├── README.md
+├── CLAUDE.md                        AI 코딩 도구 작업 규칙
 ├── requirements.txt                 Python 의존 패키지
 ├── Dockerfile · frontend.Dockerfile Docker 이미지 (backend, frontend)
 ├── docker-compose.yml · nginx.conf  Docker 실행 구성 (docs/docker.md)
@@ -757,11 +758,17 @@ CGI_MOA/
 │   └── .env.sqlite.example          SQLite 접속 설정 예시
 ├── features/                        AI 모듈
 │   ├── object_extraction/           SAM2 영역 추출
-│   └── composition/                 AnyDoor 합성, 원본 복원, seam 보정
+│   └── composition/                 AnyDoor 합성, 초해상도, 원본 복원, seam 보정
+├── model_server/                    GPU 모델 추론 서버와 Docker 구성
+├── deploy/                          운영 서버 Docker 구성: 웹 화면·웹 서버·MySQL
 ├── scripts/                         단위 테스트, 환경 점검, 데이터 전처리, 예전 JSON 기록의 DB 이전
 │   └── retrain/                     AnyDoor 재학습 (B200 서버용)
 ├── web/                             초기 정적 화면 시안 (AI·서버 미연동)
 └── docs/                            문서 (9장 참고), readme/는 README 이미지
+    ├── ai/                          AI 작업용 문서: 프로젝트 정의, 요구사항, 기술 스택, 코딩 규칙, 작업 범위
+    ├── 작업일지.md                   최이재 작업일지
+    ├── 작업일지_서지섭.md             서지섭 작업일지
+    └── B200_학습_*.md                B200 학습 환경·절차·작업일지
 ```
 
 ### 8-1. 저장소 제외 항목
@@ -788,6 +795,10 @@ CGI_MOA/
 | 단위 테스트·환경 점검 | [scripts/README.md](scripts/README.md) |
 | AnyDoor 재학습 | [scripts/retrain/README.md](scripts/retrain/README.md) |
 | Docker 실행 | [docs/docker.md](docs/docker.md) |
+| 모델 추론 서버 | [model_server/README.md](model_server/README.md) |
+| 운영 서버 배포 | [deploy/README.md](deploy/README.md) |
+| AI 작업 규칙 | [CLAUDE.md](CLAUDE.md), [프로젝트 정의](docs/ai/project.md), [요구사항 명세](docs/ai/요구사항명세.md), [기술 스택](docs/ai/기술스택.md), [코딩 규칙](docs/ai/코딩규칙.md), [작업 범위](docs/ai/작업범위.md) |
+| 작업일지 | [최이재](docs/작업일지.md), [서지섭](docs/작업일지_서지섭.md) |
 
 ---
 

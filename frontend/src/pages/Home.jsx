@@ -6,13 +6,15 @@ import { curatedBackgrounds, curatedResults, featureLifestyle, showcaseTops } fr
 
 // 위쪽 예시: 객체(상의) 사진 + 배경(인물) 사진 -> 결과 사진. 5.2초마다 다음 예시로 넘어간다.
 // 대표 예시는 같은 번호의 상의/모델/결과를 하나의 검증된 세트로 묶는다.
-const SLIDES = curatedResults.map((result, i) => ({
-  object: showcaseTops[i],
-  bg: curatedBackgrounds[i],
-  result,
+// 1번 빨간 반팔, 7번 긴소매 상품을 반팔로 입힌 결과는 쓰지 않는다.
+const SLIDE_SETS = [2, 3, 4, 5, 6, 8];
+const SLIDES = SLIDE_SETS.map((n) => ({
+  object: showcaseTops[n - 1],
+  bg: curatedBackgrounds[n - 1],
+  result: curatedResults[n - 1],
 }));
 
-const HERO_LINES = ['내가 원하는 것', '그게 무엇이든', '미리 만나보세요'];
+const HERO_LINES = ['내가 원하는 옷', '그게 무엇이든', '미리 입어보세요'];
 
 // 스크롤 연출: .ln-reveal 요소가 화면에 들어오면 is-in을 붙여 아래에서 떠오르게 한다 (한 번만)
 function useReveal() {
@@ -84,7 +86,7 @@ export default function Home() {
               <span className="ln-line" key={line} aria-hidden="true"><span style={{ '--i': i }}>{line}</span></span>
             ))}
           </h1>
-          <p className="ln-sub">사진 한 장으로,<br />더 가까워지는 새로운 가능성.</p>
+          <p className="ln-sub">사진 두 장으로,<br />더 가까워지는 새로운 가능성.</p>
           <StudioLink className="ln-btn">지금, 합성해보기 →</StudioLink>
         </div>
 
@@ -151,7 +153,7 @@ export default function Home() {
       </section>
 
       <section className="ln-cta-band" id="cta">
-        <h2 className="ln-reveal">지금, 사진 한 장으로<br />시작해보세요.</h2>
+        <h2 className="ln-reveal">지금, 사진 두 장으로<br />시작해보세요.</h2>
         <div className="ln-reveal" style={{ '--d': '.15s' }}>
           <StudioLink className="ln-btn">지금, 합성해보기 →</StudioLink>
         </div>
