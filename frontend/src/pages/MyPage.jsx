@@ -13,9 +13,9 @@ import { PhotoMenu, PhotoViewer } from '../mypage/PhotoTools.jsx';
 import { downloadResult } from '../utils/download.js';
 
 // 주소 뒤 # 표시로 가운데 화면을 고른다
-// - 없음·#account-profile|email|password: 내 정보. 상자 상단 탭으로 항목 선택, 기본 프로필 수정
+// - 없음·#account-profile|email|password|withdraw: 내 정보. 상자 상단 탭으로 항목 선택, 기본 프로필 수정
 // - #album: 사진첩, #settings: 설정 (알림), #support: 고객센터
-const ACCOUNT_ITEMS = [['profile', '프로필 수정'], ['email', '이메일 변경'], ['password', '비밀번호 변경']];
+const ACCOUNT_ITEMS = [['profile', '프로필 수정'], ['email', '이메일 변경'], ['password', '비밀번호 변경'], ['withdraw', '회원 탈퇴']];
 const readHash = (hash) => {
   const account = ACCOUNT_ITEMS.find(([key]) => hash === `#account-${key}`);
   if (account) return { view: 'info', item: account[0] };

@@ -188,6 +188,17 @@ const routes = {
     u.password = body.new_password;
     return ok({});
   },
+  // 명세 2-11. 실제 서버와 같은 오류 코드. 회원과 합성하기·사진첩 기록을 메모리에서 지운다.
+  // 예시 결과 사진 파일(public/assets)은 목록에서만 빠진다
+  'DELETE /me': (body) => {
+    const u = users[0];
+    if (!u || !body || body.password !== u.password) return fail(400, 'WRONG_PASSWORD', '비밀번호가 올바르지 않습니다.');
+    const composing = Object.values(db.jobs).some((j) => !j.result_id && Date.now() - j.start < COMPOSE_MS);
+    if (composing) return fail(409, 'JOB_IN_PROGRESS', '진행 중인 합성이 끝난 뒤 다시 시도해 주세요.');
+    users.shift();
+    Object.assign(db, { results: [], images: {}, extractions: {}, jobs: {}, recent: [] });
+    return ok({});
+  },
 
   // 명세 6-1. created_at이 한국 시간(+09:00)으로 적혀 있어서 앞 10글자가 곧 한국 날짜다
   'GET /results': (body, params, query) => {

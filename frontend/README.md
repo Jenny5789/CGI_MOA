@@ -66,11 +66,12 @@
 
 - 저장한 결과만 보인다. 전체·좋아요 탭, 날짜 선택, 최신순·오래된순. 바꿀 때마다 서버에 다시 묻는다(명세 6-1)
 - 사진을 누르거나 사진 아래 **⋯ 메뉴**에서 크게 보기, 다운로드. 크게 보기 창은 Esc·바깥 클릭으로 종료, 다운로드 파일명은 `MOA_20261020_1432.png` 형식
-- 주소 뒤 `#`로 가운데 화면을 바꾼다: 없음·`#account-profile`·`#account-email`·`#account-password` 내 정보, `#album` 사진첩, `#settings` 설정, `#support` 고객센터
-- **내 정보**: `src/mypage/Settings.jsx`의 `AccountPanel`, 명세 2-7~2-10. 상자 하나에 `GET /api/me`의 프로필 사진·이름·이메일과 계정 설정 탭, 기본 탭은 프로필 수정
+- 주소 뒤 `#`로 가운데 화면을 바꾼다: 없음·`#account-profile`·`#account-email`·`#account-password`·`#account-withdraw` 내 정보, `#album` 사진첩, `#settings` 설정, `#support` 고객센터
+- **내 정보**: `src/mypage/Settings.jsx`의 `AccountPanel`, 명세 2-7~2-11. 상자 하나에 `GET /api/me`의 프로필 사진·이름·이메일과 계정 설정 탭, 기본 탭은 프로필 수정
   - 프로필 수정: 사진 변경·기본 프로필 복원, 이름 20자·휴대폰 번호·소개 글 60자. 소개 글 빈칸에는 기본 문구를 예시 글씨로 표시. 변경 항목만 전송
   - 이메일 변경: 새 이메일, 현재 비밀번호
   - 비밀번호 변경: 현재 비밀번호, 새 비밀번호, 새 비밀번호 확인. 변경 시 타 기기 로그아웃
+  - 회원 탈퇴: 탈퇴 버튼 → 비밀번호 확인 창, 오류 문구는 창 안에 표시. 탈퇴 후 토큰 삭제, 로그아웃 상태로 홈 이동
   - 서버 응답의 내 정보로 프로필 카드 즉시 갱신
 - **왼쪽 설정**: `ServiceSettings`. 계정과 무관한 브라우저 로컬 설정, 서버 전송 없음
   - 알림 설정: 합성 완료 알림 사용 여부. 사용 설정 시 브라우저 알림 권한 요청, 합성 완료 시점에 다른 탭 사용 중이면 알림 표시. `src/utils/notify.js`
@@ -122,7 +123,7 @@ frontend/
    │  ├─ Studio.jsx         합성하기 (1~4단계, 결과, 작업 기록, 초기화)
    │  └─ MyPage.jsx         마이페이지: 내 정보·계정 설정, 사진첩, 설정, 고객센터 화면 전환
    ├─ mypage/
-   │  ├─ Settings.jsx       계정 설정: 프로필·이메일·비밀번호, 설정: 알림
+   │  ├─ Settings.jsx       계정 설정: 프로필·이메일·비밀번호·회원 탈퇴, 설정: 알림
    │  ├─ Support.jsx        고객센터: 자주 묻는 질문, 문의
    │  └─ PhotoTools.jsx     사진첩 ⋯ 메뉴, 크게 보기 창
    ├─ studio/
@@ -139,7 +140,7 @@ frontend/
    │  ├─ auth.js            로그인·회원가입·아이디 중복 확인·로그아웃
    │  ├─ studio.js          사진 올리기, 최근 사진, 추출, 합성, 진행, 결과, 결과 재료
    │  ├─ results.js         결과 목록, 저장·좋아요
-   │  └─ me.js              내 정보, 프로필·사진·이메일·비밀번호 변경
+   │  └─ me.js              내 정보, 프로필·사진·이메일·비밀번호 변경, 회원 탈퇴
    ├─ components/           위쪽 메뉴 TopNav: 로그인 중 로그아웃 옆 프로필 사진·이름·소개 글, 페이지별 CSS 켜기 usePageStyle, 알림 useToast
    ├─ data/generatedAssets.js  예시 이미지 목록
    ├─ utils/
@@ -164,6 +165,7 @@ frontend/
 | 프로필 | `getMe` | `GET /api/me` | 2-3 |
 | 설정 | `updateProfile`, `uploadAvatar`, `resetAvatar` | `PATCH /api/me`, `POST`·`DELETE /api/me/avatar` | 2-7, 2-8 |
 | 설정 | `changeEmail`, `changePassword` | `PATCH /api/me/email`, `PATCH /api/me/password` | 2-9, 2-10 |
+| 설정 | `deleteAccount` | `DELETE /api/me` | 2-11 |
 
 - 사진 주소에는 서버가 붙여 준 열쇠(`?key=`)가 있어 `<img src>`에 그대로 쓴다. 열쇠는 3시간 뒤 만료되므로 최근 사진 목록은 "더보기"를 열 때마다 새로 받는다
 
@@ -171,7 +173,7 @@ frontend/
 
 | 이름 | 내용 |
 |---|---|
-| `moa_token`, `moa_token_expires` | 로그인 토큰, 만료 시각 (로그아웃·401 때 지움) |
+| `moa_token`, `moa_token_expires` | 로그인 토큰, 만료 시각. 로그아웃·회원 탈퇴·401 때 삭제 |
 | `moa_panel_left`, `moa_panel_right` | 합성하기 양쪽 패널 접힘 여부 |
 | `moa_notify_compose` | 합성 완료 알림 사용 시 `1`. 브라우저 알림 권한이 기기별로 관리되어 서버 대신 브라우저에 저장 |
 
@@ -187,6 +189,7 @@ frontend/
 - Cloudflare 터널로 휴대폰·외부 PC 접속, 합성 포함 전체 흐름
 - `npm run lint`, `npm run build` 통과
 - 2026-10-20 마이페이지: 설정 저장 뒤 프로필 카드 즉시 반영, 서버 오류 문구 표시, ⋯ 메뉴·크게 보기, 다운로드할 결과 파일 응답 200, 계정 설정 항목별 화면·설정·고객센터 전환, 합성 기본 설정 저장, 휴대폰 폭 375px 가로 스크롤 없음
+- 2026-11-15 회원 탈퇴, mock 모드: 비밀번호 누락·불일치 문구 창 안 표시, Esc로 창 닫기, 탈퇴 후 토큰·만료 시각 삭제와 홈 이동, 휴대폰 폭 375px 가로 스크롤 없음
 
 ## 10. 남은 일
 
