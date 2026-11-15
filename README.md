@@ -202,6 +202,7 @@ flowchart LR
 - 서버 기동 시 테이블 자동 생성. DB 연결 설정: [7-2. 설치](#7-2-설치) 6단계
 - 작업 대기열·진행 중 작업은 서버 메모리에서 처리, 진행 상태는 `jobs`에도 기록. 서버 재시작 시 처리 중이던 작업은 `failed`
 - 보관 기간: 업로드 사진은 24시간 뒤 "최근 사용한 사진" 목록에서만 제외(기록·파일 유지), 미저장 합성 결과는 24시간 뒤 결과 목록 조회 시 기록과 파일 삭제
+- 회원 탈퇴: 해당 회원의 모든 테이블 기록과 `storage/` 파일 즉시 삭제, 예시 사진 원본 유지
 
 ---
 
@@ -401,6 +402,7 @@ sequenceDiagram
 | 프로필 수정 | 사진·이름·휴대폰 번호·소개 글. 사진은 중앙 256px 정사각형 변환, EXIF(촬영 정보 등 사진 부가 정보) 제거 |
 | 이메일 변경 | 현재 비밀번호 확인, 중복 이메일 차단 |
 | 비밀번호 변경 | 현재 기기 로그인 유지, 다른 기기 로그인 만료 |
+| 회원 탈퇴 | 현재 비밀번호 확인 후 회원 정보·로그인 토큰·업로드 사진·이미지 분할·이미지 합성 기록과 `storage/` 파일 전체 삭제, 합성 대기·진행 중에는 완료 후 탈퇴 |
 | 설정 | 합성 완료 브라우저 알림 (이 브라우저에만 저장) |
 | 고객센터 | 자주 묻는 질문 7개, 이메일 문의 연결 |
 
@@ -455,6 +457,9 @@ sequenceDiagram
 ---
 
 ## 7. 설치 및 실행
+
+- Docker로 한 번에 실행: NVIDIA GPU가 있는 PC 한 대에서 가중치 받기와 실행 명령 두 줄로 전체 서비스 실행, [local/README.md](local/README.md)
+- 아래는 Python 가상환경에 직접 설치하는 개발용 절차
 
 | 항목 | 내용 |
 |---|---|
@@ -761,6 +766,7 @@ CGI_MOA/
 │   └── composition/                 AnyDoor 합성, 초해상도, 원본 복원, seam 보정
 ├── model_server/                    GPU 모델 추론 서버와 Docker 구성
 ├── deploy/                          운영 서버 Docker 구성: 웹 화면·웹 서버·MySQL
+├── local/                           한 PC 실행 Docker 구성: 웹 화면·웹 서버·MySQL·모델 추론 서버
 ├── scripts/                         단위 테스트, 환경 점검, 데이터 전처리, 예전 JSON 기록의 DB 이전
 │   └── retrain/                     AnyDoor 재학습 (B200 서버용)
 ├── web/                             초기 정적 화면 시안 (AI·서버 미연동)
@@ -797,6 +803,7 @@ CGI_MOA/
 | Docker 실행 | [docs/docker.md](docs/docker.md) |
 | 모델 추론 서버 | [model_server/README.md](model_server/README.md) |
 | 운영 서버 배포 | [deploy/README.md](deploy/README.md) |
+| 한 PC 실행, 가중치 받기 | [local/README.md](local/README.md), [scripts/download_weights.py](scripts/download_weights.py) |
 | AI 작업 규칙 | [CLAUDE.md](CLAUDE.md), [프로젝트 정의](docs/ai/project.md), [요구사항 명세](docs/ai/요구사항명세.md), [기술 스택](docs/ai/기술스택.md), [코딩 규칙](docs/ai/코딩규칙.md), [작업 범위](docs/ai/작업범위.md) |
 | 작업일지 | [최이재](docs/작업일지.md), [서지섭](docs/작업일지_서지섭.md) |
 

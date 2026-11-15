@@ -72,6 +72,20 @@ def _update(job_id, **changes):
         log.exception("작업 기록을 DB에 적지 못했습니다: %s", job_id)
 
 
+def has_active_job(user_id):
+    """회원 탈퇴(명세 2-11) 전에 확인: 이 회원의 작업 중 대기 중이거나 진행 중인 것이 있으면 True.
+    메모리 작업 정보가 기준이다. DB jobs 표의 queued·running은 서버를 다시 켜기 전 기록일 수 있어 보지 않는다"""
+    with _lock:
+        return any(j["user_id"] == user_id and j["status"] in ("queued", "running") for j in _jobs.values())
+
+
+def forget_user_jobs(user_id):
+    """회원 탈퇴 뒤: 끝난 작업 정보를 메모리에서도 지운다. DB 행과 파일은 탈퇴 주소가 지운다"""
+    with _lock:
+        for job_id in [k for k, j in _jobs.items() if j["user_id"] == user_id]:
+            del _jobs[job_id]
+
+
 def _public(job):
     """명세 5-2 모양으로"""
     with _lock:

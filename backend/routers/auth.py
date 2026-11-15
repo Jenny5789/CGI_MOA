@@ -11,28 +11,35 @@
   - POST   /api/me/avatar    : 프로필 사진 올리기 (jpg/png, 10MB 이하) / DELETE: 기본 그림으로
   - PATCH  /api/me/email     : 이메일 변경, 지금 비밀번호 확인
   - PATCH  /api/me/password  : 비밀번호 변경, 지금 쓰는 기기만 로그인 유지
+  - DELETE /api/me           : 회원 탈퇴, 지금 비밀번호 확인 뒤 이 회원의 DB 기록과 storage 파일 삭제 (명세 2-11, 11/15 추가)
 - 로그인·회원가입·연장 응답의 expires_at: 이 시각이 지나면 토큰 만료 (한국 시간)
 - 회원·토큰은 MySQL(backend/db.py), 시험용 회원 test / test1234
 """
 import io
+import logging
 import uuid
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, UploadFile
 from PIL import Image, ImageOps, UnidentifiedImageError
 from pydantic import BaseModel
+from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend.auth import (current_session, current_user, extend_token, find_user, find_user_by_email, hash_password,
                           issue_token, normalize_email, normalize_phone, password_ok, revoke_other_tokens, revoke_token,
                           username_ok, verify_password)
-from backend.config import ALLOWED_FORMATS, AVATAR_SIDE, AVATARS_DIR, MAX_UPLOAD_BYTES
-from backend.db import User, get_db, kst_text, utcnow
+from backend.config import (ALLOWED_FORMATS, AVATAR_SIDE, AVATARS_DIR, EXTRACTIONS_DIR, IMAGES_DIR, JOBS_DIR,
+                            MAX_UPLOAD_BYTES, RESULTS_DIR)
+from backend.db import AuthSession, Extraction, Job, Result, UploadedImage, User, get_db, kst_text, utcnow
 from backend.errors import ApiError
 from backend.file_keys import signed_url
+from backend.routers import compose
+from backend.routers.files import SAFE_NAME
 
 router = APIRouter()
+log = logging.getLogger("moa.auth")
 NAME_MAX = 20  # 이름 최대 글자 수 (화면 MyPage 설정과 같게)
 BIO_MAX = 60   # 소개 글 최대 글자 수
 
@@ -165,16 +172,34 @@ async def upload_avatar(file: UploadFile = File(...), user: User = Depends(curre
     name = f"avt_{uuid.uuid4().hex[:12]}.jpg"  # 바꿀 때마다 새 이름 → 브라우저에 남은 예전 사진이 보이지 않게
     AVATARS_DIR.mkdir(parents=True, exist_ok=True)
     img.save(AVATARS_DIR / name, quality=90)
-    user.avatar = name  # 예전 사진 파일은 그대로 둔다
+    old = user.avatar
+    user.avatar = name
     db.commit()
+    _remove_files([AVATARS_DIR / old] if old else [])
     return _me_response(user)
 
 
 @router.delete("/api/me/avatar")
 def reset_avatar(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    old = user.avatar
     user.avatar = None
     db.commit()
+    _remove_files([AVATARS_DIR / old] if old else [])
     return _me_response(user)
+
+
+def _remove_files(paths):
+    """storage 파일을 지운다. 프로필 사진을 바꾸거나 되돌릴 때 예전 파일도 지운다 (11/15):
+    users 행에는 지금 사진 이름만 남아, 예전 파일을 두면 회원 탈퇴 때 누구 것인지 찾아 지울 수 없다.
+    서버가 만든 이름 형식만 지워, DB 값이 어긋나도 storage 밖이나 다른 종류의 파일은 건드리지 않는다.
+    DB를 먼저 바꾼 뒤 부르므로, 파일을 지우지 못해도 요청은 성공으로 두고 서버 창에 남긴다"""
+    for path in paths:
+        if not SAFE_NAME.match(path.name):
+            continue
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            log.warning("파일을 지우지 못했습니다: %s", path.name)
 
 
 class EmailBody(BaseModel):
@@ -215,6 +240,56 @@ def change_password(body: PasswordBody, session: tuple[User, str] = Depends(curr
     user.password_hash = hash_password(body.new_password)
     db.commit()
     revoke_other_tokens(db, user, token)  # 다른 기기에서 로그인한 것은 끊는다
+    return {}
+
+
+class WithdrawBody(BaseModel):
+    password: str
+
+
+def _user_files(db: Session, user: User):
+    """이 회원의 storage 파일 경로. 이름은 모두 이 회원의 DB 행에서 얻으므로 예시 사진 원본과 다른 회원 파일은 들어가지 않는다.
+    예시 사진을 고르면 화면이 사진을 새로 올려 이 회원의 images 행과 복사본 파일이 생기고, 지우는 것은 그 복사본이다"""
+    uid = user.id
+    paths = [AVATARS_DIR / user.avatar] if user.avatar else []
+    for filename, thumb in db.execute(select(UploadedImage.filename, UploadedImage.thumb).where(UploadedImage.user_id == uid)):
+        paths += [IMAGES_DIR / filename] + ([IMAGES_DIR / thumb] if thumb else [])
+    for mask, cutout in db.execute(select(Extraction.mask, Extraction.cutout).where(Extraction.user_id == uid)):
+        paths += [EXTRACTIONS_DIR / mask, EXTRACTIONS_DIR / cutout]  # cutout은 처음 열 때 만들므로 없을 수 있다
+    result_ids = set(db.scalars(select(Result.result_id).where(Result.user_id == uid)))
+    for area_mask, garment_mask, result_id in db.execute(select(Job.area_mask, Job.garment_mask, Job.result_id).where(Job.user_id == uid)):
+        paths += [JOBS_DIR / area_mask] + ([JOBS_DIR / garment_mask] if garment_mask else [])
+        if result_id:  # 24시간 정리로 results 행이 먼저 지워졌어도 파일이 남았으면 함께 지운다
+            result_ids.add(result_id)
+    for rid in result_ids:
+        paths += [RESULTS_DIR / f"{rid}.png", RESULTS_DIR / f"{rid}_thumb.jpg"]
+    return paths
+
+
+@router.delete("/api/me")
+def withdraw(body: WithdrawBody, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """명세 2-11 회원 탈퇴 (11/15 추가). 지금 비밀번호를 다시 확인하고 이 회원의 DB 행과 storage 파일을 모두 지운다.
+
+    대기 중이거나 진행 중인 합성 작업이 있으면 409 JOB_IN_PROGRESS로 거절하고, 작업이 끝난 뒤 다시 요청받는다.
+    진행 중인 합성은 GPU 연산 도중에 멈출 수 없고, 끝나면 합성 일꾼이 results 행과 결과 사진을 새로 쓴다.
+    탈퇴 뒤에 이 기록이 생기면 주인 없는 결과가 남는다. 대기 중인 작업도 곧 일꾼이 시작하므로 함께 막는다.
+
+    지우는 순서: results → jobs → extractions → images → sessions → users, 한 트랜잭션.
+    results의 사진 외래키는 ON DELETE가 없어 사진 행 삭제를 막으므로, users 한 행만 지우고 CASCADE에 맡길 수 없다 (docs/database.md 5-1).
+    SQLite는 외래키 규칙을 기본으로 적용하지 않으므로 표마다 직접 지워 MySQL과 SQLite에서 같은 결과가 되게 한다.
+    파일은 DB 삭제가 확정된 뒤 지운다. 먼저 지우면 DB 삭제가 실패했을 때 사진 없는 기록만 남은 계정이 된다"""
+    if not verify_password(body.password, user.password_hash):
+        raise ApiError(400, "WRONG_PASSWORD", "비밀번호가 올바르지 않습니다.")
+    if compose.has_active_job(user.id):
+        raise ApiError(409, "JOB_IN_PROGRESS", "진행 중인 합성이 끝난 뒤 다시 시도해 주세요.")
+    uid = user.id
+    paths = _user_files(db, user)
+    for model, owner in ((Result, Result.user_id), (Job, Job.user_id), (Extraction, Extraction.user_id),
+                         (UploadedImage, UploadedImage.user_id), (AuthSession, AuthSession.user_id), (User, User.id)):
+        db.execute(delete(model).where(owner == uid))
+    db.commit()
+    compose.forget_user_jobs(uid)
+    _remove_files(paths)
     return {}
 
 

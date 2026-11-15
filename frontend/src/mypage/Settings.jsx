@@ -1,9 +1,10 @@
 /* 마이페이지 설정 화면 두 가지.
-   - AccountPanel: 내 정보의 '계정 설정'에서 고른 항목 하나 (프로필 수정, 이메일 변경, 비밀번호 변경, 명세 2-7~2-10).
+   - AccountPanel: 내 정보의 '계정 설정'에서 고른 항목 하나 (프로필 수정, 이메일 변경, 비밀번호 변경, 회원 탈퇴, 명세 2-7~2-11).
      서버가 돌려준 내 정보로 상단 메뉴 프로필도 바로 바뀌도록 onMe로 넘긴다.
    - ServiceSettings: 왼쪽 '설정'. 계정과 관계없는 이 브라우저의 설정 (알림) */
-import { useEffect, useRef, useState } from 'react';
-import { changeEmail, changePassword, resetAvatar, updateProfile, uploadAvatar } from '../api/me.js';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useAuth } from '../auth/AuthContext.jsx';
+import { changeEmail, changePassword, deleteAccount, resetAvatar, updateProfile, uploadAvatar } from '../api/me.js';
 import { PASSWORD_HINT, PHONE_HINT, normalizeEmail, normalizePhone, passwordOk } from '../auth/signupRules.js';
 import { disableNotify, enableNotify, notifyEnabled, notifySupported } from '../utils/notify.js';
 import { DEFAULT_BIO } from '../utils/profile.js';
@@ -199,6 +200,64 @@ function PasswordForm({ showToast }) {
   );
 }
 
+// 명세 2-11. 버튼을 누르면 비밀번호 확인 창을 띄운다. 창은 흐린 바깥을 눌러도 닫히지 않고, 취소·Esc로만 닫는다.
+// 오류는 창 안에 보여 준다: 마이페이지 알림은 창의 흐린 바탕 아래에 깔린다
+function WithdrawForm() {
+  const { finishWithdraw } = useAuth();
+  const [open, setOpen] = useState(false);
+  const [pw, setPw] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const close = useCallback(() => {
+    if (busy) return;
+    setOpen(false); setPw(''); setError('');
+  }, [busy]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open, close]);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (busy) return;
+    if (!pw) { setError('비밀번호 입력이 필요합니다.'); return; }
+    setBusy(true);
+    try {
+      await deleteAccount(pw);
+    } catch (err) {
+      setError(err.message);
+      setBusy(false);
+      return;
+    }
+    finishWithdraw(); // 홈으로 옮겨 가며 이 화면은 닫힌다
+  };
+
+  return (
+    <>
+      <div className="as-set-actions"><button type="button" className="as-btn danger" onClick={() => setOpen(true)}>회원 탈퇴</button></div>
+      {open && (
+        <div className="as-confirm">
+          <form className="as-confirm-box" role="dialog" aria-modal="true" aria-labelledby="as-withdraw-title" onSubmit={submit} noValidate>
+            <h3 id="as-withdraw-title">회원 탈퇴</h3>
+            <Field label="비밀번호" hint={error}>
+              <input className={'as-input' + (error ? ' invalid' : '')} type="password" value={pw} autoComplete="current-password" autoFocus
+                onChange={(e) => { setPw(e.target.value); setError(''); }} />
+            </Field>
+            <div className="as-confirm-actions">
+              <button type="button" className="as-btn ghost" disabled={busy} onClick={close}>취소</button>
+              <button type="submit" className="as-btn danger" disabled={busy}>{busy ? '탈퇴 중…' : '탈퇴'}</button>
+            </div>
+          </form>
+        </div>
+      )}
+    </>
+  );
+}
+
 function NotifyForm({ showToast }) {
   const [on, setOn] = useState(notifyEnabled);
   const supported = notifySupported();
@@ -224,7 +283,7 @@ function NotifyForm({ showToast }) {
   );
 }
 
-// 내 정보 상자: 상단 탭 items로 항목을 고른다. item: 'profile' / 'email' / 'password' (MyPage의 주소 #account-..., 기본 profile)
+// 내 정보 상자: 상단 탭 items로 항목을 고른다. item: 'profile' / 'email' / 'password' / 'withdraw' (MyPage의 주소 #account-..., 기본 profile)
 export function AccountPanel({ items, item, me, onMe, showToast }) {
   let desc = '';
   let body = <ProfileForm me={me} onMe={onMe} showToast={showToast} />;
@@ -234,6 +293,9 @@ export function AccountPanel({ items, item, me, onMe, showToast }) {
   } else if (item === 'password') {
     desc = '변경하면 이 기기만 로그인 상태를 유지하고 다른 기기는 로그아웃됩니다.';
     body = <PasswordForm showToast={showToast} />;
+  } else if (item === 'withdraw') {
+    desc = '탈퇴하면 계정과 올린 사진, 합성 결과가 모두 삭제되며 복구할 수 없습니다.';
+    body = <WithdrawForm />;
   }
   return (
     <section className="as-panel as-set" id="account">

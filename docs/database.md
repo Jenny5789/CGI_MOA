@@ -155,7 +155,9 @@ python -m uvicorn backend.main:app --port 8000
   - `NO ACTION`: 자식이 참조 중이면 부모 삭제 거부 (MySQL InnoDB에서 `RESTRICT`와 동일)
 - `results.job_id`: 스키마는 1 : N (UNIQUE 제약 없음), 애플리케이션은 작업 하나당 결과를 최대 1개만 생성 (1 : 0..1)
 - `jobs.result_id`는 외래키가 아니며 완료된 결과의 ID만 저장
-- 회원 삭제: `users` 레코드 하나를 삭제하면 `CASCADE`가 `results`의 `NO ACTION`에 막히므로 `results` → `jobs` → `extractions` → `images` → `users` 순서로 삭제 (회원 삭제 기능은 현재 없음)
+- 회원 삭제: 회원 탈퇴 API `DELETE /api/me`가 `results` → `jobs` → `extractions` → `images` → `sessions` → `users` 순서로 한 트랜잭션에서 삭제, 이어서 `storage/` 파일 삭제. 동작 상세는 [api.md 2-11. 회원 탈퇴](api.md#2-11-회원-탈퇴-추가-제안)
+  - `users` 레코드 하나만 삭제하면 MySQL InnoDB에서 `CASCADE`가 `results`의 `NO ACTION`에 막혀 테이블별로 차례대로 삭제
+  - SQLite는 외래키 규칙을 기본으로 적용하지 않아, 테이블별 삭제로 두 DB의 결과를 같게 유지
 
 ## 6. 예전 기록 가져오기
 

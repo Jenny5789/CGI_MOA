@@ -156,7 +156,15 @@ export function AuthProvider({ children }) {
     showToast('로그아웃되었습니다');
   };
 
-  const value = { loggedIn, me, setMe, expiresAt, extendLogin, openLogin, openSignup, login, logout, showToast };
+  // 회원 탈퇴 뒤 (명세 2-11). 토큰은 api/me.js의 deleteAccount가 이미 지웠고 서버 기록도 없으므로 로그아웃 요청은 보내지 않는다
+  const finishWithdraw = () => {
+    setLoggedIn(false);
+    setExpiresAt(null);
+    navigate('/', { replace: true });
+    showToast('탈퇴가 완료되었습니다.');
+  };
+
+  const value = { loggedIn, me, setMe, expiresAt, extendLogin, openLogin, openSignup, login, logout, finishWithdraw, showToast };
 
   return (
     <AuthContext.Provider value={value}>

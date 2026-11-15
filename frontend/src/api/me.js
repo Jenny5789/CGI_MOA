@@ -1,4 +1,4 @@
-import { request } from './client.js';
+import { request, setToken } from './client.js';
 
 // 명세 2-3
 export function getMe() {
@@ -29,4 +29,11 @@ export function changeEmail(email, password) {
 // 명세 2-10. 바꾸면 이 기기만 로그인 유지, 다른 기기는 로그아웃
 export function changePassword(currentPassword, newPassword) {
   return request('PATCH', '/me/password', { current_password: currentPassword, new_password: newPassword });
+}
+
+// 명세 2-11 회원 탈퇴. 본인 확인용으로 지금 비밀번호를 보낸다.
+// 성공하면 서버가 이 회원의 로그인 기록을 모두 지우므로, 로그아웃 요청 없이 이 브라우저의 토큰과 만료 시각만 지운다
+export async function deleteAccount(password) {
+  await request('DELETE', '/me', { password });
+  setToken(null);
 }
