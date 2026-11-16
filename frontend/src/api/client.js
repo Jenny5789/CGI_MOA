@@ -29,6 +29,7 @@ const REAL_ROUTES = [
   /^GET \/results\/[^/?]+\/source$/, // 결과를 만든 재료 (명세 외)
   /^GET \/results(\?.*)?$/,     // 결과 목록: 사진첩, 내 작업 기록 (6-1)
   /^PATCH \/results\/[^/?]+$/, // 저장 / 좋아요 (6-2)
+  /^DELETE \/results\/[^/?]+$/, // 결과 삭제 (6-3)
 ];
 
 const goesToRealServer = (method, path) => {

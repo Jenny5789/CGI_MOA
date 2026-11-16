@@ -237,6 +237,14 @@ const routes = {
     return ok(r);
   },
 
+  // 명세 6-3
+  'DELETE /results/{id}': (body, params) => {
+    const i = db.results.findIndex((x) => x.result_id === params.id);
+    if (i < 0) return fail(404, 'RESULT_NOT_FOUND', '결과를 찾을 수 없습니다.');
+    db.results.splice(i, 1);
+    return ok({ result_id: params.id, deleted: true });
+  },
+
   // 명세 3-1. body는 FormData (file, kind)
   'POST /images': async (body) => {
     const kind = body.get('kind');
