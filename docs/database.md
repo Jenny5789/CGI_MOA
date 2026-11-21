@@ -155,14 +155,14 @@ python -m uvicorn backend.main:app --port 8000
   - `NO ACTION`: 자식이 참조 중이면 부모 삭제 거부 (MySQL InnoDB에서 `RESTRICT`와 동일)
 - `results.job_id`: 스키마는 1 : N (UNIQUE 제약 없음), 애플리케이션은 작업 하나당 결과를 최대 1개만 생성 (1 : 0..1)
 - `jobs.result_id`는 외래키가 아니며 완료된 결과의 ID만 저장
-- 회원 삭제: 회원 탈퇴 API `DELETE /api/me`가 `results` → `jobs` → `extractions` → `images` → `sessions` → `users` 순서로 한 트랜잭션에서 삭제, 이어서 `storage/` 파일 삭제. 동작 상세는 [api.md 2-11. 회원 탈퇴](api.md#2-11-회원-탈퇴-추가-제안)
+- 회원 삭제: 회원 탈퇴 API `DELETE /api/me`가 `results` → `jobs` → `extractions` → `images` → `sessions` → `users` 순서로 한 트랜잭션에서 삭제, 이어서 `storage/` 파일 삭제. 동작 상세는 [api.md 2-11. 회원 탈퇴](api.md#2-11-회원-탈퇴)
   - `users` 레코드 하나만 삭제하면 MySQL InnoDB에서 `CASCADE`가 `results`의 `NO ACTION`에 막혀 테이블별로 차례대로 삭제
   - SQLite는 외래키 규칙을 기본으로 적용하지 않아, 테이블별 삭제로 두 DB의 결과를 같게 유지
 
-## 6. 예전 기록 가져오기
+## 6. json 기록 가져오기
 
-- 대상: 기록을 `storage/`의 json 파일로 저장하던 예전 버전으로 이미지·합성 기록을 만든 PC (새 버전은 같은 정보를 5. 테이블 구성의 테이블에서 읽음)
-- 시점: 새 버전으로 백엔드를 한 번 실행해 테이블을 만든 뒤 (3. 백엔드 실행 시 자동 처리)
+- 대상: 이미지·합성 기록이 `storage/`의 json 파일로 남아 있는 PC (백엔드는 같은 정보를 5. 테이블 구성의 테이블에서 읽음)
+- 시점: 백엔드를 한 번 실행해 테이블을 만든 뒤 (3. 백엔드 실행 시 자동 처리)
 - 동작
   - 기본은 확인만 하고 DB에 쓰지 않음, `--apply`를 붙여야 반영
   - 여러 번 실행해도 같은 결과 (이미 있는 기록은 건너뜀), json·이미지 파일은 지우지 않음
