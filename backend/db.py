@@ -2,7 +2,7 @@
 
 - 접속 정보: backend/.env 의 DATABASE_URL (각자 컴퓨터의 MySQL, GitHub에 올리지 않음). 만드는 법: docs/database.md
 - 서버가 켜질 때 init_db()가 표가 없으면 만들고, 시험용 회원 test / test1234 를 넣는다
-- 예전에 만든 표에 새 칸이 없으면 추가한다 (_add_missing_columns, 10/17 회원가입 전화번호 phone, 10/20 소개 글 bio·프로필 사진 avatar)
+- users 표에 phone·bio·avatar 칸이 없으면 추가한다 (_add_missing_columns)
 - DB에 접속하지 못해도 서버는 켜진다. 그때 로그인이 필요한 주소는 모두 503
 """
 import logging
@@ -29,22 +29,22 @@ class Base(DeclarativeBase):
 
 
 class User(Base):
-    """회원 (명세 2-2, 2-3)"""
+    """회원"""
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     username: Mapped[str] = mapped_column(String(50), unique=True)
     password_hash: Mapped[str] = mapped_column(String(255))  # 원문은 저장하지 않음 (auth.py)
     name: Mapped[str] = mapped_column(String(100))
-    email: Mapped[str | None] = mapped_column(String(255), nullable=True)  # 회원가입 필수 (10/17), 예전 회원은 비어 있을 수 있음
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True)  # 회원가입 필수, 비어 있는 회원 행도 있을 수 있음
     phone: Mapped[str | None] = mapped_column(String(20), nullable=True)  # 선택, "010-1234-5678" 형식으로 저장
-    bio: Mapped[str | None] = mapped_column(String(100), nullable=True)  # 마이페이지 소개 글 (10/20)
-    avatar: Mapped[str | None] = mapped_column(String(64), nullable=True)  # 프로필 사진 파일 이름 avt_xxx.jpg (10/20)
+    bio: Mapped[str | None] = mapped_column(String(100), nullable=True)  # 마이페이지 소개 글
+    avatar: Mapped[str | None] = mapped_column(String(64), nullable=True)  # 프로필 사진 파일 이름 avt_xxx.jpg
     created_at: Mapped[datetime] = mapped_column(DateTime)  # UTC
 
 
 class UploadedImage(Base):
-    """올린 사진 기록 (명세 3-1, 3-2, 10/17). 합성하기 "최근 사용한 사진" 목록에 쓰고, 11/2부터 추출·합성·재료 보기가 사진을 찾을 때도 쓴다.
+    """올린 사진 기록. 합성하기 "최근 사용한 사진" 목록에 쓰고, 추출·합성·재료 보기가 사진을 찾을 때도 쓴다.
     사진 파일은 storage/images에 두고, 여기엔 정보만. RECENT_IMAGE_KEEP_HOURS가 지난 기록도 지우지 않고 최근 사용한 사진 목록에서만 뺀다.
     지우면 그 사진으로 만든 추출·합성 결과의 재료를 찾지 못한다. 자세한 설명은 routers/images.py 맨 위"""
     __tablename__ = "images"
@@ -62,7 +62,7 @@ class UploadedImage(Base):
 
 
 class Extraction(Base):
-    """상의 추출 결과 기록 (명세 4-1, 11/2 json에서 옮김). 윤곽·cutout 사진 파일은 storage/extractions에 두고, 여기엔 정보만"""
+    """상의 추출 결과 기록. 윤곽·cutout 사진 파일은 storage/extractions에 두고, 여기엔 정보만"""
     __tablename__ = "extractions"
 
     extraction_id: Mapped[str] = mapped_column(String(32), primary_key=True)
@@ -78,7 +78,7 @@ class Extraction(Base):
 
 
 class Job(Base):
-    """합성 작업 기록 (명세 5-1, 5-2, 11/2 json에서 옮김). 입힐 영역·다듬은 윤곽 그림 파일은 storage/jobs에 두고, 여기엔 진행 상태와 합성 설정만.
+    """합성 작업 기록. 입힐 영역·다듬은 윤곽 그림 파일은 storage/jobs에 두고, 여기엔 진행 상태와 합성 설정만.
     진행 중인 작업의 대기열 순서는 메모리(routers/compose.py)가 맡고, 여기는 서버를 다시 켠 뒤에도 남는 기록"""
     __tablename__ = "jobs"
 
@@ -101,7 +101,7 @@ class Job(Base):
 
 
 class Result(Base):
-    """합성 결과 기록 (명세 5-3, 6-1, 6-2, 11/2 json에서 옮김). 결과 사진(res_xxx.png)과 작은 사진(res_xxx_thumb.jpg)은 storage/results에 두고,
+    """합성 결과 기록. 결과 사진(res_xxx.png)과 작은 사진(res_xxx_thumb.jpg)은 storage/results에 두고,
     여기엔 정보와 사진첩 상태(저장·좋아요)만. 사진 주소(image_url, thumb_url)는 저장하지 않고 결과 번호에서 만들어 응답한다"""
     __tablename__ = "results"
 
@@ -115,12 +115,12 @@ class Result(Base):
     saved: Mapped[bool] = mapped_column(Boolean, default=False)  # 사진첩에 저장
     favorite: Mapped[bool] = mapped_column(Boolean, default=False)  # 좋아요 (사진첩의 좋아요 탭은 저장한 것 중에서만)
     seed: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    detail: Mapped[dict] = mapped_column(JSON, default=dict)  # 재현·분석용: seam_fix, crop_box, restore_original, garment_found (옛 기록엔 일부만)
+    detail: Mapped[dict] = mapped_column(JSON, default=dict)  # 재현·분석용 값: seam_fix, crop_box 등 (routers/compose.py)
     created_at: Mapped[datetime] = mapped_column(DateTime, index=True)  # UTC
 
 
 class AuthSession(Base):
-    """로그인 증표 (명세 2-1, 2-4). 토큰 원문 대신 해시를 저장한다"""
+    """로그인 증표. 토큰 원문 대신 해시를 저장한다"""
     __tablename__ = "sessions"
 
     token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
@@ -175,7 +175,7 @@ def init_db():
 def _add_missing_columns(engine):
     """create_all은 이미 있는 표를 고치지 않으므로, 나중에 생긴 칸은 여기서 추가한다 (데이터는 그대로)"""
     cols = {c["name"] for c in inspect(engine).get_columns("users")}
-    added = {"phone": "VARCHAR(20)", "bio": "VARCHAR(100)", "avatar": "VARCHAR(64)"}  # 10/17 전화번호, 10/20 소개 글·프로필 사진
+    added = {"phone": "VARCHAR(20)", "bio": "VARCHAR(100)", "avatar": "VARCHAR(64)"}  # 전화번호, 소개 글·프로필 사진
     for name, kind in added.items():
         if name not in cols:
             with engine.begin() as conn:

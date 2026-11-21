@@ -1,14 +1,14 @@
-"""명세 5-3, 6-1, 6-2 합성 결과와 사진첩.
+"""합성 결과와 사진첩.
 
-- GET   /api/results            : 결과 목록 (명세 6-1). 사진첩 탭, 내 작업 기록
-- GET   /api/results/{id}       : 결과 하나 (명세 5-3)
-- PATCH /api/results/{id}       : 저장 / 좋아요 (명세 6-2)
-- DELETE /api/results/{id}      : 결과 삭제 (명세 6-3, 11/17). 저장 여부와 관계없이 자기 결과의 DB 기록과 결과 사진 파일 삭제
-- GET   /api/results/{id}/source: 결과를 만든 재료 (명세 6-4). 합성하기 "내 작업 기록"에서 결과를 열 때 1~4단계를 채운다
-- 저장하지 않은 결과는 만든 지 24시간 뒤 지운다 (명세 5-3, 10/16 결정: 3일 → 24시간). 목록을 볼 때 지난 것을 정리한다 (10분에 한 번, RESULT_CLEANUP_SECONDS)
-- 로그인 필요. 자기 결과만 보이고 바꿀 수 있음 (남의 결과는 404). 결과 정보는 DB results 표(11/2), 결과 사진은 storage/results에 파일로 저장
-- 사진 주소(image_url, thumb_url)는 응답할 때 열쇠를 붙여 줌 (명세 7장, backend/file_keys.py). 사진 파일 이름은 결과 번호에서 만든다 (res_xxx.png, res_xxx_thumb.jpg)
-- DB는 시각을 UTC로 저장한다. 응답의 created_at과 날짜(date) 필터는 예전처럼 한국 시간 기준
+- GET   /api/results            : 결과 목록. 사진첩 탭, 내 작업 기록
+- GET   /api/results/{id}       : 결과 하나
+- PATCH /api/results/{id}       : 저장 / 좋아요
+- DELETE /api/results/{id}      : 결과 삭제. 저장 여부와 관계없이 자기 결과의 DB 기록과 결과 사진 파일 삭제
+- GET   /api/results/{id}/source: 결과를 만든 재료. 합성하기 "내 작업 기록"에서 결과를 열 때 1~4단계를 채운다
+- 저장하지 않은 결과는 만든 지 24시간 뒤 지운다. 목록을 볼 때 지난 것을 정리한다 (10분에 한 번, RESULT_CLEANUP_SECONDS)
+- 로그인 필요. 자기 결과만 보이고 바꿀 수 있음 (남의 결과는 404). 결과 정보는 DB results 표, 결과 사진은 storage/results에 파일로 저장
+- 사진 주소(image_url, thumb_url)는 응답할 때 열쇠를 붙여 줌 (backend/file_keys.py). 사진 파일 이름은 결과 번호에서 만든다 (res_xxx.png, res_xxx_thumb.jpg)
+- DB는 시각을 UTC로 저장한다. 응답의 created_at과 날짜(date) 필터는 한국 시간 기준
 """
 import time
 from datetime import datetime, timedelta
@@ -117,13 +117,13 @@ def list_results(
     if favorite is not None:
         query = query.where(Result.favorite == favorite)
     if date is not None:
-        # 한국 날짜 하루(명세 6-1)를 UTC 구간으로 바꿔 비교: 한국 0시 = 전날 UTC 15시
+        # 한국 날짜 하루를 UTC 구간으로 바꿔 비교: 한국 0시 = 전날 UTC 15시
         start = day - timedelta(hours=9)
         query = query.where(Result.created_at >= start, Result.created_at < start + timedelta(days=1))
     order = Result.created_at.desc() if sort == "new" else Result.created_at.asc()
     rows = db.scalars(query.order_by(order, Result.result_id)).all()
 
-    # next_cursor: 명세 6-1의 응답 모양을 맞추려고 둔 칸. 페이지를 나누지 않고 목록 전체를 한 번에 돌려주므로 항상 null
+    # next_cursor: 명세 응답 모양을 맞추려고 둔 칸. 페이지를 나누지 않고 목록 전체를 한 번에 돌려주므로 항상 null
     return {"items": [_public(r, LIST_KEYS) for r in rows], "counts": counts, "next_cursor": None}
 
 
@@ -135,7 +135,7 @@ def get_result(result_id: str, user: User = Depends(current_user), db: Session =
 @router.get("/api/results/{result_id}/source")
 def get_result_source(result_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
     """결과를 만든 재료: 상의·인물 사진, 상의 윤곽(다듬은 것, 없으면 SAM2 것), 입힐 영역, 합성 설정.
-    재료 파일 중 하나라도 없으면 404 SOURCE_NOT_FOUND (화면은 결과만 보여 준다)"""
+    연결된 작업·추출·사진 기록이 없거나 상의 윤곽·입힐 영역 파일이 없으면 404 SOURCE_NOT_FOUND (화면은 결과만 보여 준다)"""
     row = _load(db, result_id, user)
     missing = ApiError(404, "SOURCE_NOT_FOUND", "이 결과의 재료를 찾을 수 없습니다.")
     if row.job_id is None or row.extraction_id is None:  # 연결된 작업·추출 결과가 지워져 비어 있음
@@ -187,7 +187,7 @@ def update_result(result_id: str, change: ResultPatch, user: User = Depends(curr
 
 @router.delete("/api/results/{result_id}")
 def delete_result(result_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
-    """명세 6-3. DB 행을 먼저 지우고 확정된 뒤 사진 파일을 지운다. 파일을 먼저 지우면 DB 삭제 실패 시 사진 없는 기록만 남기 때문.
+    """DB 행을 먼저 지우고 확정된 뒤 사진 파일을 지운다. 파일을 먼저 지우면 DB 삭제 실패 시 사진 없는 기록만 남기 때문.
     작업 기록(jobs)과 재료 파일은 다른 결과·재합성에 쓰일 수 있어 그대로 둔다. 24시간 정리(_remove_expired)와 같은 범위"""
     row = _load(db, result_id, user)
     db.delete(row)

@@ -1,6 +1,6 @@
 """오류 응답을 명세 형식으로 맞춘다.
 
-명세 0장: { "error": { "code": "INVALID_IMAGE", "message": "이미지를 읽을 수 없습니다." } }
+형식: { "error": { "code": "INVALID_IMAGE", "message": "이미지를 읽을 수 없습니다." } }
 화면은 message를 그대로 안내 문구로 띄운다.
 """
 from fastapi import FastAPI, Request

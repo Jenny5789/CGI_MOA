@@ -11,7 +11,7 @@ GPU_LOCK = threading.Lock()
 def release_cached_memory():
     """GPU 작업(추출·합성)이 끝나면 PyTorch가 잡아 두고 안 쓰는 GPU 메모리를 돌려준다.
     PyTorch는 다 쓴 메모리도 다음을 위해 잡아 두는데, SAM2와 AnyDoor가 번갈아 쓰면서 잡아 둔 양이 쌓이면 10GB를 넘어
-    넘친 만큼 본체 RAM(공유 GPU 메모리)을 쓰고 합성이 느려진다 (10/17 확인: 서버 전용 9.4GB + 공유 2.8GB).
+    넘친 만큼 본체 RAM(공유 GPU 메모리)을 쓰고 합성이 느려진다.
     모델 가중치는 그대로 두므로 다음 작업 속도에는 영향이 거의 없다"""
     try:
         import torch

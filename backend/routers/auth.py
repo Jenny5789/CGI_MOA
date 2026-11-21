@@ -1,17 +1,17 @@
-"""명세 2장 계정: 로그인, 회원가입, 내 정보, 로그아웃.
+"""계정: 로그인, 회원가입, 내 정보, 로그아웃.
 
-- POST /api/auth/login     : 로그인 (2-1)
-- POST /api/auth/register  : 회원가입, 가입 후 바로 로그인 상태 (2-2). 아이디·비밀번호·이메일 필수, 전화번호 선택
-- GET  /api/auth/check-username?username= : 아이디 중복확인 (2-6)
-- GET  /api/me             : 내 정보 (2-3), 로그인 필요
-- POST /api/auth/logout    : 로그아웃, 이 토큰을 더는 받지 않음 (2-4), 로그인 필요
-- POST /api/auth/extend    : 로그인 시간 연장 (명세 외 추가 10/15, docs/login_extend.md), 로그인 필요
-- 마이페이지 계정 설정 (명세 2-7~2-10, 10/20 추가), 모두 로그인 필요
+- POST /api/auth/login     : 로그인
+- POST /api/auth/register  : 회원가입, 가입 후 바로 로그인 상태. 아이디·비밀번호·이메일 필수, 전화번호 선택
+- GET  /api/auth/check-username?username= : 아이디 중복확인
+- GET  /api/me             : 내 정보, 로그인 필요
+- POST /api/auth/logout    : 로그아웃, 이 토큰을 더는 받지 않음, 로그인 필요
+- POST /api/auth/extend    : 로그인 시간 연장 (docs/login_extend.md), 로그인 필요
+- 마이페이지 계정 설정, 모두 로그인 필요
   - PATCH  /api/me           : 이름·휴대폰 번호·소개 글 수정
   - POST   /api/me/avatar    : 프로필 사진 올리기 (jpg/png, 10MB 이하) / DELETE: 기본 그림으로
   - PATCH  /api/me/email     : 이메일 변경, 지금 비밀번호 확인
   - PATCH  /api/me/password  : 비밀번호 변경, 지금 쓰는 기기만 로그인 유지
-  - DELETE /api/me           : 회원 탈퇴, 지금 비밀번호 확인 뒤 이 회원의 DB 기록과 storage 파일 삭제 (명세 2-11, 11/15 추가)
+  - DELETE /api/me           : 회원 탈퇴, 지금 비밀번호 확인 뒤 이 회원의 DB 기록과 storage 파일 삭제
 - 로그인·회원가입·연장 응답의 expires_at: 이 시각이 지나면 토큰 만료 (한국 시간)
 - 회원·토큰은 MySQL(backend/db.py), 시험용 회원 test / test1234
 """
@@ -157,7 +157,7 @@ def update_profile(body: ProfileBody, user: User = Depends(current_user), db: Se
 
 @router.post("/api/me/avatar")
 async def upload_avatar(file: UploadFile = File(...), user: User = Depends(current_user), db: Session = Depends(get_db)):
-    # 사진 올리기(명세 3-1)와 같은 검사: 10MB 이하 jpg/png, 휴대폰 회전 정보 반영. 저장할 때 EXIF는 남기지 않는다
+    # 사진 올리기와 같은 검사: 10MB 이하 jpg/png, 휴대폰 회전 정보 반영. 저장할 때 EXIF는 남기지 않는다
     data = await file.read(MAX_UPLOAD_BYTES + 1)
     if len(data) > MAX_UPLOAD_BYTES:
         raise ApiError(400, "IMAGE_TOO_LARGE", "사진은 10MB 이하만 올릴 수 있습니다.")
@@ -189,7 +189,7 @@ def reset_avatar(user: User = Depends(current_user), db: Session = Depends(get_d
 
 
 def _remove_files(paths):
-    """storage 파일을 지운다. 프로필 사진을 바꾸거나 되돌릴 때 예전 파일도 지운다 (11/15):
+    """storage 파일을 지운다. 프로필 사진을 바꾸거나 되돌릴 때 예전 파일도 지운다:
     users 행에는 지금 사진 이름만 남아, 예전 파일을 두면 회원 탈퇴 때 누구 것인지 찾아 지울 수 없다.
     서버가 만든 이름 형식만 지워, DB 값이 어긋나도 storage 밖이나 다른 종류의 파일은 건드리지 않는다.
     DB를 먼저 바꾼 뒤 부르므로, 파일을 지우지 못해도 요청은 성공으로 두고 서버 창에 남긴다"""
@@ -268,16 +268,10 @@ def _user_files(db: Session, user: User):
 
 @router.delete("/api/me")
 def withdraw(body: WithdrawBody, user: User = Depends(current_user), db: Session = Depends(get_db)):
-    """명세 2-11 회원 탈퇴 (11/15 추가). 지금 비밀번호를 다시 확인하고 이 회원의 DB 행과 storage 파일을 모두 지운다.
-
-    대기 중이거나 진행 중인 합성 작업이 있으면 409 JOB_IN_PROGRESS로 거절하고, 작업이 끝난 뒤 다시 요청받는다.
-    진행 중인 합성은 GPU 연산 도중에 멈출 수 없고, 끝나면 합성 일꾼이 results 행과 결과 사진을 새로 쓴다.
-    탈퇴 뒤에 이 기록이 생기면 주인 없는 결과가 남는다. 대기 중인 작업도 곧 일꾼이 시작하므로 함께 막는다.
-
+    """회원 탈퇴. 지금 비밀번호를 다시 확인하고 이 회원의 DB 행과 storage 파일을 모두 지운다.
+    대기·진행 중인 합성이 있으면 409 JOB_IN_PROGRESS (끝나면 일꾼이 결과를 새로 써 주인 없는 결과가 남으므로).
     지우는 순서: results → jobs → extractions → images → sessions → users, 한 트랜잭션.
-    results의 사진 외래키는 ON DELETE가 없어 사진 행 삭제를 막으므로, users 한 행만 지우고 CASCADE에 맡길 수 없다 (docs/database.md 5-1).
-    SQLite는 외래키 규칙을 기본으로 적용하지 않으므로 표마다 직접 지워 MySQL과 SQLite에서 같은 결과가 되게 한다.
-    파일은 DB 삭제가 확정된 뒤 지운다. 먼저 지우면 DB 삭제가 실패했을 때 사진 없는 기록만 남은 계정이 된다"""
+    results의 사진 외래키가 사진 행 삭제를 막아 users만 지우고 CASCADE에 맡길 수 없다. 파일은 DB 삭제가 확정된 뒤 지운다"""
     if not verify_password(body.password, user.password_hash):
         raise ApiError(400, "WRONG_PASSWORD", "비밀번호가 올바르지 않습니다.")
     if compose.has_active_job(user.id):

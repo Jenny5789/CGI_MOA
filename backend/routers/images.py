@@ -1,11 +1,11 @@
-"""명세 3-1 사진 올리기, 3-2 최근 사용한 사진.
+"""사진 올리기, 최근 사용한 사진.
 
 - 받는 값: file (jpg/png, 10MB 이하), kind ("garment" 상의 사진 / "person" 인물 사진),
   from_sample ("1"이면 예시 사진에서 고른 것, 생략 가능)
 - 돌려주는 값: { image_id, url, width, height }
 - 로그인 필요. 올린 회원 번호(user_id)를 함께 기록 → 그 회원만 추출·합성에 쓸 수 있음
-- 사진 파일은 storage/images에, 정보는 DB images 표에 저장 (추출·합성이 DB에서 읽음, 11/2)
-- GET /api/images/recent 는 최근 24시간 동안 올린 사진을 보여 준다 (10/17). 24시간이 지난 행은 지우지 않고 목록에서만 뺀다
+- 사진 파일은 storage/images에, 정보는 DB images 표에 저장 (추출·합성이 DB에서 읽음)
+- GET /api/images/recent 는 최근 24시간 동안 올린 사진을 보여 준다. 24시간이 지난 행은 지우지 않고 목록에서만 뺀다
   (행이 추출·합성이 사진을 찾는 기록이라 지우면 그 사진으로 한 작업의 재료를 찾지 못함).
   작은 사진(img_xxx_thumb.jpg, 긴 변 240px)도 함께 만들어 목록을 가볍게 한다
 """
@@ -82,7 +82,7 @@ async def upload_image(file: UploadFile = File(...), kind: str = Form(...), from
 
 @router.get("/api/images/recent")
 def recent_images(kind: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
-    """명세 3-2. 최근 RECENT_IMAGE_KEEP_HOURS 동안 직접 올린 사진 (예시 사진 제외, 같은 파일은 한 번, 최신순)"""
+    """최근 RECENT_IMAGE_KEEP_HOURS 동안 직접 올린 사진 (예시 사진 제외, 같은 파일은 한 번, 최신순)"""
     if kind not in IMAGE_KINDS:
         raise ApiError(400, "INVALID_KIND", "kind는 garment 또는 person이어야 합니다.")
     since = utcnow() - timedelta(hours=RECENT_IMAGE_KEEP_HOURS)
