@@ -5,11 +5,11 @@ import usePageStyle from '../components/usePageStyle.js';
 import useToast from '../components/useToast.js';
 import TopNav from '../components/TopNav.jsx';
 import { useAuth } from '../auth/AuthContext.jsx';
-import { listResults, updateResult } from '../api/results.js';
+import { deleteResult, listResults, updateResult } from '../api/results.js';
 import { formatKoreanDate } from '../utils/date.js';
 import { AccountPanel, ServiceSettings } from '../mypage/Settings.jsx';
 import Support from '../mypage/Support.jsx';
-import { PhotoMenu, PhotoViewer } from '../mypage/PhotoTools.jsx';
+import { DeleteConfirm, PhotoMenu, PhotoViewer } from '../mypage/PhotoTools.jsx';
 import { downloadResult } from '../utils/download.js';
 
 // 주소 뒤 # 표시로 가운데 화면을 고른다
@@ -47,6 +47,8 @@ export default function MyPage() {
   const [sort, setSort] = useState('new');
   const [toast, showToast] = useToast(2400);
   const [viewing, setViewing] = useState(null); // 크게 보기 중인 결과
+  const [removing, setRemoving] = useState(null); // 삭제 확인 창에 띄운 결과
+  const [removeBusy, setRemoveBusy] = useState(false);
   const { hash } = useLocation();
   const page = readHash(hash);
 
@@ -97,6 +99,22 @@ export default function MyPage() {
   };
 
   const save = (id) => patch(id, { saved: true }, '사진첩에 저장했습니다.');
+
+  // 명세 6-3. 확인 창에서 삭제를 누르면 서버에서 지우고, 크게 보기 중이던 같은 사진도 닫은 뒤 목록을 다시 받는다
+  const remove = async (it) => {
+    setRemoveBusy(true);
+    try {
+      await deleteResult(it.result_id);
+      setRemoving(null);
+      setViewing((v) => (v && v.result_id === it.result_id ? null : v));
+      showToast('사진을 삭제했습니다.');
+    } catch (e) {
+      showToast(e.message);
+    } finally {
+      setRemoveBusy(false);
+      setReload((n) => n + 1);
+    }
+  };
   const toggleFav = (id) => {
     const it = items.find((x) => x.result_id === id);
     if (!it || pending.has(id)) return;
@@ -168,7 +186,7 @@ export default function MyPage() {
                     <div className="as-card-foot">
                       <span>{formatKoreanDate(it.created_at)}</span>
                       {it.saved
-                        ? <PhotoMenu item={it} onView={setViewing} onDownload={download} />
+                        ? <PhotoMenu item={it} onView={setViewing} onDownload={download} onDelete={setRemoving} />
                         : <button type="button" className="as-save-btn" disabled={pending.has(it.result_id)} onClick={() => save(it.result_id)}>저장</button>}
                     </div>
                   </div>
@@ -179,7 +197,8 @@ export default function MyPage() {
         </main>
       </div>
 
-      {viewing && <PhotoViewer item={viewing} onClose={() => setViewing(null)} onDownload={download} />}
+      {viewing && <PhotoViewer item={viewing} onClose={() => setViewing(null)} onDownload={download} onDelete={setRemoving} />}
+      {removing && <DeleteConfirm item={removing} busy={removeBusy} onCancel={() => setRemoving(null)} onConfirm={remove} />}
       <div className={'toast' + (toast.show ? ' show' : '')}>{toast.msg}</div>
     </>
   );

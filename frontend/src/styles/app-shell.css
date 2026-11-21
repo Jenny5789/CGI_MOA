@@ -449,6 +449,7 @@ button { font-family: var(--sans); }
 .as-btn:disabled { opacity: .4; cursor: default; }
 .as-btn.ghost { background: var(--paper-soft); color: var(--ink); border-color: var(--border); }
 .as-btn.danger { background: #d0453a; border-color: #d0453a; }
+.as-btn.ghost.danger { background: var(--paper-soft); color: #d0453a; border-color: var(--border); }
 /* 회원 탈퇴 비밀번호 확인 창, 11/15. 창 안의 안내는 오류 문구뿐이라 빨간색 */
 .as-confirm { position: fixed; inset: 0; z-index: 60; background: rgba(16,17,20,.72); display: flex; align-items: center; justify-content: center; padding: 16px; }
 .as-confirm-box { width: min(380px, 100%); background: var(--paper-soft); padding: 24px; }
@@ -483,6 +484,12 @@ button { font-family: var(--sans); }
 .as-more-menu { position: absolute; right: 0; bottom: calc(100% + 6px); z-index: 20; min-width: 112px; background: var(--paper-soft); border: 1px solid var(--border); box-shadow: 0 6px 18px rgba(0,0,0,.08); }
 .as-more-menu button { display: block; width: 100%; padding: 10px 14px; border: none; background: none; text-align: left; font-family: var(--sans); font-size: 13px; color: var(--ink); cursor: pointer; }
 .as-more-menu button:hover { background: var(--paper); }
+.as-more-menu button.danger { color: #d0453a; }
+.as-confirm-box { background: var(--paper-soft); width: min(360px, 100%); padding: 24px; display: flex; flex-direction: column; align-items: center; text-align: center; }
+.as-confirm-box img { width: 120px; height: 120px; object-fit: cover; margin-bottom: 16px; background: #fdfdfd; }
+.as-confirm-title { margin: 0 0 8px; font-size: 15px; font-weight: 600; color: var(--ink); }
+.as-confirm-desc { margin: 0 0 20px; font-size: 13px; line-height: 1.6; color: var(--muted); }
+.as-confirm-foot { display: flex; gap: 8px; justify-content: center; }
 .as-viewer { position: fixed; inset: 0; z-index: 60; background: rgba(16,17,20,.72); display: flex; align-items: center; justify-content: center; padding: 24px; }
 .as-viewer-box { background: var(--paper-soft); max-width: min(960px, 100%); max-height: 100%; display: flex; flex-direction: column; }
 .as-viewer-box img { display: block; max-width: 100%; max-height: calc(100vh - 140px); object-fit: contain; background: #fdfdfd; }

@@ -12,3 +12,8 @@ export function listResults(filters = {}) {
 export function updateResult(resultId, patch) {
   return request('PATCH', `/results/${encodeURIComponent(resultId)}`, patch);
 }
+
+// 명세 6-3. 결과 기록과 사진 파일 삭제, 되돌릴 수 없음
+export function deleteResult(resultId) {
+  return request('DELETE', `/results/${encodeURIComponent(resultId)}`);
+}

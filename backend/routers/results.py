@@ -3,6 +3,7 @@
 - GET   /api/results            : 결과 목록 (명세 6-1). 사진첩 탭, 내 작업 기록
 - GET   /api/results/{id}       : 결과 하나 (명세 5-3)
 - PATCH /api/results/{id}       : 저장 / 좋아요 (명세 6-2)
+- DELETE /api/results/{id}      : 결과 삭제 (명세 6-3, 11/17). 저장 여부와 관계없이 자기 결과의 DB 기록과 결과 사진 파일 삭제
 - GET   /api/results/{id}/source: 결과를 만든 재료 (명세 6-4). 합성하기 "내 작업 기록"에서 결과를 열 때 1~4단계를 채운다
 - 저장하지 않은 결과는 만든 지 24시간 뒤 지운다 (명세 5-3, 10/16 결정: 3일 → 24시간). 목록을 볼 때 지난 것을 정리한다 (10분에 한 번, RESULT_CLEANUP_SECONDS)
 - 로그인 필요. 자기 결과만 보이고 바꿀 수 있음 (남의 결과는 404). 결과 정보는 DB results 표(11/2), 결과 사진은 storage/results에 파일로 저장
@@ -182,3 +183,15 @@ def update_result(result_id: str, change: ResultPatch, user: User = Depends(curr
         row.favorite = change.favorite
     db.commit()
     return _public(row, DETAIL_KEYS)
+
+
+@router.delete("/api/results/{result_id}")
+def delete_result(result_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """명세 6-3. DB 행을 먼저 지우고 확정된 뒤 사진 파일을 지운다. 파일을 먼저 지우면 DB 삭제 실패 시 사진 없는 기록만 남기 때문.
+    작업 기록(jobs)과 재료 파일은 다른 결과·재합성에 쓰일 수 있어 그대로 둔다. 24시간 정리(_remove_expired)와 같은 범위"""
+    row = _load(db, result_id, user)
+    db.delete(row)
+    db.commit()
+    for name in (f"{result_id}.png", f"{result_id}_thumb.jpg"):
+        (RESULTS_DIR / name).unlink(missing_ok=True)
+    return {"result_id": result_id, "deleted": True}
