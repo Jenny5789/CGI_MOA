@@ -14,7 +14,7 @@
 | `main.py` | 서버 시작, API 등록, AnyDoor 예열 | - |
 | `config.py` | 저장 위치, 업로드 제한 값, 프로필 사진 크기 | - |
 | `errors.py` | 오류 응답 형식 | [0. 공통 규칙](../docs/api.md#0-공통-규칙) |
-| `db.py` | MySQL 연결, 표 6개·테스트 계정 생성, 예전 표에 새 칸 추가, 요청 밖(합성 스레드)에서 쓰는 DB 세션 | [database.md 5. 테이블 구성](../docs/database.md#5-테이블-구성) |
+| `db.py` | MySQL 연결, 표 6개·테스트 계정 생성, `users` 표에 없는 칸(`phone`·`bio`·`avatar`) 추가, 요청 밖(합성 스레드)에서 쓰는 DB 세션 | [database.md 5. 테이블 구성](../docs/database.md#5-테이블-구성) |
 | `auth.py`, `routers/auth.py` | 로그인, 회원가입, 내 정보, 로그아웃, 로그인 시간 연장, 마이페이지 계정 설정, 회원 탈퇴 | [2. 계정 관리 API](../docs/api.md#2-계정-관리-api) |
 | `routers/images.py` | 이미지 업로드 | [3-1. 이미지 업로드](../docs/api.md#3-1-이미지-업로드) |
 | `routers/extract.py` | 상의 영역 추출 (SAM2) | [4-1. 상의 영역 추출](../docs/api.md#4-1-상의-영역-추출) |
@@ -40,20 +40,19 @@
 
 - SAM2 관련 설정: [features/object_extraction/README.md](../features/object_extraction/README.md)
 
-## 4. 마이페이지 계정 설정 · 2026-10-20
+## 4. 마이페이지 계정 설정
 
 | 주소 | 기능 | 명세 |
 |---|---|---|
-| `PATCH /api/me` | 이름 1~20자, 휴대폰 번호, 소개 글 60자 이하. 보낸 항목만 변경 | [2-7](../docs/api.md#2-7-프로필-수정-추가-제안) |
-| `POST /api/me/avatar`, `DELETE /api/me/avatar` | 프로필 사진 올리기, 기본 그림으로 | [2-8](../docs/api.md#2-8-프로필-사진-변경-추가-제안) |
-| `PATCH /api/me/email` | 이메일 변경, 지금 비밀번호 확인 | [2-9](../docs/api.md#2-9-이메일-변경-추가-제안) |
-| `PATCH /api/me/password` | 비밀번호 변경, 이 토큰만 남기고 같은 회원의 다른 토큰 폐기 | [2-10](../docs/api.md#2-10-비밀번호-변경-추가-제안) |
-| `DELETE /api/me` | 회원 탈퇴, 지금 비밀번호 확인 뒤 회원의 DB 기록과 `storage/` 파일 삭제. 합성 대기·진행 중이면 409 | [2-11](../docs/api.md#2-11-회원-탈퇴-추가-제안) |
+| `PATCH /api/me` | 이름 1~20자, 휴대폰 번호, 소개 글 60자 이하. 보낸 항목만 변경 | [2-7](../docs/api.md#2-7-프로필-수정) |
+| `POST /api/me/avatar`, `DELETE /api/me/avatar` | 프로필 사진 올리기, 기본 그림으로 | [2-8](../docs/api.md#2-8-프로필-사진-변경) |
+| `PATCH /api/me/email` | 이메일 변경, 지금 비밀번호 확인 | [2-9](../docs/api.md#2-9-이메일-변경) |
+| `PATCH /api/me/password` | 비밀번호 변경, 이 토큰만 남기고 같은 회원의 다른 토큰 폐기 | [2-10](../docs/api.md#2-10-비밀번호-변경) |
+| `DELETE /api/me` | 회원 탈퇴, 지금 비밀번호 확인 뒤 회원의 DB 기록과 `storage/` 파일 삭제. 합성 대기·진행 중이면 409 | [2-11](../docs/api.md#2-11-회원-탈퇴) |
 
-- DB: 서버 시작 시 `users` 표에 `bio` 소개 글, `avatar` 프로필 사진 파일명 칸이 없으면 추가. 기존 데이터 유지
+- DB: 서버 시작 시 `users` 표에 `phone` 휴대폰 번호, `bio` 소개 글, `avatar` 프로필 사진 파일명 칸이 없으면 추가. 기존 데이터 유지
 - 프로필 사진: 사진 업로드와 동일한 jpg·png, 10MB 이하 검사 → 휴대폰 회전 정보 반영 → 중앙 정사각형 256px로 `storage/avatars/avt_xxx.jpg` 저장. EXIF 미저장. 변경마다 새 파일명 부여로 브라우저 캐시의 이전 사진 표시 방지, 이전 파일은 변경·기본 그림 전환 때 삭제
 - 프로필 사진 주소: 다른 사진과 동일하게 `?key=` 열쇠가 붙은 `/api/files/avt_...` 주소. `config.py` `FILE_DIRS`의 `avt`
-- 시험: `MOA_WARMUP=0` 설정의 8001 포트 별도 서버에서 22개 사례 확인. 형식 오류 400, 비밀번호 불일치 400, 중복 이메일 409, 비밀번호 변경 후 타 기기 토큰 401, 사진 256×256·EXIF 없음
 
 ## 5. 저장 방식
 
@@ -70,4 +69,4 @@
 - 정리
   - 저장하지 않은 합성 결과: 결과 목록 조회 때 24시간이 지난 것의 `results` 기록과 이미지 파일 삭제 (`RESULT_KEEP_HOURS`). 전체 회원이 대상이라 10분에 한 번만 실행 (`RESULT_CLEANUP_SECONDS`)
   - 업로드 이미지: 삭제하지 않음. 24시간이 지나면 최근 사용한 이미지 목록에서만 제외하고 기록과 파일은 유지 (`RECENT_IMAGE_KEEP_HOURS`)
-- 예전 json 기록을 가져오는 방법: [database.md 6. 예전 기록 가져오기](../docs/database.md#6-예전-기록-가져오기)
+- `storage/` json 기록을 DB로 가져오는 방법: [database.md 6. json 기록 가져오기](../docs/database.md#6-json-기록-가져오기)

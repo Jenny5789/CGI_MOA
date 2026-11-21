@@ -3,9 +3,9 @@
 - 받는 값: { image_id, points: [{ x, y, label }], box: { x1, y1, x2, y2 } }
   - x, y: 사진 안 위치를 0~1 비율로 (왼쪽 위 0,0 / 오른쪽 아래 1,1)
   - label: 1 포함(왼쪽 클릭), 0 제외(오른쪽 클릭)
-  - box (선택, 명세 외 추가 제안 2026-10-13): 상의를 감싸는 사각형. 왼쪽 위(x1, y1)·오른쪽 아래(x2, y2)를 0~1 비율로
+  - box (선택): 상의를 감싸는 사각형. 왼쪽 위(x1, y1)·오른쪽 아래(x2, y2)를 0~1 비율로
     - 점만 / 박스만 / 박스 + 점 모두 가능. 포함 점이나 박스 중 하나는 있어야 함
-    - 시험 결과(2026-10-11, docs/작업일지.md 10/13 ③)상 "박스 + 보정 점 1개"가 가장 정확 (IoU 0.966, 점만 0.950)
+    - "박스 + 보정 점 1개"가 점만 찍을 때보다 정확
 - 돌려주는 값: { extraction_id, mask_url, cutout_url, bbox: { x, y, w, h } }
   - mask: 원본과 같은 크기 흑백 PNG (상의 255, 나머지 0)
   - cutout: 상의만 남기고 배경을 투명하게 한 PNG. 추출 때는 만들지 않고 이 주소를 처음 열 때 만든다
@@ -13,7 +13,7 @@
   - bbox: 상의를 감싸는 사각형 (원본 픽셀 기준)
 - SAM2는 backend/model_client.py를 거쳐 호출. MODEL_SERVER_URL이 있으면 모델 추론 서버, 없으면 features/object_extraction의 extract_object 직접 실행
 - 로그인 필요. 자기가 올린 사진만 추출 가능, 결과에 회원 번호(user_id) 기록
-- 윤곽 사진은 storage/extractions에, 정보는 DB extractions 표에 저장 (11/2). cutout 사진은 처음 열 때 같은 폴더에 만든다
+- 윤곽 사진은 storage/extractions에, 정보는 DB extractions 표에 저장. cutout 사진은 처음 열 때 같은 폴더에 만든다
 """
 import time
 import uuid

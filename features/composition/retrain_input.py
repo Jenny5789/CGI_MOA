@@ -3,16 +3,14 @@
 - 배경: 재학습 가중치 aug·mix는 scripts/retrain/retrain_dataset.py 형식으로 학습됨
   - 생성 영역 안만 검게 비우고 생성 영역 밖 몸은 원본 유지
   - 옷 윤곽선 지도를 옷 사진 비율 그대로, 어깨 너비 기준 크기로 목 아래에 배치
-  원래 AnyDoor 형식으로 넣으면 학습 때 본 적 없는 입력이 되어 2026-11-10 비교에서 공식 가중치보다 불리했다
-- 11/10 시험 결과: mix35000 같은 8건에서 실루엣 일치도 0.912 → 0.804, 셔츠 색 차이 8.21 → 13.53으로 기존 입력보다 불리,
-  7건 중 2건 깨짐. 학습 생성 영역은 VITON-HD agnostic 마스크 모양이고 앱 합성 영역은 사용자가 칠한 모양이라 생긴 차이로 추정.
-  배포는 ANYDOOR_INPUT=anydoor, 이 형식은 합성 영역을 학습 생성 영역 모양으로 만드는 단계가 생기면 다시 시험
+  원래 AnyDoor 형식으로 넣으면 학습 때 본 적 없는 입력이 된다
+- 앱 합성 영역에서는 이 형식이 원래 AnyDoor 입력보다 불리해 배포는 ANYDOOR_INPUT=anydoor.
+  학습 생성 영역은 VITON-HD agnostic 마스크 모양이고 앱 합성 영역은 사용자가 칠한 모양이라 생긴 차이로 추정
 - inference_item·placed_hint·body_width·server_crop: retrain_dataset.py의 같은 이름 함수를 그대로 옮김.
   AnyDoor data_utils 함수는 anydoor_composer가 불러온 run_inference.py 이름 공간에서 받음
 - 관절 점: 학습·평가는 VITON-HD OpenPose 값을 썼고 앱 사진에는 없음. 새 모델 없이 SAM2 사람 영역으로 계산
   - 어깨: 몸 윤곽 양쪽 끝선이 목에서 바깥으로 벌어지다 팔을 따라 수직에 가깝게 꺾이는 지점, 좌우 높이는 가운데로 맞춤
   - 목: OpenPose 정의와 같이 두 어깨의 가운데
-  - 11/10 사람 6명 사진에서 위치 육안 확인, 결과 품질은 공식 대 재학습 합성 비교로 검증
 """
 import cv2
 import numpy as np

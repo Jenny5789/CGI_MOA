@@ -54,15 +54,6 @@
 | 상의 영역 추출 | 평균 IoU **0.86** (클릭 3회), 클릭 1회 0.77 (VITON-HD 무작위 30쌍) | [6-3](#6-3-착용-사진의-인물-전체-추출) |
 | 서비스 구조 | 화면 · 웹 서버 · 모델 추론 서버 분리, Docker로 GPU PC 한 대에서 전체 서비스 실행 | [3장](#3-서비스-구조), [7장](#7-설치-및-실행) |
 
-### 1-2. 실행 환경
-
-| 영역 | 범위 |
-|---|---|
-| 웹 | 데스크톱 1440px, 모바일 375px 반응형 |
-| 배포 | 로컬 개발 서버, Docker 컨테이너 실행 ([docs/docker.md](docs/docker.md)) |
-
-- 운영체제 · GPU 등 요구 사양: [7. 설치 및 실행](#7-설치-및-실행)
-
 ---
 
 ## 2. 합성 결과
@@ -381,7 +372,7 @@ sequenceDiagram
 
 ## 7. 설치 및 실행
 
-- Docker로 한 번에 실행: NVIDIA GPU가 있는 PC 한 대에서 가중치 받기와 실행 명령 두 줄로 전체 서비스 실행, [local/README.md](local/README.md)
+- Docker로 한 번에 실행: NVIDIA GPU가 있는 PC 한 대에서 가중치 받기와 실행 명령 두 줄로 전체 서비스 실행, [local/README.md](local/README.md), 구성 설명: [docs/docker.md](docs/docker.md)
 - Python 가상환경에 직접 설치하는 개발용 절차: [docs/setup.md](docs/setup.md)
 
 | 항목 | 내용 |
@@ -391,6 +382,7 @@ sequenceDiagram
 | PC 메모리 (RAM) | 32GB에서 검증 |
 | 디스크 | 가중치 파일용 여유 공간 약 21.7GB |
 | DB | SQLite 기본 사용, 별도 설치 불필요. 팀 공용 MySQL 구성: [docs/database.md](docs/database.md) |
+| 지원 화면 크기 | 데스크톱 1440px, 모바일 375px 반응형 |
 | 설치 오류 조치 | [설치 오류별 조치](docs/environment.md#2-설치-오류별-조치) |
 
 ---

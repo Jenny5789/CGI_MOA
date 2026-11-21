@@ -2,7 +2,7 @@
 
 - 비밀번호: PBKDF2-SHA256 (파이썬 기본 hashlib, 추가 패키지 없음). 저장 형식 "pbkdf2_sha256$반복수$소금$해시"
 - 토큰: 무작위 글자. DB에는 토큰의 SHA-256 해시만 저장 (DB가 새어도 토큰으로 로그인 못 하게)
-- 토큰 유효 기간: TOKEN_HOURS (3시간, 10/15 결정). 로그인한 시각부터 셈, 쓰는 중에 저절로 늘지 않음
+- 토큰 유효 기간: TOKEN_HOURS (3시간). 로그인한 시각부터 셈, 쓰는 중에 저절로 늘지 않음
 - 연장: 화면이 만료 전에 사용자에게 묻고, 연장하면 POST /api/auth/extend → 그 시각부터 다시 3시간 (docs/login_extend.md)
 - 로그인 필요한 주소: 함수 인자에 user: User = Depends(current_user). 이 요청의 토큰도 필요하면 session = Depends(current_session) → (회원, 토큰)
 """
@@ -49,7 +49,7 @@ def password_ok(password: str) -> bool:
 
 
 def username_ok(username: str) -> bool:
-    """명세 2-2 아이디: 공백 없이 1~12자 (앞뒤 공백은 미리 지운 값, 10/17 50자 → 12자)"""
+    """명세 2-2 아이디: 공백 없이 1~12자 (앞뒤 공백은 미리 지운 값)"""
     return bool(username) and len(username) <= USERNAME_MAX and not any(c.isspace() for c in username)
 
 

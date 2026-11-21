@@ -1,6 +1,6 @@
 """모델 호출 계층. 이미지 분할·이미지 합성·예열을 한 곳에서 처리한다.
 
-- 환경 변수 MODEL_SERVER_URL 비움: 이 서버 프로세스에서 SAM2·이미지 합성 모델 직접 실행. 기존 방식
+- 환경 변수 MODEL_SERVER_URL 비움: 이 서버 프로세스에서 SAM2·이미지 합성 모델 직접 실행
 - MODEL_SERVER_URL 설정: 모델 추론 서버 model_server/app.py로 HTTP 요청. 이 서버는 모델을 적재하지 않음
   - MODEL_TOKEN: 모델 서버에 같은 값이 설정된 경우 요청 헤더 X-Model-Token으로 전달
   - 이미지는 디코딩한 배열을 PNG로 전송. 손실 압축 없이 직접 실행과 같은 입력 보장
