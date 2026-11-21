@@ -28,12 +28,12 @@ def health():
 
 
 # 기능별 주소
-app.include_router(auth.router)      # 로그인, 회원가입, 내 정보, 로그아웃, 계정 설정, 회원 탈퇴 (MySQL)
-app.include_router(images.router)    # 사진 올리기, 최근 사용한 사진
-app.include_router(files.router)     # 파일 보기
-app.include_router(extract.router)   # 상의 추출
-app.include_router(compose.router)   # 합성 요청, 진행 확인
-app.include_router(results.router)   # 결과, 사진첩 (저장/좋아요/삭제), 결과 재료 보기
+app.include_router(auth.router)      # 명세 2-1~2-11 로그인, 회원가입, 내 정보, 로그아웃, 계정 설정, 회원 탈퇴 (MySQL)
+app.include_router(images.router)    # 명세 3-1 사진 올리기, 3-2 최근 사용한 사진
+app.include_router(files.router)     # 명세 7장 파일 보기
+app.include_router(extract.router)   # 명세 4-1 상의 추출
+app.include_router(compose.router)   # 명세 5-1~5-2 합성 요청, 진행 확인
+app.include_router(results.router)   # 명세 5-3, 6-1~6-4 결과, 사진첩 (저장/좋아요/삭제), 결과 재료 보기
 
 
 @app.on_event("startup")

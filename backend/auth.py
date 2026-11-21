@@ -23,8 +23,8 @@ from backend.errors import ApiError
 TOKEN_HOURS = 3
 USERNAME_MAX = 12  # 아이디 최대 글자 수 (화면 frontend/src/auth/signupRules.js와 같게)
 _ITERATIONS = 600_000  # OWASP 비밀번호 저장 안내(2023)가 PBKDF2-HMAC-SHA256에 권하는 반복 횟수. 저장 형식에 반복 수가 적혀 있어, 값을 바꿔도 이미 저장된 비밀번호는 그 값으로 확인된다
-_PASSWORD_RULE = re.compile(r"^(?=.*\d).{8,}$")  # 8자 이상, 숫자 포함
-# 이메일: 인증 메일은 보내지 않지만, 형식이 맞아야 하고 한 이메일로 한 번만 가입 (무분별한 가입 방지)
+_PASSWORD_RULE = re.compile(r"^(?=.*\d).{8,}$")  # 명세 2-2: 8자 이상, 숫자 포함
+# 명세 2-2 이메일: 인증 메일은 보내지 않지만, 형식이 맞아야 하고 한 이메일로 한 번만 가입 (무분별한 가입 방지)
 _EMAIL_RULE = re.compile(r"^[a-z0-9._%+-]+@[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$")
 _PHONE_RULE = re.compile(r"^01[016789]\d{7,8}$")  # 휴대폰 번호 (하이픈 빼고 10~11자리)
 
@@ -49,7 +49,7 @@ def password_ok(password: str) -> bool:
 
 
 def username_ok(username: str) -> bool:
-    """아이디: 공백 없이 1~12자 (앞뒤 공백은 미리 지운 값)"""
+    """명세 2-2 아이디: 공백 없이 1~12자 (앞뒤 공백은 미리 지운 값)"""
     return bool(username) and len(username) <= USERNAME_MAX and not any(c.isspace() for c in username)
 
 

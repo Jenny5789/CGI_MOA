@@ -29,7 +29,7 @@ class Base(DeclarativeBase):
 
 
 class User(Base):
-    """회원"""
+    """회원 (명세 2-2, 2-3)"""
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -44,7 +44,7 @@ class User(Base):
 
 
 class UploadedImage(Base):
-    """올린 사진 기록. 합성하기 "최근 사용한 사진" 목록에 쓰고, 추출·합성·재료 보기가 사진을 찾을 때도 쓴다.
+    """올린 사진 기록 (명세 3-1, 3-2). 합성하기 "최근 사용한 사진" 목록에 쓰고, 추출·합성·재료 보기가 사진을 찾을 때도 쓴다.
     사진 파일은 storage/images에 두고, 여기엔 정보만. RECENT_IMAGE_KEEP_HOURS가 지난 기록도 지우지 않고 최근 사용한 사진 목록에서만 뺀다.
     지우면 그 사진으로 만든 추출·합성 결과의 재료를 찾지 못한다. 자세한 설명은 routers/images.py 맨 위"""
     __tablename__ = "images"
@@ -62,7 +62,7 @@ class UploadedImage(Base):
 
 
 class Extraction(Base):
-    """상의 추출 결과 기록. 윤곽·cutout 사진 파일은 storage/extractions에 두고, 여기엔 정보만"""
+    """상의 추출 결과 기록 (명세 4-1). 윤곽·cutout 사진 파일은 storage/extractions에 두고, 여기엔 정보만"""
     __tablename__ = "extractions"
 
     extraction_id: Mapped[str] = mapped_column(String(32), primary_key=True)
@@ -78,7 +78,7 @@ class Extraction(Base):
 
 
 class Job(Base):
-    """합성 작업 기록. 입힐 영역·다듬은 윤곽 그림 파일은 storage/jobs에 두고, 여기엔 진행 상태와 합성 설정만.
+    """합성 작업 기록 (명세 5-1, 5-2). 입힐 영역·다듬은 윤곽 그림 파일은 storage/jobs에 두고, 여기엔 진행 상태와 합성 설정만.
     진행 중인 작업의 대기열 순서는 메모리(routers/compose.py)가 맡고, 여기는 서버를 다시 켠 뒤에도 남는 기록"""
     __tablename__ = "jobs"
 
@@ -101,7 +101,7 @@ class Job(Base):
 
 
 class Result(Base):
-    """합성 결과 기록. 결과 사진(res_xxx.png)과 작은 사진(res_xxx_thumb.jpg)은 storage/results에 두고,
+    """합성 결과 기록 (명세 5-3, 6-1, 6-2). 결과 사진(res_xxx.png)과 작은 사진(res_xxx_thumb.jpg)은 storage/results에 두고,
     여기엔 정보와 사진첩 상태(저장·좋아요)만. 사진 주소(image_url, thumb_url)는 저장하지 않고 결과 번호에서 만들어 응답한다"""
     __tablename__ = "results"
 
@@ -120,7 +120,7 @@ class Result(Base):
 
 
 class AuthSession(Base):
-    """로그인 증표. 토큰 원문 대신 해시를 저장한다"""
+    """로그인 증표 (명세 2-1, 2-4). 토큰 원문 대신 해시를 저장한다"""
     __tablename__ = "sessions"
 
     token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)

@@ -17,12 +17,12 @@ FILE_DIRS = {"img": IMAGES_DIR, "ext": EXTRACTIONS_DIR, "res": RESULTS_DIR, "job
              "avt": AVATARS_DIR}
 AVATAR_SIDE = 256  # 프로필 사진은 가운데를 정사각형으로 잘라 이 크기로 저장
 
-# 올리는 사진: 10MB 이하, jpg/png
+# 명세 3-1 올리는 사진: 10MB 이하, jpg/png
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 ALLOWED_FORMATS = {"JPEG": ".jpg", "PNG": ".png"}
 IMAGE_KINDS = {"garment", "person"}
 
-# 저장하지 않은 합성 결과를 남겨 두는 시간
+# 명세 5-3: 저장하지 않은 합성 결과를 남겨 두는 시간
 RESULT_KEEP_HOURS = 24
 RESULT_CLEANUP_SECONDS = 600  # 저장하지 않은 결과 정리(전체 회원)를 이 간격보다 자주 하지 않는다. 결과 목록 조회 때 확인하므로 정리가 최대 이 시간만큼 늦을 수 있음
 RECENT_IMAGE_KEEP_HOURS = 24  # 합성하기 "최근 사용한 사진" 목록에 남기는 시간 (올린 사진 기록 db.UploadedImage)

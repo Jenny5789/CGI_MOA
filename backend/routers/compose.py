@@ -1,15 +1,15 @@
-"""합성 요청과 진행 확인.
+"""명세 5-1~5-2 합성 요청과 진행 확인.
 
-- POST /api/compose        : 합성 요청. 작업 번호를 바로 돌려주고 합성은 뒤에서 진행
-- GET  /api/jobs/{job_id}  : 진행 확인
-- 결과 받기는 routers/results.py (사진첩과 같은 "결과" 묶음)
+- POST /api/compose        : 합성 요청. 작업 번호를 바로 돌려주고 합성은 뒤에서 진행 (명세 5-1)
+- GET  /api/jobs/{job_id}  : 진행 확인 (명세 5-2)
+- 결과 받기(명세 5-3)는 routers/results.py (사진첩과 같은 "결과" 묶음)
 
 처리 방식
 - 합성 전담 일꾼(스레드) 하나가 들어온 순서대로 한 번에 한 장씩 처리
 - 모델 호출은 backend/model_client.py를 거친다. MODEL_SERVER_URL이 있으면 모델 추론 서버로 HTTP 요청, 없으면 이 서버에서 직접 실행
 - 직접 실행 시 GPU는 추출과 같은 GPU_LOCK으로 차례를 지킨다 (합성 중에 들어온 추출 요청은 합성이 끝날 때까지 기다림)
 - 이미지 합성은 features/composition의 compose와 같은 설정. 50스텝, 16비트 연산·가중치
-- 상의 윤곽: 화면 "다듬기"에서 고친 윤곽(garment_mask)을 보내면 그것으로, 안 보내면 SAM2 윤곽으로 합성
+- 상의 윤곽: 화면 "다듬기"에서 고친 윤곽(garment_mask)을 보내면 그것으로, 안 보내면 명세 4-1 SAM2 윤곽으로 합성
 - 합성 설정 고정: 상의 경계 다듬기(Reference Mask Refine) 항상 켬, 칠한 모양 그대로(Enable Shape Control) 항상 끔.
   경계 다듬기는 결과가 같거나 상품 색에 더 가깝고, 칠한 모양 그대로는 원래 옷보다 큰 셔츠에서 깨진다.
   요청에서 refine·shape_control 값을 받지 않는다. 작업 기록(DB jobs 표)에는 고정값을 남긴다
@@ -73,7 +73,7 @@ def _update(job_id, **changes):
 
 
 def has_active_job(user_id):
-    """회원 탈퇴 전에 확인: 이 회원의 작업 중 대기 중이거나 진행 중인 것이 있으면 True.
+    """회원 탈퇴(명세 2-11) 전에 확인: 이 회원의 작업 중 대기 중이거나 진행 중인 것이 있으면 True.
     메모리 작업 정보가 기준이다. DB jobs 표의 queued·running은 서버를 다시 켜기 전 기록일 수 있어 보지 않는다"""
     with _lock:
         return any(j["user_id"] == user_id and j["status"] in ("queued", "running") for j in _jobs.values())
@@ -87,7 +87,7 @@ def forget_user_jobs(user_id):
 
 
 def _public(job):
-    """진행 확인 응답 모양으로"""
+    """명세 5-2 진행 확인 응답 모양으로"""
     with _lock:
         position = _waiting.index(job["job_id"]) + 1 if job["job_id"] in _waiting else 0
     return {
@@ -174,7 +174,7 @@ def _run(job_id):
 
     # 사진·윤곽 파일 이름은 합성 요청 때 확인해 메모리 작업 정보에 넣어 두었다 (request_compose). 여기서 DB를 다시 읽지 않는다
     ref = np.array(Image.open(IMAGES_DIR / job["garment_file"]).convert("RGB"))
-    # 상의 윤곽: 화면에서 다듬은 윤곽이 있으면 그것, 없으면 SAM2 윤곽
+    # 상의 윤곽: 화면에서 다듬은 윤곽이 있으면 그것, 없으면 명세 4-1 SAM2 윤곽
     ref_mask_path = JOBS_DIR / job["garment_mask"] if job.get("garment_mask") else EXTRACTIONS_DIR / job["extraction_mask"]
     ref_mask = (np.array(Image.open(ref_mask_path).convert("L")) > 127).astype(np.uint8)
     tar = np.array(Image.open(IMAGES_DIR / job["person_file"]).convert("RGB"))
@@ -270,7 +270,7 @@ async def request_compose(
     person = load_image_info(person_image_id, user, db)    # 없거나 남의 것이면 404
     garment = load_image_info(ext["image_id"], db=db)      # 추출한 상의 사진 (내 추출 결과가 가리키는 사진)
 
-    # 입힐 영역: 인물 사진과 같은 비율이면 되고, 크기는 서버가 원본에 맞춘다 (칠한 곳 255)
+    # 명세 5-1 입힐 영역: 인물 사진과 같은 비율이면 되고, 크기는 서버가 원본에 맞춘다 (칠한 곳 255)
     mask = await _read_mask(area_mask, person["width"], person["height"], "INVALID_AREA_MASK", "입힐 영역 그림")
     if mask.sum() == 0:
         raise ApiError(400, "EMPTY_AREA", "입힐 영역을 칠해 주세요.")

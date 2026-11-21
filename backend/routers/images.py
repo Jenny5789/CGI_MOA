@@ -1,4 +1,4 @@
-"""사진 올리기, 최근 사용한 사진.
+"""명세 3-1 사진 올리기, 3-2 최근 사용한 사진.
 
 - 받는 값: file (jpg/png, 10MB 이하), kind ("garment" 상의 사진 / "person" 인물 사진),
   from_sample ("1"이면 예시 사진에서 고른 것, 생략 가능)
@@ -82,7 +82,7 @@ async def upload_image(file: UploadFile = File(...), kind: str = Form(...), from
 
 @router.get("/api/images/recent")
 def recent_images(kind: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
-    """최근 RECENT_IMAGE_KEEP_HOURS 동안 직접 올린 사진 (예시 사진 제외, 같은 파일은 한 번, 최신순)"""
+    """명세 3-2. 최근 RECENT_IMAGE_KEEP_HOURS 동안 직접 올린 사진 (예시 사진 제외, 같은 파일은 한 번, 최신순)"""
     if kind not in IMAGE_KINDS:
         raise ApiError(400, "INVALID_KIND", "kind는 garment 또는 person이어야 합니다.")
     since = utcnow() - timedelta(hours=RECENT_IMAGE_KEEP_HOURS)
