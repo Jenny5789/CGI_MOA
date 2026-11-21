@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>MOA 처리 흐름</title>
+<style>
+  :root { --accent:#2b3a67; --tint:#e9eef6; --beige:#f4f2ee; --ink:#222; --sub:#6b6560; --line:#d9d3c8; --bd:#b7c1da; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:#ffffff; font-family:"Malgun Gothic","Segoe UI",sans-serif; color:var(--ink); word-break:keep-all; }
+  #canvas { width:1200px; background:var(--beige); padding:34px 36px 30px; }
+
+  h1 { font-size:34px; font-weight:800; letter-spacing:-0.5px; }
+  .subtitle { margin-top:6px; font-size:16px; color:var(--sub); }
+
+  /* 5단계 카드: 열 방향으로 채워 같은 칸끼리 줄이 맞는다 */
+  #flow { margin-top:26px; display:grid; grid-template-columns:repeat(5, 1fr); grid-template-rows:auto auto auto auto; grid-auto-flow:column; column-gap:26px; }
+  .c { background:#fff; border-left:2px solid var(--bd); border-right:2px solid var(--bd); padding:12px 14px 13px; }
+  .c.h { background:var(--tint); border:2px solid var(--bd); border-radius:12px 12px 0 0; padding:13px 14px; display:flex; align-items:center; gap:9px; position:relative; font-size:16.5px; font-weight:800; color:var(--accent); line-height:1.3; }
+  .c.h i { flex:none; width:26px; height:26px; border-radius:50%; background:var(--accent); color:#fff; font-style:normal; font-size:14px; display:flex; align-items:center; justify-content:center; }
+  .c.h.nx::after { content:""; position:absolute; right:-21px; top:50%; transform:translateY(-50%); width:0; height:0; border-left:10px solid #9aa7c6; border-top:7px solid transparent; border-bottom:7px solid transparent; }
+  .c.u, .c.w, .c.a { border-top:1px dashed var(--bd); }
+  .c.a { border-bottom:2px solid var(--bd); border-radius:0 0 12px 12px; }
+
+  .pill { display:inline-block; font-size:12px; font-weight:800; color:var(--accent); background:var(--tint); border-radius:999px; padding:2px 10px; margin-bottom:7px; }
+  .tx { font-size:14.5px; line-height:1.6; color:var(--ink); }
+  .tx b { font-weight:800; }
+  .api { margin-top:6px; font-family:Consolas,monospace; font-size:11.8px; font-weight:700; color:var(--accent); line-height:1.5; }
+  .na { color:#b5b0a8; font-size:14.5px; }
+
+  .summary { margin-top:24px; background:#fff; color:var(--accent); border:2px solid var(--accent); border-radius:10px; padding:12px 16px; text-align:center; font-size:15px; font-weight:800; }
+</style>
+</head>
+<body>
+<div id="canvas">
+  <h1>처리 흐름</h1>
+  <div class="subtitle">사진을 고른 뒤 상의 영역과 착용 영역을 추출하고, 착용 합성 결과를 저장하는 5단계로 처리합니다.</div>
+  <div id="flow"></div>
+  <div class="summary">2 · 3단계 마스크는 4단계 합성 요청에 포함 &emsp;|&emsp; 합성은 작업 대기열에서 한 번에 한 건씩 처리</div>
+</div>
+
+<script>
+// 단계마다 [이름, 사용자 줄들, 웹 서버 줄들, API들, 모델 추론 서버 줄들]
+const S = [
+  ['사진 선택 · 업로드',
+    ['상의 · 인물 사진 선택', '최근 사진은 재사용'],
+    ['사진 · 썸네일 저장', '최근 24시간 목록 조회'], ['GET /api/images/recent', 'POST /api/images'], null],
+  ['상의 영역 추출',
+    ['상의 사진에 포함 · 제외 점 지정', '마스크 편집기로 수정'],
+    ['추출 요청 전달', '마스크 저장 · 기록'], ['POST /api/extract'],
+    ['<b>SAM2</b> 영역 추출', '점 → 상의 마스크']],
+  ['착용 영역 추출',
+    ['인물 사진에 포함 · 제외 점 지정', '마스크 편집기로 수정'],
+    ['추출 요청 전달', '마스크 저장 · 기록'], ['POST /api/extract'],
+    ['<b>SAM2</b> 영역 추출', '점 → 착용 영역 마스크']],
+  ['착용 합성',
+    ['합성 요청 (2 · 3단계 마스크 포함)', '2초 간격 진행률 확인'],
+    ['작업 대기열 등록', '합성 후처리 · 결과 저장'], ['POST /api/compose', 'GET /api/jobs/{job_id}'],
+    ['<b>AnyDoor</b> 합성', '상의 · 인물 · 착용 영역', '→ 합성 이미지']],
+  ['결과 확인 · 저장',
+    ['사진첩 저장 · 좋아요', '결과 삭제'],
+    ['결과 조회', '저장 · 좋아요 · 삭제 반영'], ['GET /api/results/{id}', 'PATCH /api/results/{id}', 'DELETE /api/results/{id}'], null],
+];
+const lines = a => a.map(t => `<div>${t}</div>`).join('');
+let h = '';
+S.forEach(([name, user, web, api, ai], i) => {
+  h += `<div class="c h ${i < 4 ? 'nx' : ''}"><i>${i + 1}</i><span>${name}</span></div>`;
+  h += `<div class="c u"><span class="pill">사용자</span><div class="tx">${lines(user)}</div></div>`;
+  h += `<div class="c w"><span class="pill">웹 서버</span><div class="tx">${lines(web)}</div><div class="api">${api.join('<br>')}</div></div>`;
+  h += `<div class="c a"><span class="pill">모델 추론 서버</span><div class="tx">${ai ? lines(ai) : '<span class="na">-</span>'}</div></div>`;
+});
+document.getElementById('flow').innerHTML = h;
+</script>
+</body>
+</html>

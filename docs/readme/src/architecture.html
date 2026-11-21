@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>MOA 시스템 아키텍처</title>
+<style>
+  :root { --accent:#2b3a67; --tint:#e9eef6; --beige:#f4f2ee; --ink:#222; --sub:#6b6560; --line:#d9d3c8; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:#ffffff; font-family:"Malgun Gothic","Segoe UI",sans-serif; color:var(--ink); }
+  #canvas { width:1200px; background:var(--beige); padding:34px 36px 30px; }
+
+  h1 { font-size:34px; font-weight:800; letter-spacing:-0.5px; }
+  .subtitle { margin-top:6px; font-size:16px; color:var(--sub); }
+
+  .arch { margin-top:22px; display:grid; grid-template-columns:1fr 128px 1.2fr 128px 1fr; align-items:stretch; }
+  .col { background:#fff; border:2px solid var(--line); border-radius:14px; padding:0 0 14px; display:flex; flex-direction:column; gap:10px; position:relative; }
+  .col .head { padding:12px 14px 10px; border-radius:12px 12px 0 0; }
+  .col .head .name { font-size:17px; font-weight:800; }
+  .col .head .desc { margin-top:3px; font-size:13.5px; }
+  .fe .head { background:var(--tint); color:var(--accent); }
+  .be { border-color:var(--accent); }
+  .be .head { background:var(--tint); color:var(--accent); border-bottom:2px solid var(--accent); }
+  .ai { border-color:var(--accent); }
+  .ai .head { background:#fff; color:var(--accent); border-bottom:2px solid var(--accent); }
+
+  .card { margin:0 12px; background:var(--beige); border:1.5px solid var(--line); border-radius:10px; padding:9px 11px 10px; }
+  .card .t { font-size:15px; font-weight:800; display:flex; align-items:center; gap:7px; }
+  .card ul { margin-top:5px; padding-left:16px; font-size:13.5px; line-height:1.5; color:#3a3633; }
+  .card .api { margin-top:5px; font-size:12.5px; color:var(--accent); font-weight:700; }
+  .card.white { background:#fff; }
+  .note { margin:0 12px; padding:9px 11px; background:var(--tint); border-radius:10px; font-size:13.5px; line-height:1.5; color:#1f2a47; margin-top:auto; }
+
+  .user { margin:12px 12px 0; display:flex; align-items:center; gap:9px; background:#fff; border:2px solid var(--accent); border-radius:10px; padding:8px 11px; font-size:15px; font-weight:800; }
+  .user small { display:block; font-size:12.5px; font-weight:400; color:var(--sub); }
+  .vdown { display:flex; flex-direction:column; align-items:center; margin:-2px 0 -2px; }
+  .vdown b { display:block; width:3px; height:9px; background:var(--accent); }
+  .vdown i { display:block; width:0; height:0; border-left:7px solid transparent; border-right:7px solid transparent; border-top:10px solid var(--accent); }
+
+  .split { margin:0 12px; display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .split .card { margin:0; }
+  .downrow { margin:2px 12px 0; display:grid; grid-template-columns:1fr 1fr; align-items:end; text-align:center; font-size:12.5px; color:var(--accent); font-weight:700; }
+  .downrow .a { display:flex; flex-direction:column; align-items:center; gap:2px; }
+  .downrow .a i { display:block; width:3px; height:14px; background:var(--accent); }
+  .downrow .a em { display:block; width:0; height:0; border-left:7px solid transparent; border-right:7px solid transparent; border-top:10px solid var(--accent); margin-top:-2px; }
+
+  .gap { position:relative; }
+  .arrow { position:absolute; left:6px; right:6px; display:flex; flex-direction:column; align-items:center; text-align:center; }
+  .arrow .lbl { font-size:13.5px; font-weight:800; color:var(--accent); line-height:1.25; }
+  .arrow .lbl small { display:block; font-size:12px; font-weight:400; color:var(--sub); margin-top:1px; }
+  .arrow .bar { position:relative; width:100%; height:3px; background:var(--accent); margin-top:7px; }
+  .arrow.r .bar::after { content:""; position:absolute; right:-2px; top:-6px; border-left:12px solid var(--accent); border-top:7.5px solid transparent; border-bottom:7.5px solid transparent; }
+  .arrow.l .bar::after { content:""; position:absolute; left:-2px; top:-6px; border-right:12px solid var(--accent); border-top:7.5px solid transparent; border-bottom:7.5px solid transparent; }
+
+  .summary { margin-top:22px; background:#fff; color:var(--accent); border:2px solid var(--accent); border-radius:10px; padding:12px 16px; text-align:center; font-size:15.5px; font-weight:800; }
+  svg.ic { width:20px; height:20px; flex:none; }
+</style>
+</head>
+<body>
+<div id="canvas">
+
+  <h1>시스템 아키텍처</h1>
+  <div class="subtitle">화면 · 웹 서버 · 모델 추론 서버를 나눠, 무거운 GPU 연산은 모델 추론 서버가 맡습니다.</div>
+
+  <div class="arch">
+
+    <!-- Frontend -->
+    <div class="col fe">
+      <div class="head"><div class="name">Frontend · React 19 + Vite 6</div><div class="desc">웹 화면, 요청 전송</div></div>
+      <div class="user">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="#2b3a67" stroke-width="2"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>
+        <div>사용자<small>웹 브라우저</small></div>
+      </div>
+      <div class="vdown"><b></b><i></i></div>
+      <div class="card"><div class="t">사진 선택 · 업로드</div><ul><li>상의 · 인물 · 예시 사진</li></ul></div>
+      <div class="card"><div class="t">점 지정 · 마스크 편집기</div><ul><li>포함 · 제외 점 지정</li><li>영역 경계 수정</li></ul></div>
+      <div class="card"><div class="t">합성 요청 · 진행 확인</div><ul><li>착용 영역 지정 후 합성 요청</li><li>2초 간격 진행률 확인</li></ul></div>
+      <div class="card"><div class="t">결과 · 사진첩 · 마이페이지</div><ul><li>저장 · 좋아요 · 프로필</li><li>회원 탈퇴</li></ul></div>
+      <div class="note">로그인 후의 요청에는 로그인 토큰을 포함해 전송</div>
+    </div>
+
+    <!-- FE <-> BE -->
+    <div class="gap">
+      <div class="arrow r" style="top:96px"><div class="lbl">API 요청<small>이미지 · 점 · 마스크</small></div><div class="bar"></div></div>
+      <div class="arrow l" style="top:196px"><div class="lbl">응답<small>결과 · 진행률</small></div><div class="bar"></div></div>
+    </div>
+
+    <!-- Backend -->
+    <div class="col be">
+      <div class="head"><div class="name">Backend · FastAPI 웹 서버</div><div class="desc">인증, 작업 관리, 저장, 합성 후처리</div></div>
+      <div class="card white"><div class="t">REST API</div>
+        <ul><li>로그인 · 회원가입 · 회원 탈퇴</li><li>사진 업로드 · 최근 사진</li><li>영역 추출 요청</li><li>합성 요청 · 진행 확인</li><li>결과 조회 · 사진첩 저장</li></ul>
+      </div>
+      <div class="card white"><div class="t">합성 작업 대기열</div>
+        <ul><li>들어온 순서대로 한 번에 한 건 처리</li><li>진행률 · 대기 순번 제공</li></ul>
+      </div>
+      <div class="card white"><div class="t">합성 후처리</div>
+        <ul><li>원본 복원 (얼굴 · 머리 · 배경)</li><li>경계 색 차이 보정</li></ul>
+      </div>
+      <div class="downrow">
+        <div class="a"><span>기록 저장 · 조회</span><i></i><em></em></div>
+        <div class="a"><span>파일 저장 · 조회</span><i></i><em></em></div>
+      </div>
+      <div class="split">
+        <div class="card"><div class="t">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="#2b3a67" stroke-width="2"><ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3"/></svg>DB</div>
+          <ul><li>SQLite · MySQL</li><li>회원 · 토큰</li><li>사진 · 추출 기록</li><li>작업 · 결과 기록</li></ul></div>
+        <div class="card"><div class="t">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="#2b3a67" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>storage/</div>
+          <ul><li>사진 · 썸네일</li><li>마스크</li><li>결과 이미지</li></ul></div>
+      </div>
+    </div>
+
+    <!-- BE <-> AI -->
+    <div class="gap">
+      <div class="arrow r" style="top:96px"><div class="lbl">추출 · 합성 요청<small>HTTP · 사진 · 마스크</small></div><div class="bar"></div></div>
+      <div class="arrow l" style="top:196px"><div class="lbl">추출 · 합성 결과<small>마스크 · 합성 이미지</small></div><div class="bar"></div></div>
+    </div>
+
+    <!-- 모델 추론 서버 -->
+    <div class="col ai">
+      <div class="head"><div class="name">모델 추론 서버 · GPU</div><div class="desc">SAM2 · AnyDoor를 HTTP로 제공</div></div>
+      <div class="card"><div class="t">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="#2b3a67" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></svg>SAM2 영역 추출</div>
+        <ul><li>점 → 영역 마스크</li><li>응답 약 3초</li></ul><div class="api">POST /extract</div></div>
+      <div class="card"><div class="t">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="#2b3a67" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></svg>AnyDoor 합성</div>
+        <ul><li>상의 · 인물 · 착용 영역 입력</li><li>합성 1건 약 25초</li><li>초해상도 (가중치가 있을 때)</li></ul><div class="api">POST /compose</div></div>
+      <div class="card"><div class="t">모델 적재 · 상태</div>
+        <ul><li>서버 시작 시 모델 적재 · 예열</li><li>준비 상태와 진행률 조회</li></ul><div class="api">GET /health · /progress</div></div>
+      <div class="note">GPU PC의 Docker 컨테이너로 실행<br>PyTorch 2.5.1 · CUDA 12.1<br>모델 서버 주소를 설정하지 않으면 웹 서버가 모델을 직접 실행</div>
+    </div>
+
+  </div>
+
+  <div class="summary">화면: 요청 · 표시 &emsp;|&emsp; 웹 서버: 인증 · 작업 관리 · 저장 · 합성 후처리 &emsp;|&emsp; 모델 추론 서버: GPU 연산</div>
+
+</div>
+</body>
+</html>

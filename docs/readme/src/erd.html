@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>MOA DB 관계도</title>
+<style>
+  :root { --accent:#2b3a67; --tint:#e9eef6; --beige:#f4f2ee; --ink:#222; --sub:#6b6560; --line:#d9d3c8; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:#ffffff; font-family:"Malgun Gothic","Segoe UI",sans-serif; color:var(--ink); }
+  #canvas { width:1200px; background:var(--beige); padding:34px 36px 30px; position:relative; }
+
+  h1 { font-size:34px; font-weight:800; letter-spacing:-0.5px; }
+  .subtitle { margin-top:6px; font-size:16px; color:var(--sub); }
+
+  /* 카드 3열 x 2행 */
+  #grid { margin-top:24px; display:grid; grid-template-columns:repeat(3, 322px); column-gap:70px; row-gap:104px; align-items:stretch; }
+  .tbl { background:#fff; border:2px solid var(--accent); border-radius:12px; overflow:hidden; display:flex; flex-direction:column; }
+  #t_sessions { align-self:start; }
+  .th { background:var(--tint); color:var(--accent); border-bottom:2px solid var(--accent); padding:9px 14px; display:flex; align-items:baseline; gap:10px; }
+  .th b { font-size:17px; font-weight:800; letter-spacing:0.2px; }
+  .th span { font-size:13.5px; color:var(--sub); }
+  .r { display:flex; align-items:center; height:25px; padding:0 12px 0 10px; border-top:1px solid #ece8e0; font-size:13px; gap:8px; }
+  .r:first-of-type { border-top:none; }
+  .r .k { flex:none; width:26px; text-align:center; font-style:normal; font-size:10.5px; font-weight:800; border-radius:4px; padding:1px 0; letter-spacing:.2px; }
+  .r .k.pk { background:var(--accent); color:#fff; }
+  .r .k.fk { background:var(--tint); color:var(--accent); border:1px solid var(--accent); padding:0; }
+  .r .k.uk { background:#fff; color:var(--accent); border:1px solid var(--accent); padding:0; }
+  .r .k.none { visibility:hidden; }
+  .r .n { font-family:Consolas,"Malgun Gothic",monospace; font-size:13px; font-weight:400; color:var(--ink); flex:none; }
+  .r .n.pkn { font-weight:800; }
+  .r .m { margin-left:auto; font-size:12.5px; color:var(--sub); text-align:right; white-space:nowrap; }
+  .r .m.ref { color:var(--accent); font-weight:700; font-size:12px; }
+
+  svg#lines { position:absolute; left:0; top:0; pointer-events:none; }
+  .lbl { position:absolute; transform:translate(-50%,-50%); background:var(--beige); padding:1px 5px; font-size:12.5px; font-weight:800; color:var(--accent); white-space:nowrap; border-radius:4px; }
+
+  .legend { margin-top:26px; background:#fff; border:2px solid var(--line); border-radius:12px; padding:13px 18px 14px; display:grid; grid-template-columns:1fr 1.15fr 1.35fr; column-gap:26px; font-size:13px; line-height:1.7; }
+  .legend h4 { font-size:13.5px; color:var(--accent); font-weight:800; margin-bottom:2px; }
+  .legend .k { display:inline-block; width:26px; text-align:center; font-size:10.5px; font-weight:800; border-radius:4px; margin-right:6px; }
+  .legend .k.pk { background:var(--accent); color:#fff; }
+  .legend .k.fk { background:var(--tint); color:var(--accent); border:1px solid var(--accent); }
+  .legend .k.uk { background:#fff; color:var(--accent); border:1px solid var(--accent); }
+  .legend code { font-family:Consolas,monospace; font-weight:700; color:var(--accent); font-size:12.5px; }
+  .sw { display:inline-block; width:34px; height:0; vertical-align:middle; margin-right:8px; }
+  .sw.solid { border-top:2.5px solid var(--accent); }
+  .sw.dash { border-top:2.5px dashed var(--accent); }
+  .summary { margin-top:16px; background:#fff; color:var(--accent); border:2px solid var(--accent); border-radius:10px; padding:12px 16px; text-align:center; font-size:15.5px; font-weight:800; }
+</style>
+</head>
+<body>
+<div id="canvas">
+  <h1>DB 관계도 (ERD)</h1>
+  <div class="subtitle">테이블 6개와 외래키 12개로 구성되고, 선은 부모 테이블에서 자식 테이블로 향하며 부모 1건에 자식 여러 건이 연결됩니다.</div>
+
+  <div id="grid"></div>
+  <svg id="lines"></svg>
+
+  <div class="legend">
+    <div>
+      <h4>표기</h4>
+      <div><span class="k pk">PK</span>기본키</div>
+      <div><span class="k fk">FK</span>외래키 (<code>→ 부모 테이블 · 삭제 규칙</code>)</div>
+      <div><span class="k uk">UK</span>고유 키</div>
+    </div>
+    <div>
+      <h4>관계선</h4>
+      <div><span class="sw solid"></span><code>1 : N</code> 외래키가 NOT NULL</div>
+      <div><span class="sw dash"></span><code>0..1 : N</code> 외래키가 NULL 허용</div>
+      <div><code>user_id</code>: 모든 테이블이 <code>users</code> 참조, 선 생략</div>
+    </div>
+    <div>
+      <h4>삭제 규칙 (ON DELETE)</h4>
+      <div><code>CASCADE</code> 부모 삭제 시 자식 레코드도 삭제</div>
+      <div><code>SET NULL</code> 부모 삭제 시 해당 컬럼만 NULL로 변경</div>
+      <div><code>NO ACTION</code> 자식이 참조 중인 부모의 삭제 거부</div>
+    </div>
+  </div>
+
+  <div class="summary">업로드 사진 → 영역 추출 → 합성 작업 → 합성 결과 순으로 생성, 모든 테이블이 회원(users)에 연결</div>
+</div>
+
+<script>
+// 컬럼 정의: [키, 이름, 설명 또는 참조]. 키가 fk이면 세 번째 값은 "대상 · 삭제 규칙"
+const T = {
+  users: { ko:'회원', rows:[
+    ['pk','id','회원 번호'], ['uk','username','아이디'], ['','password_hash','비밀번호 해시'],
+    ['','name','이름'], ['','email','이메일'], ['','phone','전화번호'], ['','bio','소개 글'],
+    ['','avatar','프로필 사진 파일명'], ['','created_at','가입 시각'] ]},
+  images: { ko:'업로드 사진', rows:[
+    ['pk','image_id','사진 번호'], ['fk','user_id','→ users · CASCADE'], ['','kind','종류 (상의 · 인물)'],
+    ['','filename','파일명'], ['','thumb','썸네일 파일명'], ['','width','가로 크기'], ['','height','세로 크기'],
+    ['','content_hash','파일 해시'], ['','from_sample','예시 사진 여부'], ['','created_at','업로드 시각'] ]},
+  extractions: { ko:'영역 추출', rows:[
+    ['pk','extraction_id','추출 번호'], ['fk','user_id','→ users · CASCADE'], ['fk','image_id','→ images · CASCADE'],
+    ['','width','가로 크기'], ['','height','세로 크기'], ['','mask','마스크 파일명'],
+    ['','cutout','배경 제거 사진 파일명'], ['','seconds','추출 시간(초)'], ['','detail','지정한 점 · 좌표 (JSON)'],
+    ['','created_at','추출 시각'] ]},
+  sessions: { ko:'로그인 토큰', rows:[
+    ['pk','token_hash','토큰 해시'], ['fk','user_id','→ users · CASCADE'],
+    ['','created_at','발급 시각'], ['','expires_at','만료 시각'] ]},
+  jobs: { ko:'합성 작업', rows:[
+    ['pk','job_id','작업 번호'], ['fk','user_id','→ users · CASCADE'], ['fk','extraction_id','→ extractions · CASCADE'],
+    ['fk','person_image_id','→ images · CASCADE'], ['','status','상태'], ['','progress','진행률'],
+    ['','result_id','완료 결과 번호 (외래키 아님)'], ['','error','실패 정보 (JSON)'],
+    ['','area_mask','착용 영역 마스크 파일명'], ['','garment_mask','다듬은 상의 마스크 파일명'],
+    ['','refine','상의 경계 보정 옵션'], ['','shape_control','영역 모양 유지 옵션'],
+    ['','seed','난수 시드'], ['','created_at','요청 시각'], ['','started_at','시작 시각'], ['','finished_at','종료 시각'] ]},
+  results: { ko:'합성 결과', rows:[
+    ['pk','result_id','결과 번호'], ['fk','user_id','→ users · CASCADE'], ['fk','job_id','→ jobs · SET NULL'],
+    ['fk','extraction_id','→ extractions · SET NULL'], ['fk','garment_image_id','→ images · NO ACTION'],
+    ['fk','person_image_id','→ images · NO ACTION'], ['','saved','사진첩 저장 여부'], ['','favorite','좋아요 여부'],
+    ['','seed','난수 시드'], ['','detail','후처리 정보 (JSON)'], ['','created_at','합성 시각'] ]},
+};
+// 배치: 위 행 users | images | extractions, 아래 행 sessions | jobs | results
+const ORDER = ['users','images','extractions','sessions','jobs','results'];
+
+const grid = document.getElementById('grid');
+for (const name of ORDER) {
+  const t = T[name];
+  const el = document.createElement('div');
+  el.className = 'tbl'; el.id = 't_' + name;
+  let h = `<div class="th"><b>${name}</b><span>${t.ko}</span></div>`;
+  for (const [k, n, m] of t.rows) {
+    const badge = k ? `<i class="k ${k}">${k.toUpperCase()}</i>` : `<i class="k none">PK</i>`;
+    const mc = k === 'fk' ? 'm ref' : 'm';
+    h += `<div class="r" data-col="${n}">${badge}<span class="n ${k==='pk'?'pkn':''}">${n}</span><span class="${mc}">${m}</span></div>`;
+  }
+  el.innerHTML = h;
+  grid.appendChild(el);
+}
+
+function draw() {
+  const canvas = document.getElementById('canvas');
+  const cr = canvas.getBoundingClientRect();
+  const svg = document.getElementById('lines');
+  svg.setAttribute('width', cr.width); svg.setAttribute('height', cr.height);
+  svg.style.width = cr.width + 'px'; svg.style.height = cr.height + 'px';
+  svg.innerHTML = `<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#2b3a67"/></marker></defs>`;
+
+  const box = id => { const r = document.getElementById('t_' + id).getBoundingClientRect(); return {l:r.left-cr.left, r:r.right-cr.left, t:r.top-cr.top, b:r.bottom-cr.top}; };
+  const rowY = (id, col) => { const r = document.querySelector(`#t_${id} .r[data-col="${col}"]`).getBoundingClientRect(); return (r.top + r.bottom) / 2 - cr.top; };
+
+  const B = {}; ORDER.forEach(n => B[n] = box(n));
+  const row1Bottom = Math.max(B.users.b, B.images.b, B.extractions.b);
+  const gy1 = row1Bottom + 30, gy2 = row1Bottom + 62;
+
+  function line(pts, dashed, label) {
+    const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    p.setAttribute('d', 'M' + pts.map(q => q.join(' ')).join(' L'));
+    p.setAttribute('fill', 'none'); p.setAttribute('stroke', '#2b3a67'); p.setAttribute('stroke-width', '2.4');
+    p.setAttribute('stroke-linejoin', 'round');
+    if (dashed) p.setAttribute('stroke-dasharray', '7 5');
+    p.setAttribute('marker-end', 'url(#ah)');
+    svg.appendChild(p);
+    if (label) {
+      const s = document.createElement('div'); s.className = 'lbl'; s.textContent = label.text;
+      s.style.left = label.x + 'px'; s.style.top = label.y + 'px'; canvas.appendChild(s);
+    }
+  }
+  const mid = (a, b) => (a + b) / 2;
+
+  // 회원 -> 로그인 토큰 (세로)
+  { const x = B.users.l + 46; line([[x, B.users.b], [x, B.sessions.t]], false, {text:'1 : N', x, y: mid(B.users.b, B.sessions.t)}); }
+  // 회원 -> 업로드 사진 (가로, 행 단위)
+  { const y1 = rowY('users','id'), y2 = rowY('images','user_id'), xm = mid(B.users.r, B.images.l);
+    line([[B.users.r, y1], [xm, y1], [xm, y2], [B.images.l, y2]], false, {text:'1 : N', x: xm, y: y1 - 15}); }
+  // 업로드 사진 -> 영역 추출
+  { const y1 = rowY('images','image_id'), y2 = rowY('extractions','image_id'), xm = mid(B.images.r, B.extractions.l);
+    line([[B.images.r, y1], [xm, y1], [xm, y2], [B.extractions.l, y2]], false, {text:'1 : N', x: xm, y: y1 - 15}); }
+  // 업로드 사진 -> 합성 작업 (인물 사진, 세로)
+  { const x = B.images.l + 46; line([[x, B.images.b], [x, B.jobs.t]], false, {text:'1 : N', x, y: mid(B.images.b, B.jobs.t)}); }
+  // 업로드 사진 -> 합성 결과 (상의 · 인물 사진)
+  { const x1 = B.images.r - 46, x2 = B.results.l + 46;
+    line([[x1, B.images.b], [x1, gy1], [x2, gy1], [x2, B.results.t]], false, {text:'1 : N', x: mid(x1, x2), y: gy1}); }
+  // 영역 추출 -> 합성 작업 (상의 추출)
+  { const x1 = B.extractions.l + 110, x2 = B.jobs.r - 110;
+    line([[x1, B.extractions.b], [x1, gy2], [x2, gy2], [x2, B.jobs.t]], false, {text:'1 : N', x: mid(x1, x2), y: gy2}); }
+  // 영역 추출 -> 합성 결과 (NULL 허용, 세로)
+  { const x = B.extractions.r - 46; line([[x, B.extractions.b], [x, B.results.t]], true, {text:'0..1 : N', x, y: mid(B.extractions.b, B.results.t)}); }
+  // 합성 작업 -> 합성 결과 (NULL 허용, 가로 행 단위)
+  { const y1 = rowY('jobs','job_id'), y2 = rowY('results','job_id'), xm = mid(B.jobs.r, B.results.l);
+    line([[B.jobs.r, y1], [xm, y1], [xm, y2], [B.results.l, y2]], true, {text:'0..1 : N', x: xm, y: y1 - 15}); }
+}
+document.fonts.ready.then(() => requestAnimationFrame(draw));
+</script>
+</body>
+</html>

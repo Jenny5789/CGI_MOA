@@ -4,7 +4,7 @@
 
 - 역할: 프론트엔드 요청 처리 (로그인, 이미지 업로드, 상의 영역 추출 SAM2, 이미지 합성 AnyDoor, 합성 결과 관리)
 - API 명세: [docs/api.md](../docs/api.md)
-- 실행 방법: [README 7-3. 백엔드 서버 실행](../README.md#7-3-백엔드-서버-실행)
+- 실행 방법: [docs/setup.md 3. 백엔드 서버 실행](../docs/setup.md#3-백엔드-서버-실행)
 - 도커로 실행: [docs/docker.md](../docs/docker.md)
 
 ## 2. 파일 구성
@@ -30,7 +30,7 @@
 | 이름 | 용도 | 기본값 | 설정 위치 |
 |---|---|---|---|
 | `DATABASE_URL` | MySQL 접속 정보 | 없음 (필수) | `backend/.env` ([database.md 2-3. 접속 설정 파일 생성](../docs/database.md#2-3-접속-설정-파일-생성)) |
-| `ANYDOOR_DIR` | AnyDoor 폴더 위치 | `Desktop\AnyDoor` | conda 환경에 저장: `conda env config vars set ANYDOOR_DIR=경로 -n CGI`, [README 7-2. 설치 5단계](../README.md#7-2-설치) |
+| `ANYDOOR_DIR` | AnyDoor 폴더 위치 | `Desktop\AnyDoor` | conda 환경에 저장: `conda env config vars set ANYDOOR_DIR=경로 -n CGI`, [docs/setup.md 2. 설치 5단계](../docs/setup.md#2-설치) |
 | `ANYDOOR_CKPT` | AnyDoor 합성 가중치 파일. `scripts/convert_weights_fp16.py`로 만든 16비트 추론용 파일 4.9GB 지정 시 적재 시간·RAM 감소 | 비움, AnyDoor `configs/inference.yaml`의 원본 16.8GB | conda 환경에 저장: `conda env config vars set ANYDOOR_CKPT=경로 -n CGI` |
 | `MODEL_SERVER_URL` | 모델 추론 서버 주소. 설정 시 이미지 분할·합성을 HTTP로 요청하고 이 서버는 모델 미적재, 비우면 이 서버에서 직접 실행. `backend/model_client.py`, [model_server/README.md](../model_server/README.md) | 비움, 직접 실행 | 실행 전 PowerShell `$env:MODEL_SERVER_URL="http://주소:8100"` |
 | `MODEL_TOKEN` | 모델 서버 요청 토큰. 모델 서버의 `MODEL_TOKEN`과 같은 값 | 비움 | 실행 전 PowerShell `$env:MODEL_TOKEN="값"` |
