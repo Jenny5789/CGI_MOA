@@ -2,7 +2,7 @@
 
 - 대상: Python 가상환경(conda)에 직접 설치해 개발 서버를 실행하는 절차
 - Docker로 한 번에 실행: [local/README.md](../local/README.md)
-- 요구 사양: [README 7. 설치 및 실행](../README.md#7-설치-및-실행)
+- 요구 사양: [README 8. 설치 및 실행](../README.md#8-설치-및-실행)
 - 설치 오류 조치: [개발 환경 참고](environment.md#2-설치-오류별-조치)
 
 ## 1. 용어
