@@ -175,6 +175,7 @@ sequenceDiagram
     B->>A: SAM2 영역 추출
     A-->>B: 상의 마스크
     B->>S: 마스크 저장
+    F-->>U: 상의 영역 표시
     Note over U,S: 3. 착용 영역 추출 (인물 사진, 2단계와 같은 흐름)
     U->>F: 인물 사진에 점 지정
     F->>B: POST /api/extract
@@ -190,8 +191,10 @@ sequenceDiagram
     B->>S: 결과 저장
     Note over U,S: 5. 결과 확인 · 저장
     F->>B: GET /api/results/{id}
+    F-->>U: 결과 사진 표시
     U->>F: 사진첩 저장 · 좋아요
     F->>B: PATCH /api/results/{id}
+    F-->>U: 저장 · 좋아요 반영
 ```
 
 <details>
@@ -215,11 +218,13 @@ sequenceDiagram
     F->>B: 1-1. GET /api/images/recent
     B->>S: 1-2. images 조회
     B-->>F: 1-3. 최근 사용한 사진 목록 (24시간)
+    F-->>U: 1-3a. 최근 사용한 사진 목록 표시
     U->>F: 1-4. 상의 사진 · 인물 사진 선택
     alt 새 사진 · 예시 사진 선택
         F->>B: 1-5. POST /api/images
         B->>S: 1-6. 사진 파일 저장, images 기록
         B-->>F: 1-7. image_id
+        F-->>U: 1-7a. 선택한 사진 표시
     else 최근 사용한 사진 선택
         Note over F: 기존 image_id 사용, 업로드 생략
     end
@@ -243,6 +248,7 @@ sequenceDiagram
     A-->>B: 2-4. 상의 마스크
     B->>S: 2-5. 마스크 파일 저장, extractions 기록
     B-->>F: 2-6. 상의 마스크
+    F-->>U: 2-6a. 상의 영역 표시
     U->>F: 2-7. 마스크 편집기로 수정
 ```
 
@@ -264,6 +270,7 @@ sequenceDiagram
     A-->>B: 3-4. 착용 영역 마스크
     B->>S: 3-5. 마스크 파일 저장, extractions 기록
     B-->>F: 3-6. 착용 영역 마스크
+    F-->>U: 3-6a. 착용 영역 표시
     U->>F: 3-7. 마스크 편집기로 수정
 ```
 
@@ -283,10 +290,12 @@ sequenceDiagram
     F->>B: 4-2. POST /api/compose (착용 영역 마스크)
     B->>S: 4-3. 착용 영역 마스크 저장, jobs 기록
     B-->>F: 4-4. job_id, 대기 순번
+    F-->>U: 4-4a. 대기 순번 표시
     B->>A: 4-5. AnyDoor 합성, 합성 후처리
     loop 2초 간격
         F->>B: 4-6. GET /api/jobs/{job_id}
         B-->>F: 4-7. 진행률 · 대기 순번 (완료 시 result_id)
+        F-->>U: 4-7a. 진행률 표시
     end
     A-->>B: 4-8. 합성 결과
     B->>S: 4-9. 결과 파일 저장, results 기록, jobs 완료 처리
@@ -305,9 +314,12 @@ sequenceDiagram
     end
     F->>B: 5-1. GET /api/results/{result_id}
     B-->>F: 5-2. 결과 사진
+    F-->>U: 5-2a. 결과 사진 표시
     U->>F: 5-3. 사진첩 저장 · 좋아요
     F->>B: 5-4. PATCH /api/results/{result_id}
     B->>S: 5-5. results 저장·좋아요 갱신
+    B-->>F: 5-6. 변경된 결과
+    F-->>U: 5-7. 저장 · 좋아요 반영
 ```
 
 </details>
@@ -337,6 +349,13 @@ sequenceDiagram
 
 ### 5-3. 계정 · 사진첩 · 마이페이지
 
+- 회원 인증 · 작업 기록 · 사진첩 · 마이페이지(프로필 · 계정 관리)
+- 계정 API: [docs/api.md](docs/api.md#2-계정-관리-api)
+
+<details>
+<summary><b>기능 목록 보기</b></summary>
+<br>
+
 | 기능 | 내용 |
 |---|---|
 | 계정 | 회원가입·로그인·로그아웃·로그인 연장, 비밀번호 해시 저장, 토큰 인증 |
@@ -349,7 +368,7 @@ sequenceDiagram
 | 설정 | 합성 완료 브라우저 알림 (이 브라우저에만 저장) |
 | 고객센터 | 자주 묻는 질문 7개, 이메일 문의 연결 |
 
-- 계정 API: [docs/api.md](docs/api.md#2-계정-관리-api)
+</details>
 
 ---
 
@@ -412,6 +431,10 @@ sequenceDiagram
 
 ## 8. 설치 및 실행
 
+<details>
+<summary><b>설치 및 실행 방법 보기</b></summary>
+<br>
+
 - Docker로 한 번에 실행: NVIDIA GPU가 있는 PC 한 대에서 가중치 받기와 실행 명령 두 줄로 전체 서비스 실행, [local/README.md](local/README.md), 구성 설명: [docs/docker.md](docs/docker.md)
 - Python 가상환경에 직접 설치하는 개발용 절차: [docs/setup.md](docs/setup.md)
 
@@ -425,9 +448,24 @@ sequenceDiagram
 | 지원 화면 크기 | 데스크톱 1440px, 모바일 375px 반응형 |
 | 설치 오류 조치 | [설치 오류별 조치](docs/environment.md#2-설치-오류별-조치) |
 
+</details>
+
 ---
 
 ## 9. 디렉터리 구성
+
+```
+CGI_MOA/
+├── frontend/       React 웹 화면 (Vite)
+├── backend/        FastAPI 서버: DB 테이블 정의, API 라우터
+├── features/       AI 모듈: SAM2 영역 추출, AnyDoor 합성
+├── model_server/   GPU 모델 추론 서버와 Docker 구성
+└── docs/           문서: API · DB 명세, 작업일지
+```
+
+<details>
+<summary><b>전체 디렉터리 구성과 저장소 제외 항목 보기</b></summary>
+<br>
 
 ```
 CGI_MOA/
@@ -447,7 +485,7 @@ CGI_MOA/
 └── docs/                            문서 (10장 참고), readme/는 README 그림과 원본 (readme/src/)
 ```
 
-### 9-1. 저장소 제외 항목
+**저장소 제외 항목**
 
 | 항목 | 내용 | 사유 |
 |---|---|---|
@@ -457,17 +495,17 @@ CGI_MOA/
 | `Dataset/`, VITON-HD | 학습 데이터셋 | 대용량 · 연구용 라이선스 |
 | `CGI/`, `venv/` | Python 가상환경 | 개인 환경 |
 
+</details>
+
 ---
 
 ## 10. 관련 문서
 
 | 목적 | 문서 |
 |---|---|
-| API · DB | [docs/api.md](docs/api.md), [docs/database.md](docs/database.md) |
-| 설치 · 실행 | [docs/setup.md](docs/setup.md), [docs/docker.md](docs/docker.md), [local/README.md](local/README.md), [deploy/README.md](deploy/README.md) |
-| 화면 · 서버 · AI 모듈 | [frontend](frontend/README.md), [backend](backend/README.md), [object_extraction](features/object_extraction/README.md), [composition](features/composition/README.md), [model_server](model_server/README.md) |
-| 학습 · 환경 점검 | [scripts](scripts/README.md), [AnyDoor 재학습](scripts/retrain/README.md) (팀원 진행) |
-| 작업 기록 · 규칙 | [최이재](docs/작업일지.md), [서지섭](docs/작업일지_서지섭.md), [CLAUDE.md](CLAUDE.md) |
+| API · DB 명세 | [docs/api.md](docs/api.md), [docs/database.md](docs/database.md) |
+| 설치 · 실행 | [docs/setup.md](docs/setup.md), [docs/docker.md](docs/docker.md) |
+| 작업 기록 | [최이재](docs/작업일지.md), [서지섭](docs/작업일지_서지섭.md) |
 
 ---
 
@@ -481,15 +519,6 @@ CGI_MOA/
 | VITON-HD | [shadow2496/VITON-HD](https://github.com/shadow2496/VITON-HD) | 연구용 | 추출 정확도 평가, AnyDoor 재학습 데이터. Repository 미포함 |
 
 - AnyDoor는 [ControlNet](https://github.com/lllyasviel/ControlNet) 코드 기반
-
-```bibtex
-@article{chen2023anydoor,
-  title={Anydoor: Zero-shot object-level image customization},
-  author={Chen, Xi and Huang, Lianghua and Liu, Yu and Shen, Yujun and Zhao, Deli and Zhao, Hengshuang},
-  journal={arXiv preprint arXiv:2307.09481},
-  year={2023}
-}
-```
 
 ---
 
