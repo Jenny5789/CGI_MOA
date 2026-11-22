@@ -56,7 +56,34 @@
 
 ---
 
-## 2. 합성 결과
+## 2. 주요 화면
+
+### 2-1. 합성하기 단계
+
+<table>
+<tr>
+<td width="50%" valign="top">
+<img src="docs/readme/moa_screen_login.jpg" alt="로그인" width="100%">
+<p align="center"><b>로그인</b></p>
+</td>
+<td width="50%" valign="top">
+<img src="docs/readme/moa_screen_step1.jpg" alt="1단계 상의 사진 선택" width="100%">
+<p align="center"><b>1단계 · 상의 사진 선택</b></p>
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+<img src="docs/readme/moa_screen_step2.jpg" alt="2단계 인물 사진 선택" width="100%">
+<p align="center"><b>2단계 · 인물 사진 선택</b></p>
+</td>
+<td width="50%" valign="top">
+<img src="docs/readme/moa_screen_step3.jpg" alt="3단계 상의 영역 지정" width="100%">
+<p align="center"><b>3단계 · 상의 영역 지정</b><br>왼쪽 클릭 포함 점(검정), 오른쪽 클릭 제외 점(빨강)</p>
+</td>
+</tr>
+</table>
+
+### 2-2. 합성 결과
 
 <p align="center">
   <img src="docs/readme/moa_before_after.jpg" alt="상의 사진, 인물 사진, 합성 결과" width="100%">
